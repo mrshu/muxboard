@@ -1,0 +1,33 @@
+[
+  {
+    "provider": "claude",
+    "source": "web",
+    "version": "2.1.183",
+    "usage": {
+      "primary": {
+        "usedPercent": 3,
+        "resetsAt": "2026-06-20T13:20:00Z",
+        "windowMinutes": 300,
+        "resetDescription": "Jun 20 at 3:20PM"
+      },
+      "secondary": {
+        "usedPercent": 0,
+        "resetsAt": "2026-06-25T14:00:00Z",
+        "windowMinutes": 10080,
+        "resetDescription": "Jun 25 at 4:00PM"
+      },
+      "tertiary": {
+        "usedPercent": 0,
+        "resetsAt": "2026-06-25T14:00:00Z",
+        "windowMinutes": 10080
+      },
+      "identity": {
+        "accountEmail": "anthropic@example.com",
+        "providerID": "claude",
+        "loginMethod": "Claude Max"
+      },
+      "updatedAt": "2026-06-20T12:09:23Z",
+      "loginMethod": "Claude Max"
+    }
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "provider": "codex",
+    "source": "oauth",
+    "account": "openai@example.com",
+    "primary": {
+      "usedPercent": 1,
+      "resetDescription": "7:08 PM",
+      "resetsAt": "2026-06-20T17:08:26Z",
+      "windowMinutes": 300
+    },
+    "secondary": {
+      "usedPercent": 25,
+      "resetDescription": "Jun 24 at 11:27 PM",
+      "resetsAt": "2026-06-24T21:27:00Z",
+      "windowMinutes": 10080
+    },
+    "tertiary": null,
+    "identity": {
+      "accountEmail": "openai@example.com",
+      "providerID": "codex",
+      "loginMethod": "prolite"
+    },
+    "usage": {
+      "loginMethod": "prolite",
+      "updatedAt": "2026-06-20T12:09:02Z"
+    },
+    "updatedAt": "2026-06-20T12:09:02Z",
+    "dataConfidence": "exact"
+  }
+]

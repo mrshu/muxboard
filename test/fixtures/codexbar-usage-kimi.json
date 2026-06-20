@@ -1,0 +1,11 @@
+[
+  {
+    "error": {
+      "message": "Kimi auth token is invalid or expired. Please refresh your token.",
+      "code": 1,
+      "kind": "provider"
+    },
+    "source": "auto",
+    "provider": "kimi"
+  }
+]

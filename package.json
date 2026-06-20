@@ -12,7 +12,7 @@
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --import tsx test/",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "preview": "tsx scripts/preview.ts",
     "validate": "tsx scripts/validate.ts",
     "dev": "bash scripts/dev.sh"

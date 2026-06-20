@@ -1,0 +1,57 @@
+[
+  {
+    "id": "015D0B50-037D-451A-BEB5-A79D4D0E0582",
+    "title": "Claude Code",
+    "subtitle": "",
+    "body": "Claude needs your permission to run a command",
+    "is_read": true,
+    "workspace_id": "6ECA42AE-78F8-4CD4-8304-93318D3CDB65",
+    "surface_id": "4F5A8945-2AC3-440B-B27A-C56DB2B3A352",
+    "tab_title": "RCJ Scoreboard",
+    "created_at": "2026-06-20T11:59:46Z"
+  },
+  {
+    "id": "47F0A4C9-EFA8-42E3-9A72-EA48AEE64657",
+    "title": "Claude Code",
+    "subtitle": "",
+    "body": "Claude is waiting for your input",
+    "is_read": true,
+    "workspace_id": "AEEAE30E-2F47-453A-A836-9F449716C7C8",
+    "surface_id": "1FDC06E5-BAFE-44A8-BF73-03D94DF07585",
+    "tab_title": "RoboCup CMS",
+    "created_at": "2026-06-20T11:45:46Z"
+  },
+  {
+    "id": "C0DE0001-0000-0000-0000-000000000001",
+    "title": "Codex CLI",
+    "subtitle": "",
+    "body": "Task failed: build error in src/index.ts",
+    "is_read": false,
+    "workspace_id": "C0DEC0DE-0000-0000-0000-0000000C0DEC",
+    "surface_id": "5URFACE0-0000-0000-0000-0000000C0DE1",
+    "tab_title": "~/w/d/r/codex-playground",
+    "created_at": "2026-06-20T12:05:00Z"
+  },
+  {
+    "id": "P1000001-0000-0000-0000-000000000001",
+    "title": "pi-agent",
+    "subtitle": "",
+    "body": "Run complete: 12 files changed, tests passing",
+    "is_read": false,
+    "workspace_id": "P1P1P1P1-0000-0000-0000-0000000P1P11",
+    "surface_id": "5URFACE1-0000-0000-0000-0000000P1P12",
+    "tab_title": "pizza-service",
+    "created_at": "2026-06-20T12:01:30Z"
+  },
+  {
+    "id": "B41DC6BF-0EA9-44FB-B009-B754912B8029",
+    "title": "fieldtheory-cli",
+    "subtitle": "",
+    "body": "Ran the update again: 3 new bookmarks synced, 9260 total",
+    "is_read": true,
+    "workspace_id": "5A1A04C5-9FF8-4445-ACD7-E10E482E9DEB",
+    "surface_id": "5CD1422F-8436-4956-9956-712091C179D0",
+    "tab_title": "fieldtheory-cli",
+    "created_at": "2026-06-19T00:58:22Z"
+  }
+]

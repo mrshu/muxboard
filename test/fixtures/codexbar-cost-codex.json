@@ -1,0 +1,9 @@
+[
+  {
+    "daily": [
+      { "date": "2026-06-19", "totalCost": 13.011529, "totalTokens": 1000 },
+      { "date": "2026-06-20", "totalCost": 4.20, "totalTokens": 500 },
+      { "date": "2026-06-18", "totalCost": 70.95, "totalTokens": 2000 }
+    ]
+  }
+]
