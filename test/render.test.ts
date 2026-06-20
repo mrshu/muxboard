@@ -28,7 +28,7 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.match(svg, /<svg/);
   assert.match(svg, />X<\/text>/); // codex glyph
   assert.match(svg, /FAILED/); // reason
-  assert.match(svg, /codex-playgr/); // repo (shortened)
+  assert.match(svg, /codex-playg/); // repo (path-stripped + shortened)
   assert.match(svg, /stroke-width="8"/); // failed -> strongest border
 });
 

@@ -25,8 +25,8 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const a = agentTheme(item.agent);
   const r = reasonTheme(item.reason);
   const age = formatAge(item.createdAt, opts.nowMs);
-  const repo = escapeXml(shortName(item.repo ?? item.title, 13));
-  const hint = escapeXml(shortName(stripBody(item.body), 16));
+  const repo = escapeXml(shortName(item.repo ?? item.title, 12));
+  const hint = escapeXml(shortName(stripBody(item.body), 18));
   const S = KEY_SIZE;
 
   // Failed gets a full colored border; blocked/waiting a thinner one.
@@ -51,9 +51,8 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     <text x="${S - 14}" y="38" font-size="22" font-weight="600" text-anchor="end" fill="${a.fg}">${escapeXml(age)}</text>
     <rect x="14" y="62" width="${S - 28}" height="34" rx="8" fill="${r.color}" opacity="${r.urgency >= 1 ? 1 : 0.5}"/>
     <text x="${S / 2}" y="85" font-size="22" font-weight="800" text-anchor="middle" fill="#10100f" letter-spacing="1">${escapeXml(r.label)}</text>
-    <text x="14" y="120" font-size="20" font-weight="700" fill="${a.fg}">${repo}</text>
-    <text x="14" y="138" font-size="15" fill="${a.fg}" opacity="0.7">${hint}</text>
-    <text x="${S - 12}" y="138" font-size="14" text-anchor="end" fill="${a.fg}" opacity="0.4">${opts.slotNumber}</text>
+    <text x="14" y="119" font-size="18" font-weight="700" fill="${a.fg}">${repo}</text>
+    <text x="14" y="137" font-size="14" fill="${a.fg}" opacity="0.7">${hint}</text>
   </g>
 </svg>`;
 }
