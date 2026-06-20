@@ -40,26 +40,34 @@ test("renderEmptyKey and renderCmuxOffline produce valid muted SVGs", () => {
   assert.match(offline, /offline/);
 });
 
-test("renderLcdSegments shows session, weekly, route, and spend", () => {
-  const usage = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
-  usage.costTodayEur = 4.2;
-  const [session, weekly, route, cost] = renderLcdSegments(usage, { nowMs: NOW_MS, stale: false });
-  assert.match(session, /SESSION/);
-  assert.match(session, /99%/); // 100 - usedPercent
-  assert.match(weekly, /WEEKLY/);
-  assert.match(weekly, /75%/);
-  assert.match(route, /STATUS/);
-  assert.match(route, /OK/);
-  assert.match(cost, /€4\.20/);
+test("renderLcdSegments shows one provider per segment, all at a glance", () => {
+  const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
+  codex.costTodayEur = 4.2;
+  const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
+  const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
+
+  const [s0, s1, s2, s3] = renderLcdSegments([codex, claude, kimi, undefined], {
+    nowMs: NOW_MS,
+    stale: false,
+  });
+  // codex: name + session 99% left + weekly 75% left + cost
+  assert.match(s0, /CODEX/);
+  assert.match(s0, /99%/);
+  assert.match(s0, /75%/);
+  assert.match(s0, /€4\.20/);
+  // claude visible in its own segment
+  assert.match(s1, /CLAUDE/);
+  assert.match(s1, /97%/);
+  // kimi (error) shows offline
+  assert.match(s2, /KIMI/);
+  assert.match(s2, /offline/);
+  // empty slot is muted
+  assert.match(s3, /—/);
 });
 
-test("route/cost segments reflect offline + stale states", () => {
-  const offlineSegs = renderLcdSegments(undefined, { nowMs: NOW_MS, stale: false });
-  assert.match(offlineSegs[2], /OFF/);
-  assert.match(offlineSegs[3], /CodexBar off/);
-
-  const usage = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
-  const staleSegs = renderLcdSegments(usage, { nowMs: NOW_MS, stale: true });
-  assert.match(staleSegs[0], /STALE/);
-  assert.equal(routeStatus(usage, true), "STALE");
+test("provider segment marks stale data", () => {
+  const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
+  const [seg] = renderLcdSegments([codex], { nowMs: NOW_MS, stale: true });
+  assert.match(seg, /stale/);
+  assert.equal(routeStatus(codex, true), "STALE");
 });

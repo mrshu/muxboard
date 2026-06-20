@@ -32,7 +32,6 @@ export class Store {
       cmuxOffline: false,
       usage: {},
       providers: providers.length > 0 ? [...providers] : ["codex"],
-      providerIndex: 0,
       codexbarUpdatedAtMs: null,
       codexbarOffline: false,
     };
@@ -118,23 +117,5 @@ export class Store {
     this.state = { ...this.state, filter: "all", offset: 0 };
     this.recompute();
     this.emit();
-  }
-
-  // ---- dial 3: provider selection ------------------------------------------
-  cycleProvider(dir: 1 | -1): void {
-    const n = this.state.providers.length;
-    if (n <= 1) return;
-    const providerIndex = (this.state.providerIndex + dir + n) % n;
-    this.state = { ...this.state, providerIndex };
-    this.emit();
-  }
-
-  /** The provider currently shown on the LCD. */
-  currentProvider(): string {
-    return this.state.providers[this.state.providerIndex] ?? this.state.providers[0] ?? "codex";
-  }
-
-  currentUsage(): ProviderUsage | undefined {
-    return this.state.usage[this.currentProvider()];
   }
 }

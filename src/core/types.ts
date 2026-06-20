@@ -80,10 +80,8 @@ export interface AppState {
   cmuxOffline: boolean;
   /** CodexBar usage per provider, keyed by provider id. */
   usage: Record<string, ProviderUsage>;
-  /** Providers in cycle order (dial 3). */
+  /** Providers shown across the LCD segments, in display order. */
   providers: string[];
-  /** Index into providers for the LCD (dial 3). */
-  providerIndex: number;
   /** Epoch ms of the last successful CodexBar refresh. */
   codexbarUpdatedAtMs: number | null;
   /** True when CodexBar serve is unreachable. */

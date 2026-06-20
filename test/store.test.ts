@@ -31,13 +31,9 @@ test("agent filter narrows items and resets offset", () => {
   assert.equal(store.getState().filter, "all");
 });
 
-test("provider cycling wraps and selects current usage", () => {
-  const store = new Store(["codex", "claude"]);
-  assert.equal(store.currentProvider(), "codex");
-  store.cycleProvider(1);
-  assert.equal(store.currentProvider(), "claude");
-  store.cycleProvider(1);
-  assert.equal(store.currentProvider(), "codex");
+test("providers are kept in display order for the LCD segments", () => {
+  const store = new Store(["codex", "claude", "minimax", "kimi"]);
+  assert.deepEqual(store.getState().providers, ["codex", "claude", "minimax", "kimi"]);
 });
 
 test("scroll offset only moves when there are >8 items", () => {

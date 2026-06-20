@@ -1,0 +1,14 @@
+[
+  {
+    "provider": "minimax",
+    "source": "api",
+    "usage": {
+      "primary": { "windowMinutes": 300, "resetDescription": "Resets in 2 hours", "resetsAt": "2026-06-20T15:00:00Z", "usedPercent": 2 },
+      "secondary": { "windowMinutes": 10080, "resetDescription": "Unlimited", "usedPercent": 0 },
+      "tertiary": null,
+      "updatedAt": "2026-06-20T12:09:27Z",
+      "identity": { "providerID": "minimax", "loginMethod": "Plus" },
+      "loginMethod": "Plus"
+    }
+  }
+]

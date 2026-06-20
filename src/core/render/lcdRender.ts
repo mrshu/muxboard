@@ -30,34 +30,46 @@ function bar(x: number, y: number, w: number, h: number, usedPercent: number): s
     <rect x="${x}" y="${y}" width="${fillW}" height="${h}" rx="${h / 2}" fill="${color}"/>`;
 }
 
-/**
- * Segment 1 / 2: a single usage window (session or weekly) with a percent,
- * a gauge, and a reset countdown.
- */
-export function renderUsageSegment(
-  heading: string,
-  win: UsageWindow | undefined,
-  ctx: LcdRenderContext,
-): string {
+/** One quota row (session or weekly): label, gauge, and % remaining. */
+function quotaRow(y: number, label: string, win: UsageWindow | undefined): string {
   if (!win) {
-    return segFrame(
-      `<text x="14" y="30" font-size="17" font-weight="700" fill="#9aa0aa">${escapeXml(heading)}</text>
-       <text x="14" y="64" font-size="20" fill="#666c76">no data</text>`,
-    );
+    return `<text x="12" y="${y}" font-size="13" fill="#5a606a">${label}  —</text>`;
   }
   const used = win.usedPercent;
-  const remaining = formatPercent(win.remainingPercent);
-  const reset = formatCountdown(win.resetsAt, ctx.nowMs);
-  const staleTag = ctx.stale
-    ? `<text x="${SEG_W - 12}" y="30" font-size="13" text-anchor="end" fill="#ffb02e">STALE</text>`
-    : "";
+  return `<text x="12" y="${y}" font-size="13" font-weight="700" fill="#aeb4be">${label}</text>
+    ${bar(30, y - 9, 116, 9, used)}
+    <text x="${SEG_W - 12}" y="${y}" font-size="14" font-weight="700" text-anchor="end" fill="${usageColor(used)}">${formatPercent(win.remainingPercent)}</text>`;
+}
+
+/**
+ * One LCD segment = one CodexBar provider, at a glance: name (colored by
+ * health), today's spend, session + weekly gauges, and the session reset.
+ */
+export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: LcdRenderContext): string {
+  if (!usage) {
+    return segFrame(`<text x="14" y="32" font-size="15" fill="#3a3d44">—</text>`, "#16181c");
+  }
+  const name = shortProvider((usage.provider || "?").toUpperCase());
+  const nameColor = ROUTE_COLOR[routeStatus(usage, ctx.stale)];
+
+  if (!usage.ok) {
+    return segFrame(
+      `<text x="12" y="26" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
+       <text x="12" y="58" font-size="17" font-weight="700" fill="#ff7a7a">offline</text>
+       ${usage.error ? `<text x="12" y="80" font-size="11" fill="#8a909a">${escapeXml(shortError(usage.error))}</text>` : ""}`,
+      "#7d3b3b",
+    );
+  }
+
+  const cost = usage.costTodayEur !== undefined ? formatEur(usage.costTodayEur) : "";
+  const resetLine = `reset ${formatCountdown(usage.session?.resetsAt, ctx.nowMs)}${ctx.stale ? " · stale" : ""}`;
   return segFrame(
-    `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">${escapeXml(heading)}</text>
-     ${staleTag}
-     <text x="14" y="62" font-size="30" font-weight="800" fill="${usageColor(used)}">${remaining}</text>
-     <text x="${SEG_W - 12}" y="62" font-size="16" text-anchor="end" fill="#aeb4be">left</text>
-     ${bar(14, 72, SEG_W - 28, 10, used)}
-     <text x="14" y="96" font-size="13" fill="#aeb4be">reset ${escapeXml(reset)}</text>`,
+    `<text x="12" y="24" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
+     ${cost ? `<text x="${SEG_W - 12}" y="23" font-size="13" text-anchor="end" fill="#aeb4be">${escapeXml(cost)}</text>` : ""}
+     ${quotaRow(50, "S", usage.session)}
+     ${quotaRow(72, "W", usage.weekly)}
+     <text x="12" y="92" font-size="12" fill="#8a909a">${escapeXml(resetLine)}</text>`,
+    nameColor,
   );
 }
 
@@ -80,49 +92,20 @@ const ROUTE_COLOR: Record<RouteStatus, string> = {
 };
 
 /** Segment 3: provider identity + status/health pill. */
-export function renderRouteSegment(usage: ProviderUsage | undefined, stale: boolean): string {
-  const status = routeStatus(usage, stale);
-  const color = ROUTE_COLOR[status];
-  const provider = (usage?.provider ?? "codexbar").toUpperCase();
-  return segFrame(
-    `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">STATUS</text>
-     <text x="${SEG_W - 12}" y="30" font-size="14" text-anchor="end" fill="#aeb4be">${escapeXml(shortProvider(provider))}</text>
-     <rect x="14" y="44" width="${SEG_W - 28}" height="40" rx="8" fill="${color}" opacity="0.18"/>
-     <text x="${SEG_W / 2}" y="72" font-size="28" font-weight="800" text-anchor="middle" fill="${color}" letter-spacing="2">${status}</text>`,
-    color,
-  );
-}
-
-/** Segment 4: today's spend, or a fallback (offline / stale / error). */
-export function renderCostSegment(usage: ProviderUsage | undefined, ctx: LcdRenderContext): string {
-  if (!usage || !usage.ok) {
-    const msg = usage?.error ? shortError(usage.error) : "CodexBar off";
-    return segFrame(
-      `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">SPEND</text>
-       <text x="14" y="66" font-size="20" font-weight="700" fill="#ff7a7a">${escapeXml(msg)}</text>`,
-      "#7d3b3b",
-    );
-  }
-  const cost = formatEur(usage.costTodayEur);
-  const staleLine = ctx.stale ? "data stale" : "today";
-  return segFrame(
-    `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">SPEND</text>
-     <text x="14" y="68" font-size="34" font-weight="800" fill="#e6e8ec">${escapeXml(cost)}</text>
-     <text x="14" y="92" font-size="14" fill="#aeb4be">${escapeXml(staleLine)}</text>`,
-    ctx.stale ? "#ffb02e" : "#222831",
-  );
-}
-
 /**
- * Render all four segments for a provider in display order:
- * [session, weekly, route, cost].
+ * Render the four touch-strip segments — one CodexBar provider per dial, so all
+ * providers are visible at a glance. `usages` is taken in display order; missing
+ * entries render as muted blanks.
  */
-export function renderLcdSegments(usage: ProviderUsage | undefined, ctx: LcdRenderContext): [string, string, string, string] {
-  return [
-    renderUsageSegment("SESSION", usage?.session, ctx),
-    renderUsageSegment("WEEKLY", usage?.weekly, ctx),
-    renderRouteSegment(usage, ctx.stale),
-    renderCostSegment(usage, ctx),
+export function renderLcdSegments(
+  usages: (ProviderUsage | undefined)[],
+  ctx: LcdRenderContext,
+): [string, string, string, string] {
+  return [0, 1, 2, 3].map((i) => renderProviderSegment(usages[i], ctx)) as [
+    string,
+    string,
+    string,
+    string,
   ];
 }
 

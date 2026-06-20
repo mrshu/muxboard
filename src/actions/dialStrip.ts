@@ -20,12 +20,13 @@ const toDataUri = (svg: string): string =>
 /**
  * The Muxboard dial/touch-strip action (Stream Deck+ Encoder).
  *
- * One SingletonAction backs all four dials; the column (0..3) selects both the
- * LCD segment shown and the dial's behavior:
- *   col 0  SESSION   rotate=scroll attention   press=jump to newest
- *   col 1  WEEKLY    rotate=cycle agent filter press=reset filter
- *   col 2  ROUTE     rotate=cycle provider     press=open CodexBar source
- *   col 3  SPEND     (rotate unused)           press=force refresh
+ * One SingletonAction backs all four dials. Each segment shows one CodexBar
+ * provider (provider 0..3, in config order). The column (0..3) selects the
+ * dial's behavior:
+ *   col 0  rotate=scroll attention      press=jump to newest
+ *   col 1  rotate=cycle agent filter    press=reset filter
+ *   col 2  (rotate unused)              press=open CodexBar source
+ *   col 3  (rotate unused)              press=force refresh
  */
 @action({ UUID: "com.mrshu.muxboard.dial" })
 export class DialStripAction extends SingletonAction {
@@ -63,10 +64,7 @@ export class DialStripAction extends SingletonAction {
       case 1:
         this.runtime.store.cycleFilter(dir);
         break;
-      case 2:
-        this.runtime.store.cycleProvider(dir);
-        break;
-      // col 3: rotation unused in MVP
+      // cols 2 & 3: rotation unused (each segment is a fixed provider)
     }
   }
 
@@ -122,8 +120,9 @@ export class DialStripAction extends SingletonAction {
       Date.now(),
       this.runtime.codexbarService.staleThresholdMs,
     );
-    const usage = state.usage[state.providers[state.providerIndex] ?? "codex"];
-    const segments = renderLcdSegments(usage, { nowMs: Date.now(), stale });
+    // One provider per segment, in config order, so all are visible at a glance.
+    const usages = state.providers.map((p) => state.usage[p]);
+    const segments = renderLcdSegments(usages, { nowMs: Date.now(), stale });
     const svg = segments[col] ?? segments[0];
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce

@@ -46,9 +46,13 @@ function main(): void {
 
   // --- LCD -----------------------------------------------------------------
   const codexRaw = loadFixture("codexbar-usage-codex.json");
-  const usage = normalizeUsageResponse(codexRaw, "codex");
-  usage.costTodayEur = extractCostToday(loadFixture("codexbar-cost-codex.json"));
-  const segs = renderLcdSegments(usage, { nowMs, stale: false });
+  const codex = normalizeUsageResponse(codexRaw, "codex");
+  codex.costTodayEur = extractCostToday(loadFixture("codexbar-cost-codex.json"));
+  const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
+  const minimax = normalizeUsageResponse(loadFixture("codexbar-usage-minimax.json"), "minimax");
+  const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
+  const usages = [codex, claude, minimax, kimi];
+  const segs = renderLcdSegments(usages, { nowMs, stale: false });
   segs.forEach((svg, i) => writeFileSync(join(outDir, `lcd-${i + 1}.png`), svgToPng(svg, SEG_W)));
 
   // --- Composite dashboard -------------------------------------------------
@@ -57,7 +61,7 @@ function main(): void {
 
   // --- Offline scenario (acceptance #6) ------------------------------------
   const offlineKeys = [renderCmuxOffline(), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
-  const offlineSegs = renderLcdSegments(undefined, { nowMs, stale: true });
+  const offlineSegs = renderLcdSegments([], { nowMs, stale: true });
   writeFileSync(join(outDir, "dashboard-offline.png"), svgToPng(composite(offlineKeys, offlineSegs), 880));
 
   console.log(`Rendered ${KEY_COUNT} keys + 4 LCD segments to ${outDir}`);
