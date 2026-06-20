@@ -30,15 +30,17 @@ function bar(x: number, y: number, w: number, h: number, usedPercent: number): s
     <rect x="${x}" y="${y}" width="${fillW}" height="${h}" rx="${h / 2}" fill="${color}"/>`;
 }
 
-/** One quota row (session or weekly): label, gauge, and % remaining. */
-function quotaRow(y: number, label: string, win: UsageWindow | undefined): string {
+/** One quota row (session or weekly): label, gauge, % remaining, and reset. */
+function quotaRow(y: number, label: string, win: UsageWindow | undefined, nowMs: number): string {
   if (!win) {
     return `<text x="12" y="${y}" font-size="13" fill="#5a606a">${label}  —</text>`;
   }
   const used = win.usedPercent;
+  const reset = formatCountdown(win.resetsAt, nowMs);
   return `<text x="12" y="${y}" font-size="13" font-weight="700" fill="#aeb4be">${label}</text>
-    ${bar(30, y - 9, 116, 9, used)}
-    <text x="${SEG_W - 12}" y="${y}" font-size="14" font-weight="700" text-anchor="end" fill="${usageColor(used)}">${formatPercent(win.remainingPercent)}</text>`;
+    ${bar(28, y - 9, 78, 9, used)}
+    <text x="148" y="${y}" font-size="13" font-weight="700" text-anchor="end" fill="${usageColor(used)}">${formatPercent(win.remainingPercent)}</text>
+    <text x="${SEG_W - 10}" y="${y}" font-size="11" text-anchor="end" fill="#8a909a">${escapeXml(reset)}</text>`;
 }
 
 /**
@@ -62,13 +64,13 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
   }
 
   const cost = usage.costTodayEur !== undefined ? formatEur(usage.costTodayEur) : "";
-  const resetLine = `reset ${formatCountdown(usage.session?.resetsAt, ctx.nowMs)}${ctx.stale ? " · stale" : ""}`;
+  const footer = [cost ? `${cost} today` : "", ctx.stale ? "stale" : ""].filter(Boolean).join(" · ");
   return segFrame(
     `<text x="12" y="24" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
-     ${cost ? `<text x="${SEG_W - 12}" y="23" font-size="13" text-anchor="end" fill="#aeb4be">${escapeXml(cost)}</text>` : ""}
-     ${quotaRow(50, "S", usage.session)}
-     ${quotaRow(72, "W", usage.weekly)}
-     <text x="12" y="92" font-size="12" fill="#8a909a">${escapeXml(resetLine)}</text>`,
+     <text x="${SEG_W - 10}" y="23" font-size="10" text-anchor="end" fill="#5a606a">reset →</text>
+     ${quotaRow(50, "S", usage.session, ctx.nowMs)}
+     ${quotaRow(72, "W", usage.weekly, ctx.nowMs)}
+     ${footer ? `<text x="12" y="92" font-size="12" fill="#8a909a">${escapeXml(footer)}</text>` : ""}`,
     nameColor,
   );
 }
