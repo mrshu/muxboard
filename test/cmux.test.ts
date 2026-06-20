@@ -9,6 +9,7 @@ import {
   assignSlots,
   clampOffset,
   coordinatesToSlot,
+  dedupeNewestPerWorkspace,
   sortNewestFirst,
 } from "../src/core/cmux/sort.js";
 import type { AttentionItem } from "../src/core/types.js";
@@ -77,6 +78,26 @@ test("assignSlots fills physical 1 2 3 4 / 5 6 7 8 and pads with null", () => {
   assert.equal(slots[2]?.id, "k2");
   assert.equal(slots[3], null);
   assert.equal(slots[7], null);
+});
+
+test("dedupeNewestPerWorkspace keeps the newest item per workspace", () => {
+  const mk = (id: string, ws: string, createdAt: string): AttentionItem => ({
+    id,
+    agent: "claude",
+    workspaceId: ws,
+    title: id,
+    reason: "waiting",
+    body: "",
+    createdAt,
+  });
+  // Workspace W1 has a "done" then a newer "waiting"; W2 has one item.
+  const sorted = sortNewestFirst([
+    mk("w1-done", "W1", "2026-06-20T12:00:00Z"),
+    mk("w1-waiting", "W1", "2026-06-20T12:01:00Z"),
+    mk("w2", "W2", "2026-06-20T11:59:00Z"),
+  ]);
+  const deduped = dedupeNewestPerWorkspace(sorted);
+  assert.deepEqual(deduped.map((i) => i.id), ["w1-waiting", "w2"]);
 });
 
 test("coordinatesToSlot maps Stream Deck+ keypad coordinates", () => {

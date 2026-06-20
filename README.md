@@ -161,8 +161,9 @@ Notes:
 
 - Rows missing `id` or `workspace_id` are dropped (never fatal).
 - `is_read` is **not** used as a filter — every listed notification is treated as
-  needing attention. Pressing a key marks it read via `open-notification` but
-  leaves it in the list.
+  needing attention. Notifications are **collapsed to one per workspace** (newest
+  wins), so each repo occupies a single key showing its current state. Pressing a
+  key marks it read via `open-notification` but leaves it in the list.
 - To emit one yourself: `cmux notify --title "Codex CLI" --body "Task failed: …"`
   (run inside the target workspace, or pass `--workspace`).
 

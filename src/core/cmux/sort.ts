@@ -30,6 +30,25 @@ export function applyFilter(items: AttentionItem[], filter: AgentFilter): Attent
 }
 
 /**
+ * Collapse to one item per workspace, keeping the newest.
+ *
+ * cmux accumulates a notification per agent turn, so a single workspace can have
+ * many (e.g. a "done" then a "waiting"). Given a newest-first list, this keeps
+ * only the first (latest) per workspace — so each repo occupies one key showing
+ * its current state, instead of several stale duplicates.
+ */
+export function dedupeNewestPerWorkspace(sortedNewestFirst: AttentionItem[]): AttentionItem[] {
+  const seen = new Set<string>();
+  const out: AttentionItem[] = [];
+  for (const it of sortedNewestFirst) {
+    if (seen.has(it.workspaceId)) continue;
+    seen.add(it.workspaceId);
+    out.push(it);
+  }
+  return out;
+}
+
+/**
  * Assign sorted items to the 8 physical key slots.
  *
  * Physical layout is:

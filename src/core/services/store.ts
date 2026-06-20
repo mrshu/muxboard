@@ -4,7 +4,12 @@ import type {
   AttentionItem,
   ProviderUsage,
 } from "../types.js";
-import { applyFilter, clampOffset, sortNewestFirst } from "../cmux/sort.js";
+import {
+  applyFilter,
+  clampOffset,
+  dedupeNewestPerWorkspace,
+  sortNewestFirst,
+} from "../cmux/sort.js";
 
 type Listener = (state: AppState) => void;
 
@@ -54,7 +59,9 @@ export class Store {
   /** Recompute filtered+sorted items and clamp the offset. */
   private recompute(): void {
     const allItems = sortNewestFirst(this.state.allItems);
-    const items = applyFilter(allItems, this.state.filter);
+    // Filter by agent, then collapse to the newest item per workspace so each
+    // repo occupies a single key showing its current state.
+    const items = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter));
     const offset = clampOffset(this.state.offset, items.length);
     this.state = { ...this.state, allItems, items, offset };
   }
