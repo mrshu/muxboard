@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.sdPlugin/bin/
+out/
+*.log
+.DS_Store
+.streamDeck/
+*.tgz
