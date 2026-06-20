@@ -97,19 +97,26 @@ show with no Stream Deck+ and no desktop app.
 
 1. Enable cmux automation mode (see [Requirements](#requirements)) and relaunch
    cmux.
-2. Install and open the **Elgato Stream Deck** desktop app.
-3. Run:
+2. Install the **Elgato Stream Deck** desktop app.
+3. Build + link the plugin and start CodexBar:
    ```bash
    npm run dev
    ```
-   This builds + links the plugin, generates and applies the device profile, and
-   starts CodexBar in the background.
-4. That's it. The plugin auto-applies a **predefined Stream Deck+ profile**, so
-   all 8 keys and 4 dials are populated automatically — no dragging. Keys read
-   cmux directly; the LCD reads CodexBar.
+4. Install the device profile (places all 8 keys + 4 dials — no dragging):
+   ```bash
+   # quit the Stream Deck app first
+   npm run install-profile
+   # reopen the Stream Deck app, then pick the "Muxboard" profile from the
+   # profile dropdown at the top of the window
+   ```
+   Keys read cmux directly; the LCD reads CodexBar.
 
-The first time the plugin switches to its profile, the Stream Deck app may ask
-you to confirm installing it.
+> **Why a separate install step?** Elgato's profile *importer* rejects
+> programmatically-built `.streamDeckProfile` files ("content corrupted") on
+> recent macOS builds, so the plugin can't auto-apply a bundled profile.
+> `install-profile` sidesteps the importer by writing the profile straight into
+> the app's profile store (ProfilesV3) in its native format, keyed to your
+> connected Stream Deck+. See [Architecture](#the-device-profile).
 
 ---
 
@@ -199,7 +206,7 @@ Stored in the plugin's global settings; all fields have safe defaults
         └── TCP ──► codexbar serve (LCD usage)
 
 src/
-  plugin.ts          entry: connect, load config, start services, apply profile
+  plugin.ts          entry: connect, load config, start services
   runtime.ts         shared store/clients/services + macOS foregrounding
   config.ts          defaults + defensive resolveConfig()
   core/              dependency-free, unit-tested, no SDK import
@@ -209,9 +216,9 @@ src/
     render/          palette, format, keyRender (SVG), lcdRender (SVG)
     services/        store (state + dial machines), cmux/codexbar poll loops
   actions/           attentionKey (8 keys), dialStrip (4 dials) — thin SDK glue
-scripts/             preview / validate / gen-icons / gen-profile / dev.sh
+scripts/             preview / validate / gen-icons / install-profile / dev.sh
 test/                fixtures + node:test suite
-com.mrshu.muxboard.sdPlugin/   manifest, layouts, profile, imgs, built bin
+com.mrshu.muxboard.sdPlugin/   manifest, layouts, imgs, built bin
 ```
 
 ### Why automation mode is required
@@ -228,6 +235,22 @@ doesn't take effect — see upstream issues
 [#1864](https://github.com/manaflow-ai/cmux/issues/1864) /
 [#3282](https://github.com/manaflow-ai/cmux/issues/3282); verify with
 `cmux capabilities | grep access_mode`.)
+
+### The device profile
+
+`scripts/install-profile.mjs` writes a Muxboard profile straight into the Stream
+Deck app's `ProfilesV3` store (the app's own V3 format, keyed to the connected
+Stream Deck+'s device id), placing the Attention Slot action on all 8 keys and
+the Muxboard Dial on all 4 dials. Run it with the app closed
+(`npm run install-profile`); the app picks it up on next launch and you select it
+from the profile dropdown.
+
+This deliberately **bypasses the app's profile importer**, which rejects
+programmatically-built `.streamDeckProfile` archives as "content corrupted" on
+recent macOS builds (confirmed across clean/stored zips and deterministic UUIDs).
+Elgato's only supported way to produce an importable profile is to build it in the
+app UI and *Export* it — so we skip import entirely and write the store format
+the app itself uses.
 
 Rendering is **SVG-first**: Stream Deck's `setImage` accepts SVG data-URIs, so
 keys and LCD segments are plain strings — no native canvas dependency and fully
@@ -269,8 +292,11 @@ npm run typecheck
   to Automation and **fully quit + relaunch cmux** (a reload is not enough). The
   plugin log (`com.mrshu.muxboard.sdPlugin/logs/`) will show `broken pipe` when
   rejected.
-- **Profile didn't auto-apply.** The Stream Deck app prompts once to install a
-  bundled profile; accept it. Editing the manifest needs a re-link.
+- **No Muxboard keys / profile missing.** Run `npm run install-profile` with the
+  Stream Deck app **closed**, reopen it, and select the **Muxboard** profile from
+  the dropdown. (The app's profile *importer* rejects bundled profiles as
+  "content corrupted" on recent macOS builds, so the profile is written directly
+  into the app's store instead.)
 
 ## Privacy & non-goals
 

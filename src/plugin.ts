@@ -1,4 +1,4 @@
-import streamDeck, { DeviceType, LogLevel } from "@elgato/streamdeck";
+import streamDeck, { LogLevel } from "@elgato/streamdeck";
 import { DEFAULT_CONFIG, resolveConfig, type MuxboardConfig } from "./config.js";
 import { CmuxClient } from "./core/cmux/client.js";
 import { CodexbarClient } from "./core/codexbar/client.js";
@@ -82,35 +82,6 @@ async function main(): Promise<void> {
   cmuxService.start();
   codexbarService.start();
   logger.info("Polling started.");
-
-  applyProfileToStreamDeckPlus();
-}
-
-/** Name of the predefined profile, matching manifest Profiles[].Name. */
-const MUXBOARD_PROFILE = "profiles/muxboard";
-
-/**
- * Switch every Stream Deck+ to the bundled Muxboard profile so all 8 keys and 4
- * dials are populated without the user placing anything. Switches once per
- * device per process (re-applying on every reconnect would fight the user if
- * they navigate away). Best-effort: failures are logged, not fatal.
- */
-function applyProfileToStreamDeckPlus(): void {
-  const switched = new Set<string>();
-  const apply = (deviceId: string, deviceType: DeviceType): void => {
-    if (deviceType !== DeviceType.StreamDeckPlus) return;
-    if (switched.has(deviceId)) return;
-    switched.add(deviceId);
-    streamDeck.profiles
-      .switchToProfile(deviceId, MUXBOARD_PROFILE)
-      .then(() => logger.info(`Applied Muxboard profile to device ${deviceId}`))
-      .catch((err) => logger.warn(`switchToProfile failed: ${err instanceof Error ? err.message : err}`));
-  };
-
-  for (const device of streamDeck.devices) {
-    if (device.isConnected) apply(device.id, device.type);
-  }
-  streamDeck.devices.onDeviceDidConnect((ev) => apply(ev.device.id, ev.device.type));
 }
 
 void main();

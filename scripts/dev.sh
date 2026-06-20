@@ -20,10 +20,9 @@ STREAMDECK="npx --no-install streamdeck"
 # CodexBar port (TCP; override via env). Must match the plugin config.
 CODEXBAR_PORT="${CODEXBAR_PORT:-17777}"
 
-echo "▸ Generating icons (if missing), building, and generating the profile…"
+echo "▸ Generating icons (if missing) and building…"
 [ -f "$PLUGIN_DIR/imgs/plugin/icon.png" ] || npm run icons
 npm run build
-npm run profile
 
 # CodexBar (TCP) powers the LCD; background it if not already up.
 if ! curl -sf -m 2 "http://127.0.0.1:${CODEXBAR_PORT}/health" >/dev/null 2>&1; then
@@ -44,7 +43,10 @@ else
   echo "⚠ @elgato/cli not available; skipping link. Run 'npm i' first."
 fi
 
-echo "▸ Done. The profile auto-applies; keys read cmux directly, LCD from CodexBar."
-echo "  Reminder: cmux Socket Control Mode must be 'Automation' (see header)."
+echo "▸ Done. Keys read cmux directly; LCD reads CodexBar."
+echo "  One-time setup:"
+echo "    • cmux Socket Control Mode = 'Automation' (see header)"
+echo "    • Install the device profile: quit the Stream Deck app, run"
+echo "      'npm run install-profile', reopen it, and pick the 'Muxboard' profile."
 echo "▸ Watching for changes (Ctrl-C to stop)…"
 npm run watch

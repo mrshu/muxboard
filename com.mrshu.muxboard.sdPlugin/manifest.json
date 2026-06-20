@@ -60,12 +60,5 @@
         }
       }
     }
-  ],
-  "Profiles": [
-    {
-      "Name": "profiles/muxboard",
-      "DeviceType": 7,
-      "DontAutoSwitchWhenInstalled": false
-    }
   ]
 }
