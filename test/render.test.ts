@@ -50,8 +50,9 @@ test("renderLcdSegments shows one provider per segment, all at a glance", () => 
     nowMs: NOW_MS,
     stale: false,
   });
-  // codex: name + session 99% left + weekly 75% left + cost
+  // codex: name (CodexBar brand color) + session 99% + weekly 75% + cost
   assert.match(s0, /CODEX/);
+  assert.match(s0, /#49A3B0/i); // codex brand color from CodexBar
   assert.match(s0, /99%/);
   assert.match(s0, /75%/);
   assert.match(s0, /€4\.20/);

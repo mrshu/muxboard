@@ -43,10 +43,10 @@ unreachable, the display degrades gracefully and the rest keeps working:
   mapped from the structured `body` — **no terminal scraping**.
 - **Pressing a key** runs `cmux open-notification --id <uuid>`, which focuses the
   workspace + surface and marks the row read (it does **not** dismiss it).
-- **The LCD** shows one CodexBar provider per segment (`codex`, `claude`,
-  `minimax`, `kimi` by default), each with its name (colored by health), today's
-  spend, session + weekly gauges with % remaining, and the session reset — so all
-  providers are visible at a glance.
+- **The LCD** shows one segment per CodexBar provider — **auto-discovered** from
+  CodexBar (not a hardcoded list), each with its name in CodexBar's **brand
+  color**, today's spend, session + weekly gauges with % remaining, and both
+  resets — so all your providers are visible at a glance.
 
 ### Dials (Stream Deck+)
 
@@ -194,7 +194,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | --- | --- | --- |
 | `cmuxBin` | `"cmux"` | Binary path or name (spawned directly) |
 | `codexbarBaseUrl` | `"http://127.0.0.1:17777"` | `codexbar serve --port 17777` base URL |
-| `codexbarProviders` | `["codex","claude","minimax","kimi"]` | One per LCD segment, in order |
+| `codexbarProviders` | `[]` | Optional allow-list/order; empty = auto-discover all |
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
 | `enabledAgents` | all | Agents allowed onto the queue |

@@ -51,6 +51,31 @@ export function reasonTheme(reason: AttentionReason): ReasonTheme {
   return REASON_THEMES[reason] ?? REASON_THEMES.unknown;
 }
 
+/**
+ * CodexBar's own per-provider brand colors, taken from the CodexBar source
+ * (ProviderDescriptor color definitions) so the LCD matches the menubar app.
+ */
+const PROVIDER_COLORS: Record<string, string> = {
+  codex: "#49A3B0",
+  openai: "#0F8270",
+  claude: "#CC7C5E",
+  minimax: "#FE603C",
+  gemini: "#AB87EA",
+  kimi: "#FE603C",
+  "kimi-k2": "#4C00FF",
+  grok: "#10A37F",
+  copilot: "#A855F7",
+  cursor: "#00BFA5",
+  deepseek: "#527DF0",
+  mistral: "#FF500F",
+  factory: "#FF6B35",
+};
+
+/** Brand color for a CodexBar provider; neutral grey for unknown providers. */
+export function providerColor(provider: string): string {
+  return PROVIDER_COLORS[provider.toLowerCase()] ?? "#9aa0aa";
+}
+
 /** Status color ramp for CodexBar usage bars (more used → hotter). */
 export function usageColor(usedPercent: number): string {
   if (usedPercent >= 90) return "#ff4d4f";

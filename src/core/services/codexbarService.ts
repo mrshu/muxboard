@@ -5,7 +5,11 @@ import { type Logger, silentLogger } from "./logger.js";
 export interface CodexbarServiceOptions {
   client: CodexbarClient;
   store: Store;
-  providers: string[];
+  /**
+   * Optional allow-list/order. Empty (default) auto-discovers every provider
+   * CodexBar has enabled — the provider list is not hardcoded.
+   */
+  providers?: string[];
   /** Poll interval in ms (default 45000). */
   pollMs?: number;
   /** Epoch-ms clock, injectable for tests. Defaults to Date.now. */
@@ -14,16 +18,16 @@ export interface CodexbarServiceOptions {
 }
 
 /**
- * Polls CodexBar usage per provider and pushes it into the store.
+ * Polls CodexBar and pushes per-provider usage into the store.
  *
- * Keeps the last good usage on failure (offline flag set), so the LCD shows
- * stale data with a clear marker rather than going blank. cmux keys are wholly
- * independent of this service.
+ * Providers are discovered dynamically from CodexBar (`GET /usage`), so the LCD
+ * reflects exactly what CodexBar has enabled. An optional `providers` allow-list
+ * filters/orders the result. Keeps last-good data on failure (offline flag set).
  */
 export class CodexbarService {
   private readonly client: CodexbarClient;
   private readonly store: Store;
-  private readonly providers: string[];
+  private readonly allow: string[];
   private readonly pollMs: number;
   private readonly now: () => number;
   private readonly log: Logger;
@@ -33,7 +37,7 @@ export class CodexbarService {
   constructor(opts: CodexbarServiceOptions) {
     this.client = opts.client;
     this.store = opts.store;
-    this.providers = opts.providers.length > 0 ? opts.providers : ["codex"];
+    this.allow = opts.providers ?? [];
     this.pollMs = opts.pollMs ?? 45000;
     this.now = opts.now ?? (() => Date.now());
     this.log = opts.logger ?? silentLogger;
@@ -59,13 +63,17 @@ export class CodexbarService {
     if (this.inFlight) return;
     this.inFlight = true;
     try {
-      const usages = await this.client.getUsageAll(this.providers);
-      const anyOk = usages.some((u) => u.ok);
-      // If the whole server is unreachable, every provider errors with the same
-      // transport message — treat that as offline and keep last good data.
-      const offline = !anyOk;
+      let usages = await this.client.getAllUsage();
+      if (this.allow.length > 0) {
+        const order = new Map(this.allow.map((p, i) => [p, i]));
+        usages = usages
+          .filter((u) => order.has(u.provider))
+          .sort((a, b) => (order.get(a.provider) ?? 0) - (order.get(b.provider) ?? 0));
+      }
+      // Empty result = server unreachable; keep last good data and flag offline.
+      const offline = usages.length === 0;
       if (offline) {
-        this.log.warn("codexbar poll: all providers unavailable");
+        this.log.warn("codexbar poll: no providers (server unavailable?)");
       }
       this.store.setUsage(usages, this.now(), offline);
     } catch (err) {

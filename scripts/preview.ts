@@ -50,8 +50,8 @@ function main(): void {
   codex.costTodayEur = extractCostToday(loadFixture("codexbar-cost-codex.json"));
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   const minimax = normalizeUsageResponse(loadFixture("codexbar-usage-minimax.json"), "minimax");
-  const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
-  const usages = [codex, claude, minimax, kimi];
+  // Providers are discovered from CodexBar; here three are enabled, 4th blank.
+  const usages = [codex, claude, minimax];
   const segs = renderLcdSegments(usages, { nowMs, stale: false });
   segs.forEach((svg, i) => writeFileSync(join(outDir, `lcd-${i + 1}.png`), svgToPng(svg, SEG_W)));
 

@@ -23,7 +23,7 @@ export class Store {
   private state: AppState;
   private readonly listeners = new Set<Listener>();
 
-  constructor(providers: string[]) {
+  constructor(providers: string[] = []) {
     this.state = {
       items: [],
       allItems: [],
@@ -31,7 +31,8 @@ export class Store {
       filter: "all",
       cmuxOffline: false,
       usage: {},
-      providers: providers.length > 0 ? [...providers] : ["codex"],
+      // Seeded empty; filled from CodexBar discovery on the first poll.
+      providers: [...providers],
       codexbarUpdatedAtMs: null,
       codexbarOffline: false,
     };
@@ -71,13 +72,18 @@ export class Store {
     this.emit();
   }
 
-  /** Replace CodexBar usage for the polled providers. */
+  /**
+   * Replace CodexBar usage. The provider display order is taken from the
+   * discovered `usages` (so it's never hardcoded); on an offline poll the last
+   * good usage and provider order are retained.
+   */
   setUsage(usages: ProviderUsage[], updatedAtMs: number, offline: boolean): void {
     const usage: Record<string, ProviderUsage> = { ...this.state.usage };
     for (const u of usages) usage[u.provider] = u;
     this.state = {
       ...this.state,
       usage,
+      providers: offline || usages.length === 0 ? this.state.providers : usages.map((u) => u.provider),
       codexbarUpdatedAtMs: offline ? this.state.codexbarUpdatedAtMs : updatedAtMs,
       codexbarOffline: offline,
     };

@@ -1,5 +1,10 @@
 import type { ProviderUsage } from "../types.js";
-import { extractCostToday, normalizeUsageResponse } from "./normalize.js";
+import {
+  extractCostToday,
+  normalizeUsage,
+  normalizeUsageResponse,
+  type RawCodexbarUsage,
+} from "./normalize.js";
 
 /** Pluggable fetch-like fn so the client is testable without a server. */
 export type FetchJson = (url: string) => Promise<unknown>;
@@ -79,6 +84,43 @@ export class CodexbarClient {
   /** Fetch usage for several providers concurrently. */
   async getUsageAll(providers: string[]): Promise<ProviderUsage[]> {
     return Promise.all(providers.map((p) => this.getUsage(p)));
+  }
+
+  /**
+   * Discover and fetch usage for ALL of CodexBar's enabled providers.
+   *
+   * `GET /usage` (no provider param) returns one entry per enabled provider, in
+   * CodexBar's own order — so the provider list is never hardcoded. Today's cost
+   * is fetched per provider and attached. Returns [] if the request fails.
+   */
+  async getAllUsage(): Promise<ProviderUsage[]> {
+    let raw: unknown;
+    try {
+      raw = await this.fetchJson(`${this.baseUrl}/usage`);
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(raw)) return [];
+
+    const usages = raw
+      .filter((r): r is RawCodexbarUsage => !!r && typeof r === "object")
+      .map((r) => normalizeUsage(r));
+
+    // Attach today's cost per provider (best-effort, concurrent).
+    await Promise.all(
+      usages.map(async (u, i) => {
+        if (!u.ok) return;
+        try {
+          const cost = await this.fetchJson(
+            `${this.baseUrl}/cost?provider=${encodeURIComponent(u.provider)}`,
+          );
+          usages[i] = { ...u, costTodayEur: extractCostToday(cost) };
+        } catch {
+          // Cost is optional.
+        }
+      }),
+    );
+    return usages;
   }
 }
 

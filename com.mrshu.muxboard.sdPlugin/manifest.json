@@ -29,7 +29,9 @@
       "UUID": "com.mrshu.muxboard.attention",
       "Icon": "imgs/actions/attention/icon",
       "Tooltip": "Shows the cmux pane needing attention for this key's slot. Press to focus it.",
-      "Controllers": ["Keypad"],
+      "Controllers": [
+        "Keypad"
+      ],
       "States": [
         {
           "Image": "imgs/actions/attention/key",
@@ -43,7 +45,9 @@
       "UUID": "com.mrshu.muxboard.dial",
       "Icon": "imgs/actions/dial/icon",
       "Tooltip": "CodexBar quota segment + Muxboard dial controls.",
-      "Controllers": ["Encoder"],
+      "Controllers": [
+        "Encoder"
+      ],
       "States": [
         {
           "Image": "imgs/actions/dial/key"

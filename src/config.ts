@@ -15,7 +15,10 @@ export interface MuxboardConfig {
   cmuxBin: string;
   /** Base URL of `codexbar serve`. */
   codexbarBaseUrl: string;
-  /** CodexBar providers to poll/cycle, in display order. */
+  /**
+   * Optional CodexBar provider allow-list / order. Empty (default) shows every
+   * provider CodexBar has enabled, auto-discovered — not hardcoded.
+   */
   codexbarProviders: string[];
   /** cmux poll interval (ms). */
   cmuxPollMs: number;
@@ -29,7 +32,7 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   cmuxBin: "cmux",
   // 17777 keeps CodexBar's default 8080 free; run `codexbar serve --port 17777`.
   codexbarBaseUrl: "http://127.0.0.1:17777",
-  codexbarProviders: ["codex", "claude", "minimax", "kimi"],
+  codexbarProviders: [],
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
   enabledAgents: ["claude", "codex", "pi", "unknown"],

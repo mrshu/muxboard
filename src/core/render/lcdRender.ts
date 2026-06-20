@@ -1,5 +1,5 @@
 import type { ProviderUsage, UsageWindow } from "../types.js";
-import { usageColor } from "./palette.js";
+import { providerColor, usageColor } from "./palette.js";
 import { escapeXml, formatCountdown, formatEur, formatPercent } from "./format.js";
 
 /** Touch-strip segment size: one of the four 200×100 LCD regions. */
@@ -52,7 +52,8 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
     return segFrame(`<text x="14" y="32" font-size="15" fill="#3a3d44">—</text>`, "#16181c");
   }
   const name = shortProvider((usage.provider || "?").toUpperCase());
-  const nameColor = ROUTE_COLOR[routeStatus(usage, ctx.stale)];
+  // Name uses CodexBar's brand color; gauges still convey health via usageColor.
+  const nameColor = providerColor(usage.provider || "");
 
   if (!usage.ok) {
     return segFrame(
@@ -84,14 +85,6 @@ export function routeStatus(usage: ProviderUsage | undefined, stale: boolean): R
   if (worstUsed >= 80) return "LOW";
   return "OK";
 }
-
-const ROUTE_COLOR: Record<RouteStatus, string> = {
-  OK: "#4ec9b0",
-  LOW: "#ffd23f",
-  CAP: "#ff4d4f",
-  STALE: "#ffb02e",
-  OFF: "#7d828c",
-};
 
 /** Segment 3: provider identity + status/health pill. */
 /**

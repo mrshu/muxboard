@@ -58,6 +58,32 @@ test("CodexbarClient.getUsage merges usage + cost via injected fetcher", async (
   assert.equal(u.costTodayEur, 4.2);
 });
 
+test("getAllUsage discovers providers from /usage (no hardcoded list)", async () => {
+  const codex = (loadFixture("codexbar-usage-codex.json") as unknown[])[0];
+  const claude = (loadFixture("codexbar-usage-claude.json") as unknown[])[0];
+  const minimax = (loadFixture("codexbar-usage-minimax.json") as unknown[])[0];
+  const cost = loadFixture("codexbar-cost-codex.json");
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) return [codex, claude, minimax];
+      if (url.includes("/cost")) return cost;
+      return [];
+    },
+  });
+  const usages = await client.getAllUsage();
+  assert.deepEqual(usages.map((u) => u.provider), ["codex", "claude", "minimax"]);
+  assert.equal(usages[0].costTodayEur, 4.2);
+});
+
+test("getAllUsage returns [] when the server is unreachable", async () => {
+  const client = new CodexbarClient({
+    fetchJson: async () => {
+      throw new Error("ECONNREFUSED");
+    },
+  });
+  assert.deepEqual(await client.getAllUsage(), []);
+});
+
 test("CodexbarClient.getUsage never throws on transport failure", async () => {
   const client = new CodexbarClient({
     fetchJson: async () => {
