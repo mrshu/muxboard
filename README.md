@@ -1,9 +1,19 @@
-# Muxboard
+# Muxboard: a Stream Deck+ dashboard for cmux AI coding agents
 
-A Stream Deck+ plugin that turns the 8 keys into a queue of
-[cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi, or
-any other) need your attention: finished, failed, blocked, or waiting for input.
-The LCD touch strip shows CodexBar quota and limit telemetry.
+> Monitor your [cmux](https://cmux.io) AI coding agents (Claude Code, Codex, Pi)
+> from an Elgato Stream Deck+: which agents need attention show on the keys, and
+> your CodexBar usage limits show on the LCD.
+
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
+![Stream Deck+](https://img.shields.io/badge/device-Stream%20Deck%2B-black.svg)
+![Node.js ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-43853d.svg)
+
+Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
+[cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi, or any
+other) have finished, failed, gotten blocked, or are waiting for your input. The
+LCD touch strip shows CodexBar usage: session and weekly quota, limits, and spend
+per provider.
 
 ![Muxboard dashboard](docs/images/dashboard.png)
 
@@ -38,7 +48,7 @@ unreachable, the display degrades gracefully and the rest keeps working:
 
 - Keys are assigned to physical slots newest-first, with the panes that need you
   pinned ahead of those actively working. Agent, status, and age are fused from
-  several cmux signals (no terminal scraping) — see
+  several cmux signals (no terminal scraping); see
   [How a pane's state is derived](#how-a-panes-state-is-derived).
 - Pressing a key runs `cmux open-notification --id <uuid>`, which focuses the
   workspace + surface and marks the row read (it does not dismiss it).
@@ -159,7 +169,7 @@ Notes:
 - `is_read` is not used to drop rows; every listed notification still occupies a
   key. It is used to defuse urgency, though: cmux leaves a notification in the
   list after you answer it (only flipping `is_read`), so a read `failed`/`blocked`
-  row is demoted to `waiting` — the key stays but loses the badge and the triage
+  row is demoted to `waiting`: the key stays but loses the badge and the triage
   front-pin. Unread `failed`/`blocked` keep their urgency. Notifications are
   collapsed to one per workspace (newest wins), so each repo occupies a single key
   showing its current state. Pressing a key marks it read via `open-notification`
@@ -169,52 +179,49 @@ Notes:
 
 ## How a pane's state is derived
 
-A key shows two things: a **status** (working / waiting / permission / failed) and
-an **age**. Neither comes from a single cmux field — cmux's notifications,
-title-spinner, and agent state each tell a partial, often-stale story. Muxboard
-fuses several signals so a key reflects what's *actually* true, which in practice
-is frequently more accurate than any one cmux surface on its own. Each signal is
-best-effort and degrades to the next when unavailable.
+A key shows a status (working, waiting, permission, or failed) and an age.
+Neither comes from a single cmux field; cmux's notifications, title spinner, and
+agent state each tell a partial, often-stale story. Muxboard fuses several
+signals so a key reflects what is actually true, which in practice is frequently
+more accurate than any one cmux surface on its own. Each signal is best-effort
+and degrades to the next when unavailable.
 
-**1. On the queue, and the reason — `cmux list-notifications`.** A notification
-puts a pane on a key. The reason (`failed` / `blocked` / `waiting` / `finished`)
-is mapped from structured fields, never by scraping the free-form body (see the
-table above). cmux keeps a notification in the list after you respond and only
-flips `is_read`, so a permission/failure you've **already answered** (`is_read:
-true`) is demoted to `waiting` — the key stays but drops the urgent badge and the
-front-pin. Unread urgent reasons keep their urgency.
+1. Queue membership and the reason come from `cmux list-notifications`. A
+   notification puts a pane on a key; the reason (`failed`, `blocked`, `waiting`,
+   `finished`) is mapped from structured fields, never by scraping the free-form
+   body (see the table above). cmux keeps a notification in the list after you
+   respond and only flips `is_read`, so a permission or failure you have already
+   answered (`is_read: true`) is demoted to `waiting`: the key stays but drops the
+   urgent badge and the front-pin. Unread urgent reasons keep their urgency.
 
-**2. Activity (working vs waiting) — the `cmux events` stream.** Muxboard
-subscribes to cmux's event stream and prefers cmux's **own computed verdict**
-(`set_status`: `Running` / `Idle` / `Needs`), which is what drives cmux's UI. For
-workspaces cmux doesn't publish a status for, it falls back to deriving state
-from raw agent hooks (`UserPromptSubmit`/`PreToolUse` → working, `Stop`/
-`SessionEnd` → idle, `Notification`/`AskUserQuestion` → needs). An actively
-working pane shows `● working` and **sinks below** the panes still waiting on you
-(triage), since it no longer needs you. If the stream is unavailable, the
-workspace title's spinner glyph is the fallback.
+2. Activity (working vs waiting) comes from the `cmux events` stream. Muxboard
+   prefers cmux's own computed verdict (`set_status`: `Running`, `Idle`, `Needs`),
+   the same state that drives cmux's UI. For workspaces cmux doesn't publish a
+   status for, it derives state from raw agent hooks (`UserPromptSubmit` and
+   `PreToolUse` → working; `Stop` and `SessionEnd` → idle; `Notification` and
+   `AskUserQuestion` → needs). A working pane shows `● working` and sinks below
+   the panes still waiting on you, since it no longer needs you. The title spinner
+   glyph is the fallback when the stream is unavailable.
 
-**3. Age — when the *current state* began, not when a notification fired.** The
-age is computed from the activity-transition timestamp (`occurred_at`) when
-available, so a key reads "working for 2m" or "waiting since 09:31" — not the age
-of a stale, lingering notification. Falls back to the notification `created_at`.
+3. Age is the time since the current state began (the transition `occurred_at`),
+   so a key reads "working for 2m" or "waiting since 09:31" rather than the age of
+   a stale, lingering notification. It falls back to the notification `created_at`.
 
-**4. A busy command counts as working — `cmux top`.** An agent can finish its
-turn and return to waiting while a command it launched keeps running. A workspace
-whose process CPU is at/above `busyCpuPercent` (from `cmux top`) is treated as
-working even when the agent has yielded, with a short hysteresis window so a
-*bursty* command doesn't flicker. An explicit "needs you" (permission) still wins
-over busy, so prompts stay visible.
+4. A busy command counts as working, from `cmux top`. An agent can finish its turn
+   and return to waiting while a command it launched keeps running, so a workspace
+   whose process CPU is at or above `busyCpuPercent` is treated as working even
+   after the agent yields, with a short hysteresis window so a bursty command
+   doesn't flicker. An explicit "needs you" still wins over busy, so permission
+   prompts stay visible.
 
-**Priority on the grid:** needs-you (permission) → failed → waiting →
-actively-working (last). The newest item is key 1.
+Grid priority is needs-you (permission), then failed, then waiting, then
+actively-working last. The newest item is key 1.
 
-**Known limitation.** A Claude agent waiting on its **own background subagent**
-does that work *in-process*: cmux reports no spinner, no `set_status`, and low
-CPU, so the pane reads `waiting`. The only ground truth is the agent's own
-terminal screen, which Muxboard deliberately does not scrape. This narrow case
-(an agent blocked on its own background task) is the one state no cmux signal
-exposes.
+Known limitation: a Claude agent waiting on its own background subagent does that
+work in-process, where cmux reports no spinner, no `set_status`, and low CPU, so
+the pane reads `waiting`. The only ground truth is the agent's own terminal
+screen, which Muxboard deliberately does not scrape. That narrow case (an agent
+blocked on its own background task) is the one state no cmux signal exposes.
 
 ## CodexBar contract
 
