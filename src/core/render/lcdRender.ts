@@ -79,13 +79,13 @@ const ROUTE_COLOR: Record<RouteStatus, string> = {
   OFF: "#7d828c",
 };
 
-/** Segment 3: provider identity + route/health pill. */
+/** Segment 3: provider identity + status/health pill. */
 export function renderRouteSegment(usage: ProviderUsage | undefined, stale: boolean): string {
   const status = routeStatus(usage, stale);
   const color = ROUTE_COLOR[status];
   const provider = (usage?.provider ?? "codexbar").toUpperCase();
   return segFrame(
-    `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">ROUTE</text>
+    `<text x="14" y="30" font-size="17" font-weight="800" fill="#e6e8ec" letter-spacing="1">STATUS</text>
      <text x="${SEG_W - 12}" y="30" font-size="14" text-anchor="end" fill="#aeb4be">${escapeXml(shortProvider(provider))}</text>
      <rect x="14" y="44" width="${SEG_W - 28}" height="40" rx="8" fill="${color}" opacity="0.18"/>
      <text x="${SEG_W / 2}" y="72" font-size="28" font-weight="800" text-anchor="middle" fill="${color}" letter-spacing="2">${status}</text>`,

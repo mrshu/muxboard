@@ -48,7 +48,7 @@ test("renderLcdSegments shows session, weekly, route, and spend", () => {
   assert.match(session, /99%/); // 100 - usedPercent
   assert.match(weekly, /WEEKLY/);
   assert.match(weekly, /75%/);
-  assert.match(route, /ROUTE/);
+  assert.match(route, /STATUS/);
   assert.match(route, /OK/);
   assert.match(cost, /€4\.20/);
 });
