@@ -215,6 +215,22 @@ npm run typecheck
 
 ---
 
+## Troubleshooting
+
+- **Plugin won't start / crash-loops on first install.** The Stream Deck app
+  runs Node plugins with its own managed Node.js runtime, downloaded on demand.
+  If it's missing (`NodeJS/manifest.json not found` in
+  `~/Library/Logs/ElgatoStreamDeck/StreamDeck.log`), **fully quit and relaunch
+  the Stream Deck app** so it fetches the runtime, then restart the plugin.
+- **`require is not defined` / exit code 1.** The bundle must be CommonJS with a
+  `.cjs` extension (this repo's `package.json` is `"type":"module"`). `npm run
+  build` already emits `bin/plugin.cjs`; the manifest's `CodePath` points at it.
+- **Changed the manifest? Re-link.** A plugin restart does not re-read the
+  manifest. Run `npx streamdeck link com.mrshu.muxboard.sdPlugin` again (or
+  restart the Stream Deck app) after editing it.
+- **LCD shows "CodexBar off".** Ensure `codexbar serve --port 17777` is running
+  and that `codexbarBaseUrl` matches the port.
+
 ## Privacy & non-goals
 
 - **Localhost only.** The sole network call is to CodexBar on `127.0.0.1`.
