@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { normalizeUsageResponse, extractCostToday } from "../src/core/codexbar/normalize.js";
 import { sortNewestFirst, assignSlots, KEY_COUNT } from "../src/core/cmux/sort.js";
-import { renderKey, renderEmptyKey, KEY_SIZE } from "../src/core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderCmuxOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
 import { renderLcdSegments, SEG_W, SEG_H } from "../src/core/render/lcdRender.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,13 +53,15 @@ function main(): void {
 
   // --- Composite dashboard -------------------------------------------------
   writeFileSync(join(outDir, "dashboard.svg"), composite(keySvgs, segs));
-  writeFileSync(
-    join(outDir, "dashboard.png"),
-    svgToPng(composite(keySvgs, segs), 880),
-  );
+  writeFileSync(join(outDir, "dashboard.png"), svgToPng(composite(keySvgs, segs), 880));
+
+  // --- Offline scenario (acceptance #6) ------------------------------------
+  const offlineKeys = [renderCmuxOffline(), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
+  const offlineSegs = renderLcdSegments(undefined, { nowMs, stale: true });
+  writeFileSync(join(outDir, "dashboard-offline.png"), svgToPng(composite(offlineKeys, offlineSegs), 880));
 
   console.log(`Rendered ${KEY_COUNT} keys + 4 LCD segments to ${outDir}`);
-  console.log("Open out/dashboard.png to review the layout.");
+  console.log("Open out/dashboard.png (and dashboard-offline.png) to review the layout.");
 }
 
 /** Lay the 8 keys (4×2) above the 800×100 LCD strip on a dark board. */
