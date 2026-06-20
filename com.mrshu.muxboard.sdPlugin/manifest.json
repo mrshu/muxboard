@@ -60,13 +60,5 @@
         }
       }
     }
-  ],
-  "Profiles": [
-    {
-      "Name": "Muxboard",
-      "DeviceType": 7,
-      "Readonly": false,
-      "DontAutoSwitchWhenInstalled": false
-    }
   ]
 }

@@ -15,7 +15,8 @@
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "preview": "tsx scripts/preview.ts",
     "validate": "tsx scripts/validate.ts",
-    "dev": "bash scripts/dev.sh"
+    "dev": "bash scripts/dev.sh",
+    "icons": "tsx scripts/gen-icons.ts"
   },
   "dependencies": {
     "@elgato/streamdeck": "^1.0.0"
