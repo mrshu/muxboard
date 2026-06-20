@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 #
-# Dev runner: build the plugin, link it into the Stream Deck app, and watch for
-# changes. Requires the Elgato Stream Deck desktop app to be installed and
-# running for link/restart to take effect; the build + icons steps work without
-# it. CodexBar serve is started in the background if not already up.
+# Run Muxboard. IMPORTANT: run this INSIDE a cmux terminal — the bridge must be
+# a descendant of the cmux session or cmux's socket rejects it ("broken pipe").
 #
-#   npm run dev
+# It builds + links the plugin into the Stream Deck app, starts CodexBar in the
+# background (TCP, session-independent), then runs the cmux bridge in the
+# FOREGROUND (so it stays in the cmux session). Leave it running.
+#
+#   npm run dev          # inside a cmux pane
+#
+# For live plugin development, run `npm run watch` in a separate pane.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,15 +18,21 @@ PLUGIN_DIR="com.mrshu.muxboard.sdPlugin"
 PLUGIN_UUID="com.mrshu.muxboard"
 STREAMDECK="npx --no-install streamdeck"
 
-# CodexBar port. Hardcoded to 17777 (keeps CodexBar's default 8080 free);
-# override with CODEXBAR_PORT=NNNN. Must match the plugin's codexbarBaseUrl.
+# Ports (hardcoded; override via env). Must match the plugin config.
 CODEXBAR_PORT="${CODEXBAR_PORT:-17777}"
+BRIDGE_PORT="${MUXBOARD_BRIDGE_PORT:-17779}"
+
+if [ -z "${CMUX_WORKSPACE_ID:-}" ]; then
+  echo "⚠ Not inside a cmux session (CMUX_WORKSPACE_ID unset)."
+  echo "  The bridge will fail with 'broken pipe'. Open a cmux terminal and rerun."
+fi
 
 echo "▸ Generating icons (if missing) and building…"
 [ -f "$PLUGIN_DIR/imgs/plugin/icon.png" ] || npm run icons
 npm run build
+npm run profile
 
-# Ensure CodexBar serve is reachable; start it on CODEXBAR_PORT if not.
+# CodexBar (TCP) can run anywhere; background it if not already up.
 if ! curl -sf -m 2 "http://127.0.0.1:${CODEXBAR_PORT}/health" >/dev/null 2>&1; then
   if command -v codexbar >/dev/null 2>&1; then
     echo "▸ Starting 'codexbar serve --port ${CODEXBAR_PORT}' in the background…"
@@ -34,14 +44,14 @@ fi
 
 # Link + (re)start the plugin if the Stream Deck CLI is available.
 if npx --no-install streamdeck --version >/dev/null 2>&1; then
-  echo "▸ Linking plugin into the Stream Deck app…"
-  $STREAMDECK link "$PLUGIN_DIR" || echo "⚠ link failed (is the Stream Deck app installed?)"
+  echo "▸ Linking + restarting the plugin in the Stream Deck app…"
+  $STREAMDECK link "$PLUGIN_DIR" 2>/dev/null || true
   $STREAMDECK restart "$PLUGIN_UUID" 2>/dev/null || true
 else
   echo "⚠ @elgato/cli not available; skipping link. Run 'npm i' first."
 fi
 
-echo "▸ Watching for changes (Ctrl-C to stop)…"
-echo "  Place the 'Attention Slot' action on all 8 keys and the 'Muxboard Dial'"
-echo "  action on all 4 dials of your Stream Deck+ profile."
-npm run watch
+echo "▸ Starting the cmux bridge in the foreground (Ctrl-C to stop)…"
+echo "  Keep this running. The Stream Deck profile auto-applies; keys populate"
+echo "  from cmux via the bridge, the LCD from CodexBar."
+exec node scripts/bridge.mjs

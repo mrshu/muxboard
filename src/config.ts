@@ -7,8 +7,14 @@ import type { AgentKind } from "./core/types.js";
  * standard cmux + `codexbar serve` setup.
  */
 export interface MuxboardConfig {
-  /** cmux binary path or name. */
+  /** cmux binary path or name (used by the bridge, not the plugin directly). */
   cmuxBin: string;
+  /**
+   * Base URL of the Muxboard cmux bridge. The Stream Deck app launches the
+   * plugin outside any cmux session, so cmux's control socket rejects direct
+   * calls; the plugin reads cmux state from this localhost bridge over TCP.
+   */
+  cmuxBridgeUrl: string;
   /** Base URL of `codexbar serve`. */
   codexbarBaseUrl: string;
   /** CodexBar providers to poll/cycle, in display order. */
@@ -23,6 +29,7 @@ export interface MuxboardConfig {
 
 export const DEFAULT_CONFIG: MuxboardConfig = {
   cmuxBin: "cmux",
+  cmuxBridgeUrl: "http://127.0.0.1:17779",
   // 17777 keeps CodexBar's default 8080 free; run `codexbar serve --port 17777`.
   codexbarBaseUrl: "http://127.0.0.1:17777",
   codexbarProviders: ["codex", "claude"],
@@ -41,6 +48,7 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
   const p = partial ?? {};
   return {
     cmuxBin: nonEmpty(p.cmuxBin) ?? DEFAULT_CONFIG.cmuxBin,
+    cmuxBridgeUrl: normalizeUrl(p.cmuxBridgeUrl) ?? DEFAULT_CONFIG.cmuxBridgeUrl,
     codexbarBaseUrl: normalizeUrl(p.codexbarBaseUrl) ?? DEFAULT_CONFIG.codexbarBaseUrl,
     codexbarProviders: cleanStrings(p.codexbarProviders) ?? DEFAULT_CONFIG.codexbarProviders,
     cmuxPollMs: clampInt(p.cmuxPollMs, 500, 10_000, DEFAULT_CONFIG.cmuxPollMs),

@@ -1,6 +1,8 @@
 node_modules/
 dist/
 *.sdPlugin/bin/
+*.sdPlugin/logs/
+*.sdPlugin/profiles/
 out/
 *.log
 .DS_Store

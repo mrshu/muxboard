@@ -1,9 +1,9 @@
-import type { CmuxClient } from "../cmux/client.js";
+import type { CmuxSource } from "../cmux/source.js";
 import type { Store } from "./store.js";
 import { type Logger, silentLogger } from "./logger.js";
 
 export interface CmuxServiceOptions {
-  client: CmuxClient;
+  client: CmuxSource;
   store: Store;
   /** Poll interval in ms (default 1500). */
   pollMs?: number;
@@ -20,7 +20,7 @@ export interface CmuxServiceOptions {
  *    out a single dropped call.
  */
 export class CmuxService {
-  private readonly client: CmuxClient;
+  private readonly client: CmuxSource;
   private readonly store: Store;
   private readonly pollMs: number;
   private readonly log: Logger;
@@ -56,7 +56,8 @@ export class CmuxService {
       this.store.setAttention(items, false);
     } catch (err) {
       this.consecutiveFailures++;
-      this.log.warn(`cmux poll failed (${this.consecutiveFailures}): ${message(err)}`);
+      const detail = err && typeof err === "object" && "stderr" in err ? ` stderr=${String((err as { stderr?: unknown }).stderr).slice(0, 200)}` : "";
+      this.log.warn(`cmux poll failed (${this.consecutiveFailures}): ${message(err)}${detail}`);
       if (this.consecutiveFailures >= 2) {
         this.store.setCmuxOffline(true);
       }

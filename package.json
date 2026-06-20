@@ -16,7 +16,9 @@
     "preview": "tsx scripts/preview.ts",
     "validate": "tsx scripts/validate.ts",
     "dev": "bash scripts/dev.sh",
-    "icons": "tsx scripts/gen-icons.ts"
+    "icons": "tsx scripts/gen-icons.ts",
+    "profile": "tsx scripts/gen-profile.ts",
+    "bridge": "node scripts/bridge.mjs"
   },
   "dependencies": {
     "@elgato/streamdeck": "^1.0.0"
