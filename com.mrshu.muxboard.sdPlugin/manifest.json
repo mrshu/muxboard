@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "Muxboard",
+  "Version": "0.1.0.0",
+  "Author": "mrshu",
+  "UUID": "com.mrshu.muxboard",
+  "Icon": "imgs/plugin/icon",
+  "Description": "Surfaces cmux panes whose coding agents (Claude Code, Codex, Pi) need attention on the 8 keys, and CodexBar quota/limit telemetry on the LCD strip.",
+  "Category": "Muxboard",
+  "CategoryIcon": "imgs/plugin/category",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "Actions": [
+    {
+      "Name": "Attention Slot",
+      "UUID": "com.mrshu.muxboard.attention",
+      "Icon": "imgs/actions/attention/icon",
+      "Tooltip": "Shows the cmux pane needing attention for this key's slot. Press to focus it.",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/attention/key",
+          "TitleAlignment": "middle",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "Name": "Muxboard Dial",
+      "UUID": "com.mrshu.muxboard.dial",
+      "Icon": "imgs/actions/dial/icon",
+      "Tooltip": "CodexBar quota segment + Muxboard dial controls.",
+      "Controllers": ["Encoder"],
+      "States": [
+        {
+          "Image": "imgs/actions/dial/key"
+        }
+      ],
+      "Encoder": {
+        "Icon": "imgs/actions/dial/icon",
+        "background": "imgs/actions/dial/segment",
+        "TriggerDescription": {
+          "Rotate": "Adjust",
+          "Push": "Activate",
+          "Touch": "Activate"
+        }
+      }
+    }
+  ],
+  "Profiles": [
+    {
+      "Name": "Muxboard",
+      "DeviceType": 7,
+      "Readonly": false,
+      "DontAutoSwitchWhenInstalled": false
+    }
+  ]
+}
