@@ -18,15 +18,22 @@ export interface RawCmuxNotification {
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** Optional user map of name substring → agent (e.g. {"fieldtheory":"codex"}). */
+export type AgentAliases = Record<string, AgentKind>;
+
 /**
- * Map a cmux notification title to an agent kind.
+ * Map a cmux notification's name to an agent kind.
  *
- * cmux puts the emitting agent in `title` (e.g. "Claude Code", "fieldtheory-cli").
- * We match the known coding agents and fall back to "unknown" so custom agent
- * names still render (just without a branded palette).
+ * cmux puts the emitting agent's name in `title`/`tab_title`, but a custom name
+ * (e.g. "fieldtheory-cli") carries no agent hint and cmux exposes none. So we
+ * first consult a user-provided alias map (substring → agent), then the built-in
+ * keywords, falling back to "unknown".
  */
-export function detectAgent(title: string): AgentKind {
-  const t = title.toLowerCase().trim();
+export function detectAgent(name: string, aliases: AgentAliases = {}): AgentKind {
+  const t = name.toLowerCase().trim();
+  for (const [needle, agent] of Object.entries(aliases)) {
+    if (needle && t.includes(needle.toLowerCase())) return agent;
+  }
   if (t.includes("claude")) return "claude";
   if (t.includes("codex")) return "codex";
   // Pi: exact "pi"/"π", or a clear word boundary ("pi-agent", "pi cli").
@@ -38,15 +45,17 @@ export function detectAgent(title: string): AgentKind {
  * Derive an attention reason from the cmux notification body.
  *
  * This reads cmux's own *structured* notification text — it is not terminal
- * scraping. Order matters: the strongest signal wins.
+ * scraping. Order matters: the strongest signal wins. A notification always
+ * means the pane wants you, so anything unrecognized defaults to "waiting"
+ * rather than a vague "needs attention".
  */
 export function detectReason(body: string): AttentionReason {
   const b = body.toLowerCase();
   if (/\b(fail|failed|error|crashed|exception)\b/.test(b)) return "failed";
   if (/\b(permission|approve|approval|blocked|denied|confirm)\b/.test(b)) return "blocked";
-  if (/\b(waiting|awaiting|input|ready for|your turn)\b/.test(b)) return "waiting";
-  if (/\b(done|finished|complete|completed|ready)\b/.test(b)) return "finished";
-  return "unknown";
+  if (/\b(done|finished|complete|completed)\b/.test(b)) return "finished";
+  // waiting/input keywords, plus the default for any other notification.
+  return "waiting";
 }
 
 /**
@@ -68,7 +77,10 @@ function deriveTitle(tabTitle: string, body: string): string {
  * Returns null when the row lacks the minimum fields we need (id + workspace),
  * so malformed rows are dropped rather than crashing the poll loop.
  */
-export function normalizeNotification(raw: RawCmuxNotification): AttentionItem | null {
+export function normalizeNotification(
+  raw: RawCmuxNotification,
+  aliases: AgentAliases = {},
+): AttentionItem | null {
   const id = str(raw.id);
   const workspaceId = str(raw.workspace_id);
   if (!id || !workspaceId) return null;
@@ -80,7 +92,8 @@ export function normalizeNotification(raw: RawCmuxNotification): AttentionItem |
 
   return {
     id,
-    agent: detectAgent(title),
+    // Match aliases/keywords against both the title and the tab name.
+    agent: detectAgent(`${title} ${tabTitle}`, aliases),
     workspaceId,
     surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
@@ -92,12 +105,12 @@ export function normalizeNotification(raw: RawCmuxNotification): AttentionItem |
 }
 
 /** Normalize a raw notification array, dropping malformed rows. */
-export function normalizeNotifications(raw: unknown): AttentionItem[] {
+export function normalizeNotifications(raw: unknown, aliases: AgentAliases = {}): AttentionItem[] {
   if (!Array.isArray(raw)) return [];
   const out: AttentionItem[] = [];
   for (const row of raw) {
     if (row && typeof row === "object") {
-      const item = normalizeNotification(row as RawCmuxNotification);
+      const item = normalizeNotification(row as RawCmuxNotification, aliases);
       if (item) out.push(item);
     }
   }

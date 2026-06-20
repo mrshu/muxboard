@@ -143,9 +143,11 @@ rows returned by `cmux list-notifications --json`:
 }
 ```
 
-**Agent** is matched from `title` (case-insensitive): contains `claude` →
-`claude`, `codex` → `codex`, a `pi` word → `pi`, otherwise `unknown` (still
-shown, just without a branded palette).
+**Agent** is matched from the notification name (case-insensitive): contains
+`claude` → `claude`, `codex` → `codex`, a `pi` word → `pi`, otherwise `unknown`.
+cmux doesn't tag custom-named agents (e.g. a codex CLI shown as
+`fieldtheory-cli`), so the `agentAliases` config maps a name substring to an
+agent — e.g. `{ "fieldtheory": "codex" }`.
 
 **Status** is mapped from `body`, strongest signal first:
 
@@ -154,8 +156,8 @@ shown, just without a branded palette).
 | `failed` | fail, failed, error, crashed, exception | strongest (red border) |
 | `blocked` | permission, approve, blocked, denied, confirm | strong (amber) |
 | `waiting` | waiting, awaiting, input, ready for, your turn | strong (yellow) |
-| `finished` | done, finished, complete, ready | normal (teal) |
-| `unknown` | anything else | muted |
+| `finished` | done, finished, complete, completed | normal (teal) |
+| `waiting` | waiting, input, … **and anything else** (a notification means the pane wants you) | strong (yellow) |
 
 Notes:
 
@@ -199,6 +201,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
 | `enabledAgents` | all | Agents allowed onto the queue |
+| `agentAliases` | `{ "fieldtheory": "codex" }` | Name substring → agent, for custom-named agents |
 
 ---
 

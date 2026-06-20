@@ -15,20 +15,23 @@ import {
 import type { AttentionItem } from "../src/core/types.js";
 import { loadFixture } from "./helpers.js";
 
-test("detectAgent maps titles to agent kinds", () => {
+test("detectAgent maps titles to agent kinds, with alias override", () => {
   assert.equal(detectAgent("Claude Code"), "claude");
   assert.equal(detectAgent("Codex CLI"), "codex");
   assert.equal(detectAgent("pi-agent"), "pi");
   assert.equal(detectAgent("π"), "pi");
   assert.equal(detectAgent("fieldtheory-cli"), "unknown");
+  // alias map identifies a custom-named agent cmux doesn't tag
+  assert.equal(detectAgent("⠴ fieldtheory-cli", { fieldtheory: "codex" }), "codex");
 });
 
-test("detectReason picks the strongest signal from the body", () => {
+test("detectReason picks the strongest signal, defaulting to waiting", () => {
   assert.equal(detectReason("Task failed: build error"), "failed");
   assert.equal(detectReason("Claude needs your permission"), "blocked");
   assert.equal(detectReason("Claude is waiting for your input"), "waiting");
   assert.equal(detectReason("Run complete: tests passing"), "finished");
-  assert.equal(detectReason("some neutral status"), "unknown");
+  // a notification always wants attention → unrecognized bodies are "waiting"
+  assert.equal(detectReason("Ran the update again: 23 bookmarks synced"), "waiting");
 });
 
 test("normalizeNotifications maps the real fixture and drops malformed rows", () => {

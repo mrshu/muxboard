@@ -26,6 +26,11 @@ export interface MuxboardConfig {
   codexbarPollMs: number;
   /** Agents allowed onto the attention queue. */
   enabledAgents: AgentKind[];
+  /**
+   * Map a notification name substring → agent, for custom-named agents cmux
+   * doesn't tag (e.g. a codex CLI shown as "fieldtheory-cli"). Case-insensitive.
+   */
+  agentAliases: Record<string, AgentKind>;
 }
 
 export const DEFAULT_CONFIG: MuxboardConfig = {
@@ -36,6 +41,8 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
   enabledAgents: ["claude", "codex", "pi", "unknown"],
+  // Custom-named agents → their real type. Extend with your own names.
+  agentAliases: { fieldtheory: "codex" },
 };
 
 const ALL_AGENTS: AgentKind[] = ["claude", "codex", "pi", "unknown"];
@@ -53,7 +60,17 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
     cmuxPollMs: clampInt(p.cmuxPollMs, 500, 10_000, DEFAULT_CONFIG.cmuxPollMs),
     codexbarPollMs: clampInt(p.codexbarPollMs, 5_000, 600_000, DEFAULT_CONFIG.codexbarPollMs),
     enabledAgents: cleanAgents(p.enabledAgents) ?? DEFAULT_CONFIG.enabledAgents,
+    agentAliases: cleanAliases(p.agentAliases) ?? DEFAULT_CONFIG.agentAliases,
   };
+}
+
+function cleanAliases(v: unknown): Record<string, AgentKind> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, AgentKind> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (k.trim() && ALL_AGENTS.includes(val as AgentKind)) out[k.trim()] = val as AgentKind;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function nonEmpty(v: unknown): string | undefined {

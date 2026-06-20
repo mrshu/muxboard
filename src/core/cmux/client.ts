@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AttentionItem } from "../types.js";
-import { normalizeNotifications } from "./normalize.js";
+import { type AgentAliases, normalizeNotifications } from "./normalize.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -76,6 +76,8 @@ export interface CmuxClientOptions {
   bin?: string;
   /** Injected runner for tests; defaults to execFile. */
   runner?: CommandRunner;
+  /** Custom-name → agent map applied during normalization. */
+  agentAliases?: AgentAliases;
 }
 
 /**
@@ -87,17 +89,19 @@ export interface CmuxClientOptions {
 export class CmuxClient {
   private readonly bin: string;
   private readonly runner: CommandRunner;
+  private readonly aliases: AgentAliases;
 
   constructor(opts: CmuxClientOptions = {}) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
     this.runner = opts.runner ?? defaultRunner;
+    this.aliases = opts.agentAliases ?? {};
   }
 
   /** Fetch and normalize the current attention queue. */
   async listAttention(): Promise<AttentionItem[]> {
     const { stdout } = await this.runner(this.bin, ["list-notifications", "--json"]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed);
+    return normalizeNotifications(parsed, this.aliases);
   }
 
   /**
