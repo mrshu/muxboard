@@ -13,7 +13,9 @@ permissions:
 
 jobs:
   pack:
-    runs-on: ubuntu-latest
+    # macOS so `streamdeck pack` runs in its supported environment (the plugin
+    # is mac-only anyway).
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -57,7 +59,11 @@ jobs:
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: "*.streamDeckPlugin"
+          # The profile installer ships too, so `scripts/setup.sh` can fetch a
+          # version-matched copy from the release without cloning the repo.
+          files: |
+            *.streamDeckPlugin
+            scripts/install-profile.mjs
 
       - name: Upload build artifact
         if: github.event_name != 'release'

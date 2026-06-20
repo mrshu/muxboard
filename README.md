@@ -31,6 +31,21 @@ unreachable, the display degrades gracefully and the rest keeps working:
 
 ![Offline state](docs/images/dashboard-offline.png)
 
+## Install
+
+macOS, with Node.js, the [Elgato Stream Deck app](https://www.elgato.com/stream-deck),
+and [cmux](https://cmux.io) installed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mrshu/muxboard/main/scripts/setup.sh | bash
+```
+
+It downloads the latest packaged plugin from
+[Releases](https://github.com/mrshu/muxboard/releases/latest), installs it and the
+8-key + 4-dial profile, and checks that cmux automation mode is enabled (see
+[Requirements](#requirements)). Then open the Stream Deck app and pick the Muxboard
+profile. To build from source instead, see [Quick start](#quick-start).
+
 ## How it works
 
 | Surface | Shows | Source |
