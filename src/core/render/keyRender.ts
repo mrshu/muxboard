@@ -36,27 +36,25 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const ageS = ageStyle(ageSeconds);
   const S = KEY_SIZE;
 
-  const isFailed = item.reason === "failed";
-  const isBlocked = item.reason === "blocked";
   const working = item.activity === "working";
+  // A failed/blocked notification lingers in cmux after you respond — but once
+  // the agent resumes (working), it no longer needs you, so "working" wins.
+  const isFailed = !working && item.reason === "failed";
+  const isBlocked = !working && item.reason === "blocked";
 
-  // Status line (bottom): what the pane is doing. Color-coded; failed/permission
-  // are the loud ones, "working" (building/changing) is teal, "waiting" muted.
-  const status = isFailed
-    ? { text: "✕ FAILED", color: "#ff4d4f" }
-    : isBlocked
-      ? { text: "PERMISSION", color: "#ffb02e" }
-      : working
-        ? { text: "● working", color: "#4ec9b0" }
+  // Status line (bottom): what the pane is doing. "working" (building/changing)
+  // means it's busy again; failed/permission are the ones that still want you.
+  const status = working
+    ? { text: "● working", color: "#4ec9b0" }
+    : isFailed
+      ? { text: "✕ FAILED", color: "#ff4d4f" }
+      : isBlocked
+        ? { text: "PERMISSION", color: "#ffb02e" }
         : { text: "waiting", color: "#9aa0aa" };
 
-  // Border = the workspace's own cmux color; failed/blocked override (critical),
-  // otherwise a faint agent-tinted edge when the workspace has no color set.
-  const borderColor = isFailed
-    ? "#ff4d4f"
-    : isBlocked
-      ? "#ffb02e"
-      : (item.color ?? null);
+  // Border = the workspace's own cmux color; failed/blocked override (critical)
+  // only while still waiting; a working pane keeps its workspace color.
+  const borderColor = isFailed ? "#ff4d4f" : isBlocked ? "#ffb02e" : (item.color ?? null);
   const borderW = isFailed ? 8 : isBlocked ? 6 : item.color ? 6 : 0;
   const border = borderW
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`

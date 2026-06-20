@@ -29,20 +29,25 @@ export function applyFilter(items: AttentionItem[], filter: AgentFilter): Attent
   return items.filter((it) => it.agent === filter);
 }
 
-/** Triage rank: failed first, then blocked (needs permission), then the rest. */
-function reasonRank(reason: AttentionItem["reason"]): number {
-  if (reason === "failed") return 0;
-  if (reason === "blocked") return 1;
-  return 2;
+/**
+ * Triage rank for the key grid. Panes that currently want you come first:
+ * failed → permission → waiting; panes that are actively working (no longer
+ * waiting on you) sink to the end regardless of their lingering notification.
+ */
+function itemRank(item: AttentionItem): number {
+  if (item.activity === "working") return 3;
+  if (item.reason === "failed") return 0;
+  if (item.reason === "blocked") return 1;
+  return 2; // waiting
 }
 
 /**
- * Order for the key grid: exceptions (failed/permission) pinned to the front so
- * the few urgent items land top-left, then everything else in the given order
- * (newest-first). Array.sort is stable, so within a rank the input order holds.
+ * Order for the key grid: the panes that want you (failed/permission/waiting)
+ * land top-left, working panes sink to the end. Array.sort is stable, so within
+ * a rank the input order (newest-first) is preserved.
  */
 export function triageOrder(items: AttentionItem[]): AttentionItem[] {
-  return [...items].sort((a, b) => reasonRank(a.reason) - reasonRank(b.reason));
+  return [...items].sort((a, b) => itemRank(a) - itemRank(b));
 }
 
 /**

@@ -32,6 +32,25 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.match(svg, /stroke-width="8"/); // failed -> strongest border
 });
 
+test("a working pane overrides a lingering permission/failed notification", () => {
+  const base = {
+    id: "x",
+    agent: "claude" as const,
+    workspaceId: "w",
+    title: "RCJ Scoreboard",
+    body: "",
+    message: "",
+    createdAt: "2026-06-20T12:08:00Z",
+  };
+  // Still blocked + waiting → shows PERMISSION.
+  const waiting = renderKey({ ...base, reason: "blocked", activity: "waiting" }, { nowMs: NOW_MS, slotNumber: 1 });
+  assert.match(waiting, /PERMISSION/);
+  // Responded → agent resumed (working) → no PERMISSION, shows working.
+  const work = renderKey({ ...base, reason: "blocked", activity: "working" }, { nowMs: NOW_MS, slotNumber: 1 });
+  assert.doesNotMatch(work, /PERMISSION/);
+  assert.match(work, /working/);
+});
+
 test("renderEmptyKey and renderCmuxOffline produce valid muted SVGs", () => {
   const empty = renderEmptyKey(8);
   assert.match(empty, /<svg/);
