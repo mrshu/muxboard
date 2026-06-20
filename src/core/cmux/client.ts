@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import type { AgentKind, AttentionItem } from "../types.js";
 import { type AgentAliases, normalizeNotifications } from "./normalize.js";
 import { parseCodingAgents } from "./agents.js";
-import { parseWorkspaceMessages } from "./workspaces.js";
+import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -98,9 +98,9 @@ export class CmuxClient {
   /** Cached workspace→agent map (from `top`), refreshed on a slow cadence. */
   private agentCache: Map<string, AgentKind> = new Map();
   private agentCacheAt = 0;
-  /** Cached workspace→latest-message map (from `workspace list`). */
-  private msgCache: Map<string, string> = new Map();
-  private msgCacheAt = 0;
+  /** Cached workspace→info map (title + message, from `workspace list`). */
+  private wsCache: Map<string, WorkspaceInfo> = new Map();
+  private wsCacheAt = 0;
   private readonly now: () => number;
   private static readonly AGENT_TTL_MS = 5000;
   private static readonly MSG_TTL_MS = 3000;
@@ -114,23 +114,22 @@ export class CmuxClient {
 
   /** Fetch and normalize the current attention queue. */
   async listAttention(): Promise<AttentionItem[]> {
-    const [{ stdout }, agents, messages] = await Promise.all([
+    const [{ stdout }, agents, workspaces] = await Promise.all([
       this.runner(this.bin, ["list-notifications", "--json"]),
       this.codingAgentsByWorkspace(),
-      this.messagesByWorkspace(),
+      this.workspaceInfo(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed, this.aliases, { agents, messages });
+    return normalizeNotifications(parsed, this.aliases, { agents, workspaces });
   }
 
   /**
-   * Map of workspaceId → the pane's latest conversation message, from
-   * `cmux workspace list`. This is the "what is this pane about" content shown
-   * on each key. Cached briefly; best-effort (falls back to the notification
-   * body when absent).
+   * Map of workspaceId → info (best title + latest message), from
+   * `cmux workspace list`. The title is what each key shows; the message is a
+   * fallback. Cached briefly; best-effort.
    */
-  async messagesByWorkspace(): Promise<Map<string, string>> {
-    if (this.now() - this.msgCacheAt < CmuxClient.MSG_TTL_MS) return this.msgCache;
+  async workspaceInfo(): Promise<Map<string, WorkspaceInfo>> {
+    if (this.now() - this.wsCacheAt < CmuxClient.MSG_TTL_MS) return this.wsCache;
     try {
       const { stdout } = await this.runner(this.bin, [
         "--id-format",
@@ -139,12 +138,12 @@ export class CmuxClient {
         "list",
         "--json",
       ]);
-      this.msgCache = parseWorkspaceMessages(JSON.parse(stdout));
-      this.msgCacheAt = this.now();
+      this.wsCache = parseWorkspaceInfo(JSON.parse(stdout));
+      this.wsCacheAt = this.now();
     } catch {
-      // Keep last cache; body fallback covers the gap.
+      // Keep last cache; tab/body fallbacks cover the gap.
     }
-    return this.msgCache;
+    return this.wsCache;
   }
 
   /**

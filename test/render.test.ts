@@ -27,8 +27,8 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   const svg = renderKey(codex!, { nowMs: NOW_MS, slotNumber: 1 });
   assert.match(svg, /<svg/);
   assert.match(svg, /<g transform="translate[^"]+scale/); // codex brand icon, inlined
-  assert.match(svg, /FAILED/); // reason
-  assert.match(svg, /codex-playg/); // repo (path-stripped + shortened)
+  assert.match(svg, /FAILED/); // reason chip
+  assert.match(svg, /codex/); // title (auto-fit, may wrap)
   assert.match(svg, /stroke-width="8"/); // failed -> strongest border
 });
 

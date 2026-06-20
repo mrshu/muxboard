@@ -1,4 +1,10 @@
 import type { AgentKind, AttentionItem, AttentionReason } from "../types.js";
+import { cleanTitle, type WorkspaceInfo } from "./workspaces.js";
+
+const basename = (p: string): string => {
+  const parts = p.replace(/\/+$/, "").split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? p;
+};
 
 /**
  * Raw shape of a `cmux list-notifications --json` row, as verified against
@@ -67,14 +73,13 @@ export function detectReason(body: string, subtitle = ""): AttentionReason {
 }
 
 /**
- * Build a short, human-friendly title for the key.
- *
- * Prefers cmux's `tab_title` (often the workspace/repo name), falling back to a
- * trimmed notification body so the key is never empty.
+ * Build a human-friendly title from the notification when no workspace title is
+ * available: cmux's `tab_title` (spinner-stripped; path-like names reduced to
+ * their basename), falling back to a trimmed body so the key is never empty.
  */
 function deriveTitle(tabTitle: string, body: string): string {
-  const t = tabTitle.trim();
-  if (t) return t;
+  const t = cleanTitle(tabTitle);
+  if (t) return /^[~…/]/.test(t) ? basename(t) : t;
   const b = body.trim();
   return b.length > 40 ? `${b.slice(0, 39)}…` : b;
 }
@@ -89,8 +94,8 @@ function deriveTitle(tabTitle: string, body: string): string {
 export interface CmuxContext {
   /** workspaceId → agent, from the running process (authoritative). */
   agents?: Map<string, AgentKind>;
-  /** workspaceId → the pane's latest conversation message. */
-  messages?: Map<string, string>;
+  /** workspaceId → best title + latest message, from `workspace list`. */
+  workspaces?: Map<string, WorkspaceInfo>;
 }
 
 export function normalizeNotification(
@@ -110,18 +115,19 @@ export function normalizeNotification(
   // Prefer the agent detected from the actual running process (authoritative);
   // fall back to alias/keyword matching on the title + tab name.
   const processAgent = ctx.agents?.get(workspaceId);
-  // Prefer the pane's latest conversation message; fall back to the body.
-  const wsMessage = (ctx.messages?.get(workspaceId) ?? "").trim();
+  const ws = ctx.workspaces?.get(workspaceId);
+  // Prefer the workspace's resolved title; fall back to the tab/body.
+  const displayTitle = (ws?.title ?? "").trim() || deriveTitle(tabTitle, body);
   return {
     id,
     agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
     workspaceId,
     surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
-    title: deriveTitle(tabTitle, body),
+    title: displayTitle,
     reason: detectReason(body, str(raw.subtitle)),
     body,
-    message: wsMessage || body,
+    message: (ws?.message ?? "").trim() || body,
     createdAt,
   };
 }

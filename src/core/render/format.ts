@@ -103,6 +103,73 @@ export function wrapText(text: string, maxChars: number, maxLines: number): stri
   return lines;
 }
 
+/** Rough SVG text width (no DOM): ~0.6em/char for a bold sans title. */
+function estTextWidth(s: string, fontSize: number): number {
+  return s.trim().length * fontSize * 0.6;
+}
+
+const LINE_H = 1.14;
+
+/** Break a string into atoms that may wrap AFTER a space/hyphen/underscore/slash. */
+function atomize(text: string): string[] {
+  return cleanMessage(text)
+    .split(/(?<=[ \-_/])/)
+    .filter((s) => s.length > 0);
+}
+
+/** Greedy-pack atoms into lines at a font size; `fits` is false if an atom is too wide. */
+function wrapAtoms(atoms: string[], boxW: number, fs: number): { lines: string[]; fits: boolean } {
+  const lines: string[] = [];
+  let line = "";
+  for (const atom of atoms) {
+    if (estTextWidth(atom, fs) > boxW) return { lines: [], fits: false }; // needs hard-break
+    if (estTextWidth(line + atom, fs) <= boxW) {
+      line += atom;
+    } else {
+      if (line) lines.push(line.trim());
+      line = atom;
+    }
+  }
+  if (line.trim()) lines.push(line.trim());
+  return { lines, fits: true };
+}
+
+/** Hard-break by characters (last resort) and ellipsize beyond maxLines. */
+function hardWrap(text: string, boxW: number, fs: number, maxLines: number): string[] {
+  const s = cleanMessage(text);
+  const perLine = Math.max(1, Math.floor(boxW / (fs * 0.6)));
+  const lines: string[] = [];
+  for (let i = 0; i < s.length; i += perLine) lines.push(s.slice(i, i + perLine));
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = `${kept[maxLines - 1].slice(0, perLine - 1)}…`;
+    return kept;
+  }
+  return lines;
+}
+
+/**
+ * Fit `text` into a `boxW`×`boxH` box: shrink the font (maxFs→minFs) until the
+ * title wraps — at word/hyphen/slash boundaries, never mid-character — within
+ * the available height. Hard-breaks + ellipsizes only at the floor. Returns the
+ * chosen font size and lines, for showing a full title on a small tile.
+ */
+export function fitText(
+  text: string,
+  boxW: number,
+  boxH: number,
+  minFs = 15,
+  maxFs = 30,
+): { fontSize: number; lines: string[] } {
+  const atoms = atomize(text);
+  for (let fs = maxFs; fs >= minFs; fs--) {
+    const { lines, fits } = wrapAtoms(atoms, boxW, fs);
+    if (fits && lines.length * fs * LINE_H <= boxH) return { fontSize: fs, lines };
+  }
+  const maxLines = Math.max(1, Math.floor(boxH / (minFs * LINE_H)));
+  return { fontSize: minFs, lines: hardWrap(text, boxW, minFs, maxLines) };
+}
+
 /** XML-escape text for safe SVG embedding. */
 export function escapeXml(s: string): string {
   return s

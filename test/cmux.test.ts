@@ -51,14 +51,16 @@ test("process-detected agent overrides the title (e.g. codex named 'fieldtheory-
   assert.equal(item.reason, "waiting");
 });
 
-test("normalize uses the workspace message for the key band, falling back to body", () => {
+test("normalize uses the workspace title + message, falling back to tab/body", () => {
   const raw = [
-    { id: "a", title: "Claude Code", body: "Claude is waiting for your input", workspace_id: "WS1", created_at: "2026-06-20T12:00:00Z" },
-    { id: "b", title: "Codex", body: "Ran the update: 23 synced", workspace_id: "WS2", created_at: "2026-06-20T12:00:00Z" },
+    { id: "a", title: "Claude Code", tab_title: "~/w/d/r/app", body: "waiting", workspace_id: "WS1", created_at: "2026-06-20T12:00:00Z" },
+    { id: "b", title: "Codex", tab_title: "fieldtheory-cli", body: "Ran the update: 23 synced", workspace_id: "WS2", created_at: "2026-06-20T12:00:00Z" },
   ];
-  const messages = new Map([["WS1", "let's start from dev on #12"]]);
-  const [a, b] = normalizeNotifications(raw, {}, { messages });
-  assert.equal(a.message, "let's start from dev on #12"); // workspace message
+  const workspaces = new Map([["WS1", { title: "RCJ Scoreboard", message: "let's start from dev on #12" }]]);
+  const [a, b] = normalizeNotifications(raw, {}, { workspaces });
+  assert.equal(a.title, "RCJ Scoreboard"); // workspace title wins
+  assert.equal(a.message, "let's start from dev on #12");
+  assert.equal(b.title, "fieldtheory-cli"); // falls back to tab_title
   assert.equal(b.message, "Ran the update: 23 synced"); // falls back to body
 });
 

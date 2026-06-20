@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
-import { escapeXml, formatAge, shortName, wrapText } from "./format.js";
+import { escapeXml, fitText, formatAge } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
@@ -24,17 +24,16 @@ function ageStyle(ageSeconds: number): { size: number; color: string } {
 /**
  * Render an attention item to an SVG string for a Stream Deck key.
  *
- * Layout (144×144): agent glyph + repo identity + age on top, then a content
- * band showing the pane's latest message ("what is this actually saying?") —
- * the worthwhile content, not a redundant status word. Failed/blocked add a
- * colored border + a small reason tag so the rare urgent tiles pop.
+ * Layout (144×144): the session TITLE is the hero — auto-fit (shrink + wrap) so
+ * it shows in full. Agent brand icon top-left, age top-right (warmth-ramped =
+ * urgency). Failed/blocked add a colored border + a small reason chip at the
+ * bottom so the rare urgent tiles pop.
  */
 export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const a = agentTheme(item.agent);
   const ageSeconds = Math.max(0, Math.floor((opts.nowMs - Date.parse(item.createdAt)) / 1000));
   const age = formatAge(item.createdAt, opts.nowMs);
   const ageS = ageStyle(ageSeconds);
-  const repo = escapeXml(shortName(item.repo ?? item.title, 13));
   const S = KEY_SIZE;
 
   const isFailed = item.reason === "failed";
@@ -46,22 +45,24 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${excColor}" stroke-width="${borderW}"/>`
     : "";
 
-  // Content band: the pane's latest message. Exceptions get a small reason tag
-  // above it; routine items use the freed line for more message text.
-  const bandTop = 72;
-  const tag = isFailed
-    ? `<text x="13" y="${bandTop + 18}" font-size="14" font-weight="800" fill="${excColor}" letter-spacing="1">✕ FAILED</text>`
-    : isBlocked
-      ? `<text x="13" y="${bandTop + 18}" font-size="14" font-weight="800" fill="${excColor}" letter-spacing="1">PERMISSION</text>`
-      : "";
-  const msgTop = exc ? bandTop + 40 : bandTop + 20;
-  const lines = wrapText(item.message || item.body || "", 14, exc ? 2 : 3);
-  const msg = lines
+  // Title is the hero: fit the full text into the box below the top chrome and
+  // above the optional exception chip — shrink + wrap rather than truncate.
+  const boxTop = 50;
+  const boxBottom = exc ? 116 : 136;
+  const fit = fitText(item.title || item.repo || "?", S - 24, boxBottom - boxTop, 14, 30);
+  const lineH = fit.fontSize * 1.14;
+  const totalH = fit.lines.length * lineH;
+  const startY = boxTop + Math.max(0, (boxBottom - boxTop - totalH) / 2) + fit.fontSize * 0.82;
+  const title = fit.lines
     .map(
       (l, i) =>
-        `<text x="13" y="${msgTop + i * 21}" font-size="17" font-weight="500" fill="#cfd4dc">${escapeXml(l)}</text>`,
+        `<text x="12" y="${(startY + i * lineH).toFixed(1)}" font-size="${fit.fontSize}" font-weight="800" fill="${a.fg}">${escapeXml(l)}</text>`,
     )
     .join("");
+
+  const chip = exc
+    ? `<text x="12" y="${S - 12}" font-size="15" font-weight="800" fill="${excColor}" letter-spacing="1">${isFailed ? "✕ FAILED" : "PERMISSION"}</text>`
+    : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs>
@@ -73,16 +74,14 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   <rect width="${S}" height="${S}" rx="18" fill="url(#bg)"/>
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
-    <rect x="13" y="13" width="32" height="32" rx="8" fill="${a.accent}"/>
+    <rect x="13" y="11" width="30" height="30" rx="8" fill="${a.accent}"/>
     ${
-      providerIconSvg(item.agent, 18, 18, 22, "#10100f") ||
-      `<text x="29" y="36" font-size="22" font-weight="700" text-anchor="middle" fill="#10100f">${escapeXml(a.glyph)}</text>`
+      providerIconSvg(item.agent, 17, 15, 22, "#10100f") ||
+      `<text x="28" y="33" font-size="21" font-weight="700" text-anchor="middle" fill="#10100f">${escapeXml(a.glyph)}</text>`
     }
-    <text x="${S - 12}" y="38" font-size="${ageS.size}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
-    <text x="13" y="64" font-size="19" font-weight="800" fill="${a.fg}">${repo}</text>
-    <rect x="7" y="${bandTop - 6}" width="${S - 14}" height="${S - bandTop}" rx="9" fill="#15171c" opacity="0.85"/>
-    ${tag}
-    ${msg}
+    <text x="${S - 12}" y="34" font-size="${Math.min(ageS.size, 24)}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
+    ${title}
+    ${chip}
   </g>
 </svg>`;
 }
