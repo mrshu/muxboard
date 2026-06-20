@@ -78,6 +78,36 @@ test("detectReason: failed only from structured subtitle, never free-form body",
   assert.equal(detectReason("I'll approve the PR once CI is green"), "waiting");
 });
 
+test("a read permission/failure is demoted to waiting (already answered)", () => {
+  const base = { id: "n1", workspace_id: "w1" };
+  // Pending (unread) urgent reasons keep their urgency.
+  const pendingPerm = normalizeNotifications([
+    { ...base, body: "Claude needs your permission to run a command", is_read: false },
+  ]);
+  assert.equal(pendingPerm[0].reason, "blocked");
+  const pendingFail = normalizeNotifications([
+    { ...base, body: "Task failed", subtitle: "Error", is_read: false },
+  ]);
+  assert.equal(pendingFail[0].reason, "failed");
+
+  // Once read (you've seen/answered it), they demote to plain waiting: the key
+  // stays but loses the badge + front-pin. cmux leaves the row in the list.
+  const readPerm = normalizeNotifications([
+    { ...base, body: "Claude needs your permission to run a command", is_read: true },
+  ]);
+  assert.equal(readPerm[0].reason, "waiting");
+  const readFail = normalizeNotifications([
+    { ...base, body: "Task failed", subtitle: "Error", is_read: true },
+  ]);
+  assert.equal(readFail[0].reason, "waiting");
+
+  // A read plain-waiting notification is unaffected (still waiting).
+  const readWaiting = normalizeNotifications([
+    { ...base, body: "Claude is waiting for your input", is_read: true },
+  ]);
+  assert.equal(readWaiting[0].reason, "waiting");
+});
+
 test("normalizeNotifications maps the real fixture and drops malformed rows", () => {
   const raw = loadFixture("cmux-notifications.json");
   const items = normalizeNotifications(raw);

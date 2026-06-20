@@ -118,6 +118,17 @@ export function normalizeNotification(
   const ws = ctx.workspaces?.get(workspaceId);
   // Prefer the workspace's resolved title; fall back to the tab/body.
   const displayTitle = (ws?.title ?? "").trim() || deriveTitle(tabTitle, body);
+
+  // cmux keeps a notification in its list after you respond, only flipping
+  // `is_read`. So a permission/failure you've already seen is no longer actively
+  // demanding action: demote it to plain "waiting" (the key stays, but it loses
+  // the urgent badge + front-pin). Unread urgent reasons are left untouched.
+  const rawReason = detectReason(body, str(raw.subtitle));
+  const reason: AttentionReason =
+    raw.is_read === true && (rawReason === "blocked" || rawReason === "failed")
+      ? "waiting"
+      : rawReason;
+
   return {
     id,
     agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
@@ -125,7 +136,7 @@ export function normalizeNotification(
     surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
     title: displayTitle,
-    reason: detectReason(body, str(raw.subtitle)),
+    reason,
     // Prefer the live workspace activity; fall back to the notification title glyph.
     activity: ws?.activity ?? detectActivity(title),
     color: ws?.color,
