@@ -5,6 +5,30 @@
   "type": "module",
   "license": "MIT",
   "author": "mrshu",
+  "homepage": "https://github.com/mrshu/muxboard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrshu/muxboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mrshu/muxboard/issues"
+  },
+  "keywords": [
+    "stream-deck",
+    "streamdeck",
+    "stream-deck-plugin",
+    "elgato",
+    "cmux",
+    "claude-code",
+    "codex",
+    "coding-agents",
+    "ai-agents",
+    "codexbar",
+    "developer-tools",
+    "dashboard",
+    "productivity",
+    "macos"
+  ],
   "engines": {
     "node": ">=20"
   },
