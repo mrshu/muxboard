@@ -9,13 +9,13 @@
 ![Stream Deck+](https://img.shields.io/badge/device-Stream%20Deck%2B-black.svg)
 ![Node.js ≥ 20](https://img.shields.io/badge/node-%E2%89%A5%2020-43853d.svg)
 
+![Muxboard dashboard](docs/images/dashboard.png)
+
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
 [cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi, or any
 other) have finished, failed, gotten blocked, or are waiting for your input. The
 LCD touch strip shows CodexBar usage: session and weekly quota, limits, and spend
 per provider.
-
-![Muxboard dashboard](docs/images/dashboard.png)
 
 The newest attention item is key 1 (top-left); the queue fills left-to-right,
 top-to-bottom:
