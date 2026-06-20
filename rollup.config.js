@@ -12,7 +12,9 @@ const sdPlugin = "com.mrshu.muxboard.sdPlugin";
 export default {
   input: "src/plugin.ts",
   output: {
-    file: `${sdPlugin}/bin/plugin.js`,
+    // .cjs so Node treats it as CommonJS regardless of package.json "type":
+    // "module" (which is set for the ESM source/tests/scripts).
+    file: `${sdPlugin}/bin/plugin.cjs`,
     format: "cjs",
     sourcemap: true,
     sourcemapPathTransform: (relativeSourcePath, sourcemapPath) => {

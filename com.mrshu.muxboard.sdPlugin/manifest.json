@@ -8,7 +8,7 @@
   "Description": "Surfaces cmux panes whose coding agents (Claude Code, Codex, Pi) need attention on the 8 keys, and CodexBar quota/limit telemetry on the LCD strip.",
   "Category": "Muxboard",
   "CategoryIcon": "imgs/plugin/category",
-  "CodePath": "bin/plugin.js",
+  "CodePath": "bin/plugin.cjs",
   "SDKVersion": 2,
   "Software": {
     "MinimumVersion": "6.5"
