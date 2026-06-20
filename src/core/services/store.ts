@@ -92,11 +92,15 @@ export class Store {
    */
   private applyStatus(item: AttentionItem): AttentionItem {
     const st = this.state.workspaceStatus[item.workspaceId];
-    if (!st) return item;
+    if (!st && !item.busy) return item; // no live signal: keep the title-glyph fallback
+    // "needs" (the agent is asking you for permission/input) takes priority so
+    // it stays visible. Otherwise the pane is working if the agent is running
+    // OR a command is crunching (busy) even though the agent itself went idle.
+    const working = st?.state === "needs" ? false : st?.state === "running" || item.busy === true;
     return {
       ...item,
-      activity: st.state === "running" ? "working" : "waiting",
-      activitySince: st.since,
+      activity: working ? "working" : "waiting",
+      activitySince: st?.since ?? item.activitySince,
     };
   }
 

@@ -96,6 +96,8 @@ export interface CmuxContext {
   agents?: Map<string, AgentKind>;
   /** workspaceId → best title + latest message, from `workspace list`. */
   workspaces?: Map<string, WorkspaceInfo>;
+  /** Workspaces with a busy command running (high CPU from `cmux top`). */
+  busyWorkspaces?: Set<string>;
 }
 
 export function normalizeNotification(
@@ -139,6 +141,7 @@ export function normalizeNotification(
     reason,
     // Prefer the live workspace activity; fall back to the notification title glyph.
     activity: ws?.activity ?? detectActivity(title),
+    busy: ctx.busyWorkspaces?.has(workspaceId) || undefined,
     color: ws?.color,
     body,
     message: (ws?.message ?? "").trim() || body,

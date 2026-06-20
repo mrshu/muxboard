@@ -44,7 +44,11 @@ async function main(): Promise<void> {
   const store = new Store(config.codexbarProviders);
   // Talk to cmux directly. This requires cmux's automation mode
   // (socketControlMode: "automation") so the plugin's process is accepted.
-  const cmux = new CmuxClient({ bin: config.cmuxBin, agentAliases: config.agentAliases });
+  const cmux = new CmuxClient({
+    bin: config.cmuxBin,
+    agentAliases: config.agentAliases,
+    busyCpuPercent: config.busyCpuPercent,
+  });
   const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
   const cmuxService = new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger });
   const cmuxEventsService = new CmuxEventsService({ bin: config.cmuxBin, store, logger });

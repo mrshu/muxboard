@@ -81,3 +81,29 @@ export function parseCodingAgents(topRaw: unknown): Map<string, AgentKind> {
   visit(top);
   return out;
 }
+
+/**
+ * Build a workspaceId → CPU-percent map from the same `cmux top` JSON.
+ *
+ * Each workspace node carries `resources.cpu_percent` aggregating all its
+ * processes (summed across cores, so a busy multi-process command reads in the
+ * hundreds). This is the signal for "a command is running here" even when the
+ * agent itself has gone idle and is waiting for you.
+ */
+export function parseWorkspaceCpu(topRaw: unknown): Map<string, number> {
+  const out = new Map<string, number>();
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+    if (n.kind === "workspace" && typeof n.id === "string") {
+      const res = n.resources as { cpu_percent?: unknown } | undefined;
+      out.set(n.id, typeof res?.cpu_percent === "number" ? res.cpu_percent : 0);
+    }
+    for (const key of Object.keys(n)) {
+      const v = n[key];
+      if (v && typeof v === "object") visit(v);
+    }
+  };
+  visit(topRaw);
+  return out;
+}

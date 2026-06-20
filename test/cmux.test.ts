@@ -78,6 +78,25 @@ test("detectReason: failed only from structured subtitle, never free-form body",
   assert.equal(detectReason("I'll approve the PR once CI is green"), "waiting");
 });
 
+test("parseWorkspaceCpu reads resources.cpu_percent per workspace", async () => {
+  const { parseWorkspaceCpu } = await import("../src/core/cmux/agents.js");
+  const top = {
+    windows: [
+      {
+        workspaces: [
+          { kind: "workspace", id: "busy", resources: { cpu_percent: 698.1 } },
+          { kind: "workspace", id: "idle", resources: { cpu_percent: 0 } },
+          { kind: "workspace", id: "nores" },
+        ],
+      },
+    ],
+  };
+  const cpu = parseWorkspaceCpu(top);
+  assert.equal(Math.round(cpu.get("busy")!), 698);
+  assert.equal(cpu.get("idle"), 0);
+  assert.equal(cpu.get("nores"), 0);
+});
+
 test("a read permission/failure is demoted to waiting (already answered)", () => {
   const base = { id: "n1", workspace_id: "w1" };
   // Pending (unread) urgent reasons keep their urgency.

@@ -4,7 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentKind, AttentionItem } from "../types.js";
 import { type AgentAliases, normalizeNotifications } from "./normalize.js";
-import { parseCodingAgents } from "./agents.js";
+import { parseCodingAgents, parseWorkspaceCpu } from "./agents.js";
 import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
 const execFileAsync = promisify(execFile);
@@ -92,6 +92,8 @@ export interface CmuxClientOptions {
   agentAliases?: AgentAliases;
   /** Epoch-ms clock, injectable for tests (agent-cache TTL). */
   now?: () => number;
+  /** Workspace CPU% at/above which a pane counts as "busy" (command running). */
+  busyCpuPercent?: number;
 }
 
 /**
@@ -107,6 +109,13 @@ export class CmuxClient {
   /** Cached workspace→agent map (from `top`), refreshed on a slow cadence. */
   private agentCache: Map<string, AgentKind> = new Map();
   private agentCacheAt = 0;
+  /** Cached workspace→CPU% map (from the same `top` call). */
+  private cpuCache: Map<string, number> = new Map();
+  private readonly busyCpuPercent: number;
+  /** workspaceId → epoch ms it last exceeded the busy threshold (hysteresis). */
+  private readonly lastBusyAt: Map<string, number> = new Map();
+  /** Keep a pane "busy" this long after CPU drops, so bursty commands don't flicker. */
+  private static readonly BUSY_GRACE_MS = 30_000;
   /** Cached workspace→info map (title + message, from `workspace list`). */
   private wsCache: Map<string, WorkspaceInfo> = new Map();
   private wsCacheAt = 0;
@@ -119,6 +128,7 @@ export class CmuxClient {
     this.runner = opts.runner ?? defaultRunner;
     this.aliases = opts.agentAliases ?? {};
     this.now = opts.now ?? (() => Date.now());
+    this.busyCpuPercent = opts.busyCpuPercent ?? 40;
   }
 
   /** Fetch and normalize the current attention queue. */
@@ -129,7 +139,30 @@ export class CmuxClient {
       this.workspaceInfo(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed, this.aliases, { agents, workspaces });
+    return normalizeNotifications(parsed, this.aliases, {
+      agents,
+      workspaces,
+      busyWorkspaces: this.busyWorkspaces(),
+    });
+  }
+
+  /**
+   * Workspaces with a command running, by CPU from the cached `top`, with
+   * hysteresis: a pane that crosses the threshold stays "busy" for a grace
+   * window after CPU drops, so a bursty command (a test loop, a build) reads as
+   * continuously working instead of flickering between bursts.
+   */
+  private busyWorkspaces(): Set<string> {
+    const now = this.now();
+    for (const [id, cpu] of this.cpuCache) {
+      if (cpu >= this.busyCpuPercent) this.lastBusyAt.set(id, now);
+    }
+    const out = new Set<string>();
+    for (const [id, at] of this.lastBusyAt) {
+      if (now - at <= CmuxClient.BUSY_GRACE_MS) out.add(id);
+      else this.lastBusyAt.delete(id);
+    }
+    return out;
   }
 
   /**
@@ -173,7 +206,9 @@ export class CmuxClient {
         "--processes",
         "--all",
       ]);
-      this.agentCache = parseCodingAgents(JSON.parse(stdout));
+      const top = JSON.parse(stdout);
+      this.agentCache = parseCodingAgents(top);
+      this.cpuCache = parseWorkspaceCpu(top);
       this.agentCacheAt = this.now();
     } catch {
       // Keep the last cache; the title/alias heuristic covers the gap.

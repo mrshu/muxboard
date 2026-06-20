@@ -31,6 +31,13 @@ export interface MuxboardConfig {
    * doesn't tag (e.g. a codex CLI shown as "fieldtheory-cli"). Case-insensitive.
    */
   agentAliases: Record<string, AgentKind>;
+  /**
+   * Workspace CPU-percent (summed across cores, from `cmux top`) at or above
+   * which a pane counts as "working" because a command is running — even if the
+   * agent itself has gone idle. Tuned to sit above agent-idle overhead (~15%)
+   * and below a real CPU-bound command (≥100% = a full core).
+   */
+  busyCpuPercent: number;
 }
 
 export const DEFAULT_CONFIG: MuxboardConfig = {
@@ -44,6 +51,7 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   // Agents are detected from the running process; this is only a manual override
   // fallback (name substring → agent) for cases that can't be detected.
   agentAliases: {},
+  busyCpuPercent: 40,
 };
 
 const ALL_AGENTS: AgentKind[] = ["claude", "codex", "pi", "unknown"];
@@ -62,6 +70,7 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
     codexbarPollMs: clampInt(p.codexbarPollMs, 5_000, 600_000, DEFAULT_CONFIG.codexbarPollMs),
     enabledAgents: cleanAgents(p.enabledAgents) ?? DEFAULT_CONFIG.enabledAgents,
     agentAliases: cleanAliases(p.agentAliases) ?? DEFAULT_CONFIG.agentAliases,
+    busyCpuPercent: clampInt(p.busyCpuPercent, 1, 100_000, DEFAULT_CONFIG.busyCpuPercent),
   };
 }
 

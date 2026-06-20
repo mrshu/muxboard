@@ -77,6 +77,24 @@ test("event status overrides item activity and drives the age clock", () => {
   assert.equal(store.getState().items[0].activitySince, undefined);
 });
 
+test("a busy command makes a pane 'working' even when the agent is idle", () => {
+  const store = freshStore();
+  const ws = store.getState().items[0].workspaceId;
+  // Agent finished its turn (idle) but a command is crunching (busy).
+  store.setAttention(
+    store.getState().allItems.map((i) => (i.workspaceId === ws ? { ...i, busy: true } : i)),
+    false,
+  );
+  store.setWorkspaceStatus({ [ws]: { state: "idle", since: 1 } });
+  const item = store.getState().items.find((i) => i.workspaceId === ws)!;
+  assert.equal(item.activity, "working"); // busy command overrides agent-idle
+
+  // But an explicit "needs you" wins over busy, so the prompt stays visible.
+  store.setWorkspaceStatus({ [ws]: { state: "needs", since: 2 } });
+  const needs = store.getState().items.find((i) => i.workspaceId === ws)!;
+  assert.equal(needs.activity, "waiting");
+});
+
 test("provider rotation is a no-op with 4 or fewer providers", () => {
   const store = new Store(["codex", "claude", "minimax", "kimi"]);
   store.rotateProviders(1);

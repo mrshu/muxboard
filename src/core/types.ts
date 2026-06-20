@@ -38,6 +38,11 @@ export interface AttentionItem {
   /** Whether the agent is actively working vs idle/waiting for you. */
   activity: "working" | "waiting";
   /**
+   * True when the workspace has a busy command running (high process CPU from
+   * `cmux top`), even if the agent itself has gone idle. Counts as "working".
+   */
+  busy?: boolean;
+  /**
    * Epoch ms the current activity began, from the cmux event stream when
    * available. Drives the key's age display so it reflects the live state
    * ("working for 2m") instead of the (possibly stale) notification time.
