@@ -46,9 +46,20 @@ test("process-detected agent overrides the title (e.g. codex named 'fieldtheory-
     },
   ];
   const map = parseCodingAgents(loadFixture("cmux-top.json"));
-  const [item] = normalizeNotifications(raw, {}, map);
+  const [item] = normalizeNotifications(raw, {}, { agents: map });
   assert.equal(item.agent, "codex"); // from process, not the custom title
   assert.equal(item.reason, "waiting");
+});
+
+test("normalize uses the workspace message for the key band, falling back to body", () => {
+  const raw = [
+    { id: "a", title: "Claude Code", body: "Claude is waiting for your input", workspace_id: "WS1", created_at: "2026-06-20T12:00:00Z" },
+    { id: "b", title: "Codex", body: "Ran the update: 23 synced", workspace_id: "WS2", created_at: "2026-06-20T12:00:00Z" },
+  ];
+  const messages = new Map([["WS1", "let's start from dev on #12"]]);
+  const [a, b] = normalizeNotifications(raw, {}, { messages });
+  assert.equal(a.message, "let's start from dev on #12"); // workspace message
+  assert.equal(b.message, "Ran the update: 23 synced"); // falls back to body
 });
 
 test("detectReason picks the strongest signal, defaulting to waiting", () => {

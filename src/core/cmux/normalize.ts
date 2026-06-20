@@ -77,10 +77,18 @@ function deriveTitle(tabTitle: string, body: string): string {
  * Returns null when the row lacks the minimum fields we need (id + workspace),
  * so malformed rows are dropped rather than crashing the poll loop.
  */
+/** Extra per-workspace context resolved from cmux, applied during normalization. */
+export interface CmuxContext {
+  /** workspaceId → agent, from the running process (authoritative). */
+  agents?: Map<string, AgentKind>;
+  /** workspaceId → the pane's latest conversation message. */
+  messages?: Map<string, string>;
+}
+
 export function normalizeNotification(
   raw: RawCmuxNotification,
   aliases: AgentAliases = {},
-  workspaceAgents?: Map<string, AgentKind>,
+  ctx: CmuxContext = {},
 ): AttentionItem | null {
   const id = str(raw.id);
   const workspaceId = str(raw.workspace_id);
@@ -93,7 +101,9 @@ export function normalizeNotification(
 
   // Prefer the agent detected from the actual running process (authoritative);
   // fall back to alias/keyword matching on the title + tab name.
-  const processAgent = workspaceAgents?.get(workspaceId);
+  const processAgent = ctx.agents?.get(workspaceId);
+  // Prefer the pane's latest conversation message; fall back to the body.
+  const wsMessage = (ctx.messages?.get(workspaceId) ?? "").trim();
   return {
     id,
     agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
@@ -103,6 +113,7 @@ export function normalizeNotification(
     title: deriveTitle(tabTitle, body),
     reason: detectReason(body),
     body,
+    message: wsMessage || body,
     createdAt,
   };
 }
@@ -111,13 +122,13 @@ export function normalizeNotification(
 export function normalizeNotifications(
   raw: unknown,
   aliases: AgentAliases = {},
-  workspaceAgents?: Map<string, AgentKind>,
+  ctx: CmuxContext = {},
 ): AttentionItem[] {
   if (!Array.isArray(raw)) return [];
   const out: AttentionItem[] = [];
   for (const row of raw) {
     if (row && typeof row === "object") {
-      const item = normalizeNotification(row as RawCmuxNotification, aliases, workspaceAgents);
+      const item = normalizeNotification(row as RawCmuxNotification, aliases, ctx);
       if (item) out.push(item);
     }
   }

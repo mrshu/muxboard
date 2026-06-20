@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import type { AgentKind, AttentionItem } from "../types.js";
 import { type AgentAliases, normalizeNotifications } from "./normalize.js";
 import { parseCodingAgents } from "./agents.js";
+import { parseWorkspaceMessages } from "./workspaces.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -67,7 +68,8 @@ const defaultRunner: CommandRunner = async (bin, args) => {
   const { stdout, stderr } = await execFileAsync(bin, args, {
     timeout: 10_000,
     maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, PATH: AUGMENTED_PATH },
+    // CMUX_QUIET silences legacy-alias notices that would corrupt JSON output.
+    env: { ...process.env, PATH: AUGMENTED_PATH, CMUX_QUIET: "1" },
   });
   return { stdout, stderr };
 };
@@ -96,8 +98,12 @@ export class CmuxClient {
   /** Cached workspace→agent map (from `top`), refreshed on a slow cadence. */
   private agentCache: Map<string, AgentKind> = new Map();
   private agentCacheAt = 0;
+  /** Cached workspace→latest-message map (from `workspace list`). */
+  private msgCache: Map<string, string> = new Map();
+  private msgCacheAt = 0;
   private readonly now: () => number;
   private static readonly AGENT_TTL_MS = 5000;
+  private static readonly MSG_TTL_MS = 3000;
 
   constructor(opts: CmuxClientOptions = {}) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
@@ -108,12 +114,37 @@ export class CmuxClient {
 
   /** Fetch and normalize the current attention queue. */
   async listAttention(): Promise<AttentionItem[]> {
-    const [{ stdout }, workspaceAgents] = await Promise.all([
+    const [{ stdout }, agents, messages] = await Promise.all([
       this.runner(this.bin, ["list-notifications", "--json"]),
       this.codingAgentsByWorkspace(),
+      this.messagesByWorkspace(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed, this.aliases, workspaceAgents);
+    return normalizeNotifications(parsed, this.aliases, { agents, messages });
+  }
+
+  /**
+   * Map of workspaceId → the pane's latest conversation message, from
+   * `cmux workspace list`. This is the "what is this pane about" content shown
+   * on each key. Cached briefly; best-effort (falls back to the notification
+   * body when absent).
+   */
+  async messagesByWorkspace(): Promise<Map<string, string>> {
+    if (this.now() - this.msgCacheAt < CmuxClient.MSG_TTL_MS) return this.msgCache;
+    try {
+      const { stdout } = await this.runner(this.bin, [
+        "--id-format",
+        "uuids",
+        "workspace",
+        "list",
+        "--json",
+      ]);
+      this.msgCache = parseWorkspaceMessages(JSON.parse(stdout));
+      this.msgCacheAt = this.now();
+    } catch {
+      // Keep last cache; body fallback covers the gap.
+    }
+    return this.msgCache;
   }
 
   /**

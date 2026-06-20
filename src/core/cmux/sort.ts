@@ -29,6 +29,22 @@ export function applyFilter(items: AttentionItem[], filter: AgentFilter): Attent
   return items.filter((it) => it.agent === filter);
 }
 
+/** Triage rank: failed first, then blocked (needs permission), then the rest. */
+function reasonRank(reason: AttentionItem["reason"]): number {
+  if (reason === "failed") return 0;
+  if (reason === "blocked") return 1;
+  return 2;
+}
+
+/**
+ * Order for the key grid: exceptions (failed/permission) pinned to the front so
+ * the few urgent items land top-left, then everything else in the given order
+ * (newest-first). Array.sort is stable, so within a rank the input order holds.
+ */
+export function triageOrder(items: AttentionItem[]): AttentionItem[] {
+  return [...items].sort((a, b) => reasonRank(a.reason) - reasonRank(b.reason));
+}
+
 /**
  * Collapse to one item per workspace, keeping the newest.
  *

@@ -28,6 +28,8 @@ export interface AttentionItem {
   reason: AttentionReason;
   /** Raw notification body (used for the reason mapping + hints). */
   body: string;
+  /** Best human content for the key band: the agent/pane's last message. */
+  message: string;
   /** ISO-8601 creation timestamp (sort key). */
   createdAt: string;
 }

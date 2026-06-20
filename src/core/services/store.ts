@@ -9,6 +9,7 @@ import {
   clampOffset,
   dedupeNewestPerWorkspace,
   sortNewestFirst,
+  triageOrder,
 } from "../cmux/sort.js";
 
 type Listener = (state: AppState) => void;
@@ -59,9 +60,9 @@ export class Store {
   /** Recompute filtered+sorted items and clamp the offset. */
   private recompute(): void {
     const allItems = sortNewestFirst(this.state.allItems);
-    // Filter by agent, then collapse to the newest item per workspace so each
-    // repo occupies a single key showing its current state.
-    const items = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter));
+    // Filter by agent, collapse to the newest item per workspace (one key per
+    // repo), then pin exceptions (failed/permission) to the front for triage.
+    const items = triageOrder(dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter)));
     const offset = clampOffset(this.state.offset, items.length);
     this.state = { ...this.state, allItems, items, offset };
   }

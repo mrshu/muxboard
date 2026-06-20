@@ -65,6 +65,44 @@ export function shortName(name: string | undefined, max = 12): string {
   return `${s.slice(0, max - 1)}…`;
 }
 
+/** Collapse markdown/whitespace in an agent message to clean inline text. */
+export function cleanMessage(s: string): string {
+  return s
+    .replace(/```[\s\S]*?```/g, " ") // drop fenced code blocks
+    .replace(/[`*_#>~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Wrap text into up to `maxLines` lines of ~`maxChars`, breaking on spaces.
+ * The last line is ellipsized if text remains. Used for the key message band.
+ */
+export function wrapText(text: string, maxChars: number, maxLines: number): string[] {
+  const words = cleanMessage(text).split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w;
+    if (candidate.length <= maxChars) {
+      line = candidate;
+    } else {
+      if (line) lines.push(line);
+      line = w.length > maxChars ? `${w.slice(0, maxChars - 1)}…` : w;
+      if (lines.length === maxLines) break;
+    }
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines) {
+    // If content remains beyond the last line, mark it truncated.
+    const consumed = lines.join(" ").length;
+    if (consumed < cleanMessage(text).length && !lines[maxLines - 1].endsWith("…")) {
+      lines[maxLines - 1] = `${lines[maxLines - 1].replace(/.$/, "")}…`;
+    }
+  }
+  return lines;
+}
+
 /** XML-escape text for safe SVG embedding. */
 export function escapeXml(s: string): string {
   return s
