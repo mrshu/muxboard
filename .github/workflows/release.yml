@@ -21,7 +21,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22, not 20: the test script's glob (test/**/*.test.ts) needs Node's
+          # test-runner glob support (21+). The shipped plugin still targets the
+          # Node 20 runtime the Stream Deck app provides; the tested code is pure
+          # logic, so the CI Node version doesn't affect what we ship.
+          node-version: "22"
           cache: npm
 
       - run: npm ci
