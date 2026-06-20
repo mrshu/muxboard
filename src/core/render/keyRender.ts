@@ -38,17 +38,34 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
 
   const isFailed = item.reason === "failed";
   const isBlocked = item.reason === "blocked";
-  const exc = isFailed || isBlocked;
-  const excColor = isFailed ? "#ff4d4f" : "#ffb02e";
-  const borderW = isFailed ? 8 : isBlocked ? 5 : 0;
+  const working = item.activity === "working";
+
+  // Status line (bottom): what the pane is doing. Color-coded; failed/permission
+  // are the loud ones, "working" (building/changing) is teal, "waiting" muted.
+  const status = isFailed
+    ? { text: "✕ FAILED", color: "#ff4d4f" }
+    : isBlocked
+      ? { text: "PERMISSION", color: "#ffb02e" }
+      : working
+        ? { text: "● working", color: "#4ec9b0" }
+        : { text: "waiting", color: "#9aa0aa" };
+
+  // Border = the workspace's own cmux color; failed/blocked override (critical),
+  // otherwise a faint agent-tinted edge when the workspace has no color set.
+  const borderColor = isFailed
+    ? "#ff4d4f"
+    : isBlocked
+      ? "#ffb02e"
+      : (item.color ?? null);
+  const borderW = isFailed ? 8 : isBlocked ? 6 : item.color ? 6 : 0;
   const border = borderW
-    ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${excColor}" stroke-width="${borderW}"/>`
+    ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`
     : "";
 
-  // Title is the hero: fit the full text into the box below the top chrome and
-  // above the optional exception chip — shrink + wrap rather than truncate.
+  // Title is the hero: fit the full text between the top chrome and the status
+  // line — shrink + wrap (at separators) rather than truncate.
   const boxTop = 50;
-  const boxBottom = exc ? 116 : 136;
+  const boxBottom = 116;
   const fit = fitText(item.title || item.repo || "?", S - 24, boxBottom - boxTop, 14, 30);
   const lineH = fit.fontSize * 1.14;
   const totalH = fit.lines.length * lineH;
@@ -59,10 +76,6 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
         `<text x="12" y="${(startY + i * lineH).toFixed(1)}" font-size="${fit.fontSize}" font-weight="800" fill="${a.fg}">${escapeXml(l)}</text>`,
     )
     .join("");
-
-  const chip = exc
-    ? `<text x="12" y="${S - 12}" font-size="15" font-weight="800" fill="${excColor}" letter-spacing="1">${isFailed ? "✕ FAILED" : "PERMISSION"}</text>`
-    : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs>
@@ -81,7 +94,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     }
     <text x="${S - 12}" y="34" font-size="${Math.min(ageS.size, 24)}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
     ${title}
-    ${chip}
+    <text x="12" y="${S - 11}" font-size="15" font-weight="800" fill="${status.color}" letter-spacing="0.5">${escapeXml(status.text)}</text>
   </g>
 </svg>`;
 }

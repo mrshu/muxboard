@@ -37,7 +37,17 @@ function main(): void {
   const nowMs = Date.parse("2026-06-20T12:10:00Z");
 
   // --- Keys ----------------------------------------------------------------
-  const items = sortNewestFirst(normalizeNotifications(loadFixture("cmux-notifications.json")));
+  // Demo workspace context: cmux colors + a "working" pane, keyed to the
+  // fixture workspace_ids, so the preview shows the border + status states.
+  const workspaces = new Map([
+    ["6ECA42AE-78F8-4CD4-8304-93318D3CDB65", { title: "RCJ Scoreboard", message: "", color: "#C0392B", activity: "waiting" as const }],
+    ["AEEAE30E-2F47-453A-A836-9F449716C7C8", { title: "RoboCup CMS", message: "", color: "#922B21", activity: "waiting" as const }],
+    ["P1P1P1P1-0000-0000-0000-0000000P1P11", { title: "pizza-service", message: "", color: "#006B6B", activity: "working" as const }],
+    ["5A1A04C5-9FF8-4445-ACD7-E10E482E9DEB", { title: "fieldtheory-cli", message: "", activity: "working" as const }],
+  ]);
+  const items = sortNewestFirst(
+    normalizeNotifications(loadFixture("cmux-notifications.json"), {}, { workspaces }),
+  );
   const slots = assignSlots(items, 0);
   const keySvgs = slots.map((item, i) =>
     item ? renderKey(item, { nowMs, slotNumber: i + 1 }) : renderEmptyKey(i + 1),

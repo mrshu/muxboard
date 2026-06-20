@@ -26,6 +26,10 @@ export interface AttentionItem {
   /** Human-facing label for the key. */
   title: string;
   reason: AttentionReason;
+  /** Whether the agent is actively working vs idle/waiting for you. */
+  activity: "working" | "waiting";
+  /** The workspace's cmux color (hex), used for the key border. */
+  color?: string;
   /** Raw notification body (used for the reason mapping + hints). */
   body: string;
   /** Best human content for the key band: the agent/pane's last message. */

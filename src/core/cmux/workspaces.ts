@@ -1,9 +1,25 @@
+/** Whether the agent is actively working vs idle/waiting for you. */
+export type Activity = "working" | "waiting";
+
 /** Per-workspace context resolved from `cmux workspace list`. */
 export interface WorkspaceInfo {
   /** Best human title: custom_title → cleaned title → basename(cwd). */
   title: string;
   /** The pane's latest conversation message (optional fallback content). */
   message: string;
+  /** The workspace's cmux color (custom_color hex), used for the key border. */
+  color?: string;
+  /** Activity inferred from the title's status glyph (spinner = working). */
+  activity: Activity;
+}
+
+/**
+ * Infer activity from a raw title's leading status glyph: cmux prepends an
+ * animated braille spinner (U+2800–U+28FF) while the agent is actively working,
+ * and a ✳ (or nothing) when it's idle/waiting for you.
+ */
+export function detectActivity(rawTitle: string): Activity {
+  return /^\s*[⠀-⣿]/.test(rawTitle) ? "working" : "waiting";
 }
 
 /** Strip cmux's leading spinner/✳ status glyphs and collapse whitespace. */
@@ -52,7 +68,12 @@ export function parseWorkspaceInfo(raw: unknown): Map<string, WorkspaceInfo> {
           (typeof ws.latest_conversation_message === "string" && ws.latest_conversation_message) ||
           (typeof ws.latest_submitted_message === "string" && ws.latest_submitted_message) ||
           "";
-        out.set(id, { title: resolveTitle(ws), message });
+        const color =
+          typeof ws.custom_color === "string" && /^#[0-9a-f]{6}$/i.test(ws.custom_color)
+            ? ws.custom_color
+            : undefined;
+        const rawTitle = typeof ws.title === "string" ? ws.title : "";
+        out.set(id, { title: resolveTitle(ws), message, color, activity: detectActivity(rawTitle) });
       }
     }
     for (const k of Object.keys(n)) {

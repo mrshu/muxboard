@@ -1,5 +1,5 @@
 import type { AgentKind, AttentionItem, AttentionReason } from "../types.js";
-import { cleanTitle, type WorkspaceInfo } from "./workspaces.js";
+import { cleanTitle, detectActivity, type WorkspaceInfo } from "./workspaces.js";
 
 const basename = (p: string): string => {
   const parts = p.replace(/\/+$/, "").split("/").filter(Boolean);
@@ -126,6 +126,9 @@ export function normalizeNotification(
     repo: tabTitle || undefined,
     title: displayTitle,
     reason: detectReason(body, str(raw.subtitle)),
+    // Prefer the live workspace activity; fall back to the notification title glyph.
+    activity: ws?.activity ?? detectActivity(title),
+    color: ws?.color,
     body,
     message: (ws?.message ?? "").trim() || body,
     createdAt,
