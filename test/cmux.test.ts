@@ -62,13 +62,18 @@ test("normalize uses the workspace message for the key band, falling back to bod
   assert.equal(b.message, "Ran the update: 23 synced"); // falls back to body
 });
 
-test("detectReason picks the strongest signal, defaulting to waiting", () => {
-  assert.equal(detectReason("Task failed: build error"), "failed");
-  assert.equal(detectReason("Claude needs your permission"), "blocked");
+test("detectReason: failed only from structured subtitle, never free-form body", () => {
+  // "failed"/"error" in the body must NOT trigger failed (it's the agent's text)
+  assert.equal(detectReason("Fixed the error; tests were failing, now pass"), "waiting");
+  assert.equal(detectReason("Task failed: build error in src/index.ts"), "waiting");
+  // failed comes from the structured subtitle/category
+  assert.equal(detectReason("Task failed: build error", "Error"), "failed");
+  // permission detected from Claude's specific phrasing or subtitle
+  assert.equal(detectReason("Claude needs your permission to run a command"), "blocked");
+  assert.equal(detectReason("anything", "Permission"), "blocked");
+  // everything else is waiting
   assert.equal(detectReason("Claude is waiting for your input"), "waiting");
-  assert.equal(detectReason("Run complete: tests passing"), "finished");
-  // a notification always wants attention → unrecognized bodies are "waiting"
-  assert.equal(detectReason("Ran the update again: 23 bookmarks synced"), "waiting");
+  assert.equal(detectReason("I'll approve the PR once CI is green"), "waiting");
 });
 
 test("normalizeNotifications maps the real fixture and drops malformed rows", () => {

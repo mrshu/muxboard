@@ -57,8 +57,8 @@ check(
     items.some((i) => i.agent === "pi"),
 );
 check(
-  "reasons cover failed/blocked/waiting/finished",
-  ["failed", "blocked", "waiting", "finished"].every((r) => items.some((i) => i.reason === r)),
+  "reasons cover failed/blocked/waiting",
+  ["failed", "blocked", "waiting"].every((r) => items.some((i) => i.reason === r)),
 );
 console.log();
 

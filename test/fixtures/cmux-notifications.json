@@ -24,7 +24,7 @@
   {
     "id": "C0DE0001-0000-0000-0000-000000000001",
     "title": "Codex CLI",
-    "subtitle": "",
+    "subtitle": "Error",
     "body": "Task failed: build error in src/index.ts",
     "is_read": false,
     "workspace_id": "C0DEC0DE-0000-0000-0000-0000000C0DEC",

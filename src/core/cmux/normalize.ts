@@ -42,19 +42,27 @@ export function detectAgent(name: string, aliases: AgentAliases = {}): AgentKind
 }
 
 /**
- * Derive an attention reason from the cmux notification body.
+ * Derive an attention reason from a notification's STRUCTURED fields.
  *
- * This reads cmux's own *structured* notification text — it is not terminal
- * scraping. Order matters: the strongest signal wins. A notification always
- * means the pane wants you, so anything unrecognized defaults to "waiting"
- * rather than a vague "needs attention".
+ * Critically, "failed" is taken only from the notification `subtitle`/category —
+ * never by scanning the free-form `body`. The body is frequently the agent's own
+ * last message ("fixed the error", "tests were failing, now pass"), so keyword-
+ * matching it for failure produces false FAILED tags. Permission requests use
+ * Claude's specific phrasing, which is reliable. Everything else is "waiting"
+ * (a notification means the pane wants you).
  */
-export function detectReason(body: string): AttentionReason {
+export function detectReason(body: string, subtitle = ""): AttentionReason {
+  const s = subtitle.toLowerCase();
   const b = body.toLowerCase();
-  if (/\b(fail|failed|error|crashed|exception)\b/.test(b)) return "failed";
-  if (/\b(permission|approve|approval|blocked|denied|confirm)\b/.test(b)) return "blocked";
-  if (/\b(done|finished|complete|completed)\b/.test(b)) return "finished";
-  // waiting/input keywords, plus the default for any other notification.
+  if (/\b(error|fail|failed|crash|crashed)\b/.test(s)) return "failed";
+  if (s.includes("permission") || s.includes("approval")) return "blocked";
+  if (
+    /\bneeds?\b[^.]*\b(permission|approval)\b/.test(b) ||
+    /permission to (run|use|execute|edit|write|read|access)/.test(b) ||
+    /\b(approval needed|requesting (permission|approval)|awaiting approval)\b/.test(b)
+  ) {
+    return "blocked";
+  }
   return "waiting";
 }
 
@@ -111,7 +119,7 @@ export function normalizeNotification(
     surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
     title: deriveTitle(tabTitle, body),
-    reason: detectReason(body),
+    reason: detectReason(body, str(raw.subtitle)),
     body,
     message: wsMessage || body,
     createdAt,
