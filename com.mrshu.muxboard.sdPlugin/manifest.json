@@ -51,6 +51,7 @@
       ],
       "Encoder": {
         "Icon": "imgs/actions/dial/icon",
+        "layout": "layouts/segment.json",
         "background": "imgs/actions/dial/segment",
         "TriggerDescription": {
           "Rotate": "Adjust",
