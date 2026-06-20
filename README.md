@@ -27,16 +27,16 @@ unreachable, the display degrades gracefully and the rest keeps working:
 
 | Surface | Shows | Source |
 | --- | --- | --- |
-| **8 keys** | Attention queue: agent glyph, status, repo, age | cmux, via the **bridge** |
+| **8 keys** | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` |
 | **LCD strip** (4×200×100) | Session / weekly quota, route health, spend | `codexbar serve` HTTP |
 | **4 dials** | Scroll · filter · provider · refresh | local state |
 
-> **Why a bridge?** cmux's control socket only trusts processes inside a cmux
-> session (ancestry check; default `socketControlMode: cmuxOnly`). The Stream
-> Deck app launches plugins via launchd, *outside* any session, so cmux rejects
-> them with "broken pipe". The **bridge** is a tiny localhost HTTP server you run
-> *inside* a cmux terminal; it runs the cmux CLI on the plugin's behalf and the
-> plugin reaches it over TCP. See [Architecture](#architecture).
+> **Required cmux setting.** cmux's control socket rejects processes outside a
+> cmux session by default (`socketControlMode: cmuxOnly`), and the Stream Deck
+> app launches plugins outside any session. Set cmux **Settings → Automation →
+> Socket Control Mode → Automation** (then fully quit + relaunch cmux) so the
+> plugin is accepted. Without it, the keys stay on the muted "cmux offline"
+> state. See [Requirements](#requirements).
 
 - **Keys** are sorted newest-first by the notification `created_at` and assigned
   to physical slots. Agent is read from the notification `title`; status is
@@ -60,8 +60,12 @@ unreachable, the display degrades gracefully and the rest keeps working:
 ## Requirements
 
 - **Node.js ≥ 20** (developed on v26).
-- **cmux** on your `PATH` (or set `cmuxBin`). Verified against cmux 0.64.16. The
-  **bridge** (`npm run dev` / `npm run bridge`) must run inside a cmux terminal.
+- **cmux** on your `PATH` (or set `cmuxBin`). Verified against cmux 0.64.16.
+  **Enable automation:** cmux Settings → Automation → Socket Control Mode →
+  **Automation** (or add `"automation": { "socketControlMode": "automation" }`
+  to `~/.config/cmux/cmux.json`), then **fully quit and relaunch cmux**. This is
+  required for the keys to work — without it cmux rejects the plugin. Verify
+  with `cmux capabilities | grep access_mode` (should read `"automation"`).
 - **CodexBar** for the LCD: run `codexbar serve --port 17777`. Muxboard defaults
   to **17777** (keeping CodexBar's own default 8080 free). Optional — the keys
   work without it.
@@ -91,21 +95,21 @@ show with no Stream Deck+ and no desktop app.
 
 ### Run on the device
 
-1. Install and open the **Elgato Stream Deck** desktop app.
-2. **Inside a cmux terminal**, run:
+1. Enable cmux automation mode (see [Requirements](#requirements)) and relaunch
+   cmux.
+2. Install and open the **Elgato Stream Deck** desktop app.
+3. Run:
    ```bash
    npm run dev
    ```
-   This builds + links the plugin, generates the device profile, starts CodexBar
-   (background), and runs the **cmux bridge in the foreground** — leave it
-   running. It must run inside cmux so the bridge has a valid cmux session.
-3. That's it. The plugin auto-applies a **predefined Stream Deck+ profile**, so
-   all 8 keys and 4 dials are populated automatically — no dragging. Keys fill
-   from cmux (via the bridge), the LCD from CodexBar.
+   This builds + links the plugin, generates and applies the device profile, and
+   starts CodexBar in the background.
+4. That's it. The plugin auto-applies a **predefined Stream Deck+ profile**, so
+   all 8 keys and 4 dials are populated automatically — no dragging. Keys read
+   cmux directly; the LCD reads CodexBar.
 
 The first time the plugin switches to its profile, the Stream Deck app may ask
-you to confirm installing it. For live plugin development, run `npm run watch`
-in a second pane.
+you to confirm installing it.
 
 ---
 
@@ -179,8 +183,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 
 | Field | Default | Notes |
 | --- | --- | --- |
-| `cmuxBin` | `"cmux"` | Binary path/name (used by the bridge) |
-| `cmuxBridgeUrl` | `"http://127.0.0.1:17779"` | Muxboard bridge base URL |
+| `cmuxBin` | `"cmux"` | Binary path or name (spawned directly) |
 | `codexbarBaseUrl` | `"http://127.0.0.1:17777"` | `codexbar serve --port 17777` base URL |
 | `codexbarProviders` | `["codex", "claude"]` | Polled + cycled by dial 3 |
 | `cmuxPollMs` | `1500` | cmux poll interval |
@@ -192,11 +195,8 @@ Stored in the plugin's global settings; all fields have safe defaults
 ## Architecture
 
 ```
-                  ┌─ cmux terminal (in-session) ─┐
-  Stream Deck+    │  bridge.mjs  ── cmux CLI ──► cmux socket
-   │ plugin ──TCP──► /notifications, /open       │
-   └── TCP ──► codexbar serve (LCD usage)        │
-                  └──────────────────────────────┘
+  Stream Deck+ plugin ── spawns ──► cmux CLI ──► cmux socket (automation mode)
+        └── TCP ──► codexbar serve (LCD usage)
 
 src/
   plugin.ts          entry: connect, load config, start services, apply profile
@@ -204,45 +204,30 @@ src/
   config.ts          defaults + defensive resolveConfig()
   core/              dependency-free, unit-tested, no SDK import
     types.ts
-    cmux/            source (interface), client (CLI — used by the bridge),
-                     bridgeClient (HTTP — used by the plugin), normalize, sort
+    cmux/            client (CLI wrapper), normalize (agent/reason), sort
     codexbar/        client (HTTP), normalize (dual-shape + error + cost)
     render/          palette, format, keyRender (SVG), lcdRender (SVG)
     services/        store (state + dial machines), cmux/codexbar poll loops
   actions/           attentionKey (8 keys), dialStrip (4 dials) — thin SDK glue
-scripts/
-  bridge.mjs         the cmux bridge (runs in-session; HTTP → cmux CLI)
-  preview / validate / gen-icons / gen-profile / dev.sh
+scripts/             preview / validate / gen-icons / gen-profile / dev.sh
 test/                fixtures + node:test suite
 com.mrshu.muxboard.sdPlugin/   manifest, layouts, profile, imgs, built bin
 ```
 
-### The cmux bridge
+### Why automation mode is required
 
-The plugin never spawns cmux itself (it can't — wrong process lineage). Instead
-`scripts/bridge.mjs` runs inside a cmux terminal and exposes:
-
-```
-GET  /notifications          → cmux list-notifications --json
-POST /open?id=<uuid>         → cmux open-notification --id <uuid>
-POST /select-workspace?id=.. → cmux select-workspace --workspace <id>
-GET  /health
-```
-
-The plugin's `CmuxBridgeClient` fetches from it over TCP and normalizes the same
-way a direct CLI call would. Both `CmuxClient` (CLI) and `CmuxBridgeClient` (HTTP)
-implement `CmuxSource`, so the polling service is agnostic to the transport.
-
-**Alternative considered:** cmux's `socketControlMode: automation` is the
-documented way to allow external processes (the
-[gonzaloserrano/streamdeck-cmux](https://github.com/gonzaloserrano/streamdeck-cmux)
-plugin uses it). On the tested cmux build + macOS 15.7 it had no effect
-(`access_mode` stayed `cmuxOnly`; see upstream issues
-[#1864](https://github.com/manaflow-ai/cmux/issues/1864),
-[#3282](https://github.com/manaflow-ai/cmux/issues/3282)). The in-session bridge
-needs **no cmux config change** and works under the default `cmuxOnly`, so it's
-the more robust choice. If a future cmux fixes `automation` mode, the plugin
-could talk to the socket directly and the bridge becomes optional.
+cmux's control socket does an ancestry check: under the default
+`socketControlMode: cmuxOnly` it only accepts processes spawned inside a cmux
+session. The Stream Deck app launches plugins via launchd, outside any session,
+so a direct `cmux` call is rejected with "broken pipe". Setting
+`socketControlMode: automation` removes the ancestry check for local processes of
+the same user, which is what lets the plugin spawn cmux directly. This is the
+approach the [gonzaloserrano/streamdeck-cmux](https://github.com/gonzaloserrano/streamdeck-cmux)
+plugin also uses. (Note: on some builds + macOS versions the mode reportedly
+doesn't take effect — see upstream issues
+[#1864](https://github.com/manaflow-ai/cmux/issues/1864) /
+[#3282](https://github.com/manaflow-ai/cmux/issues/3282); verify with
+`cmux capabilities | grep access_mode`.)
 
 Rendering is **SVG-first**: Stream Deck's `setImage` accepts SVG data-URIs, so
 keys and LCD segments are plain strings — no native canvas dependency and fully
@@ -278,11 +263,12 @@ npm run typecheck
   restart the Stream Deck app) after editing it.
 - **LCD shows "CodexBar off".** Ensure `codexbar serve --port 17777` is running
   and that `codexbarBaseUrl` matches the port.
-- **Keys are blank / "cmux offline".** The bridge must run **inside a cmux
-  terminal**. If it logs `broken pipe`, it was started outside a cmux session
-  (or got reparented to launchd) — cmux rejects it. Run `npm run dev` (or
-  `npm run bridge`) in a cmux pane and leave it running; check
-  `curl 127.0.0.1:17779/health`.
+- **Keys are blank / "cmux offline".** cmux is rejecting the plugin. Confirm
+  `cmux capabilities | grep access_mode` reads `"automation"` (not `cmuxOnly`).
+  If it still says `cmuxOnly`, the setting hasn't taken — set Socket Control Mode
+  to Automation and **fully quit + relaunch cmux** (a reload is not enough). The
+  plugin log (`com.mrshu.muxboard.sdPlugin/logs/`) will show `broken pipe` when
+  rejected.
 - **Profile didn't auto-apply.** The Stream Deck app prompts once to install a
   bundled profile; accept it. Editing the manifest needs a re-link.
 

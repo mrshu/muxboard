@@ -1,9 +1,9 @@
-import type { CmuxSource } from "../cmux/source.js";
+import type { CmuxClient } from "../cmux/client.js";
 import type { Store } from "./store.js";
 import { type Logger, silentLogger } from "./logger.js";
 
 export interface CmuxServiceOptions {
-  client: CmuxSource;
+  client: CmuxClient;
   store: Store;
   /** Poll interval in ms (default 1500). */
   pollMs?: number;
@@ -20,7 +20,7 @@ export interface CmuxServiceOptions {
  *    out a single dropped call.
  */
 export class CmuxService {
-  private readonly client: CmuxSource;
+  private readonly client: CmuxClient;
   private readonly store: Store;
   private readonly pollMs: number;
   private readonly log: Logger;

@@ -4,7 +4,6 @@ import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AttentionItem } from "../types.js";
 import { normalizeNotifications } from "./normalize.js";
-import type { CmuxSource } from "./source.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -85,7 +84,7 @@ export interface CmuxClientOptions {
  * Every method is best-effort: failures throw and are caught by the polling
  * service, which keeps the last good state rather than crashing.
  */
-export class CmuxClient implements CmuxSource {
+export class CmuxClient {
   private readonly bin: string;
   private readonly runner: CommandRunner;
 

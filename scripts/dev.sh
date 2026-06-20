@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 #
-# Run Muxboard. IMPORTANT: run this INSIDE a cmux terminal — the bridge must be
-# a descendant of the cmux session or cmux's socket rejects it ("broken pipe").
+# Build + install Muxboard, then watch for changes.
 #
-# It builds + links the plugin into the Stream Deck app, starts CodexBar in the
-# background (TCP, session-independent), then runs the cmux bridge in the
-# FOREGROUND (so it stays in the cmux session). Leave it running.
+# Prerequisite: cmux must allow external automation. In cmux, set
+#   Settings → Automation → Socket Control Mode → Automation
+# (or add `"automation": { "socketControlMode": "automation" }` to
+# ~/.config/cmux/cmux.json) and FULLY quit + relaunch cmux. Without it, cmux
+# rejects the Stream Deck plugin and the keys stay on the offline state.
 #
-#   npm run dev          # inside a cmux pane
-#
-# For live plugin development, run `npm run watch` in a separate pane.
+#   npm run dev
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,21 +17,15 @@ PLUGIN_DIR="com.mrshu.muxboard.sdPlugin"
 PLUGIN_UUID="com.mrshu.muxboard"
 STREAMDECK="npx --no-install streamdeck"
 
-# Ports (hardcoded; override via env). Must match the plugin config.
+# CodexBar port (TCP; override via env). Must match the plugin config.
 CODEXBAR_PORT="${CODEXBAR_PORT:-17777}"
-BRIDGE_PORT="${MUXBOARD_BRIDGE_PORT:-17779}"
 
-if [ -z "${CMUX_WORKSPACE_ID:-}" ]; then
-  echo "⚠ Not inside a cmux session (CMUX_WORKSPACE_ID unset)."
-  echo "  The bridge will fail with 'broken pipe'. Open a cmux terminal and rerun."
-fi
-
-echo "▸ Generating icons (if missing) and building…"
+echo "▸ Generating icons (if missing), building, and generating the profile…"
 [ -f "$PLUGIN_DIR/imgs/plugin/icon.png" ] || npm run icons
 npm run build
 npm run profile
 
-# CodexBar (TCP) can run anywhere; background it if not already up.
+# CodexBar (TCP) powers the LCD; background it if not already up.
 if ! curl -sf -m 2 "http://127.0.0.1:${CODEXBAR_PORT}/health" >/dev/null 2>&1; then
   if command -v codexbar >/dev/null 2>&1; then
     echo "▸ Starting 'codexbar serve --port ${CODEXBAR_PORT}' in the background…"
@@ -51,7 +44,7 @@ else
   echo "⚠ @elgato/cli not available; skipping link. Run 'npm i' first."
 fi
 
-echo "▸ Starting the cmux bridge in the foreground (Ctrl-C to stop)…"
-echo "  Keep this running. The Stream Deck profile auto-applies; keys populate"
-echo "  from cmux via the bridge, the LCD from CodexBar."
-exec node scripts/bridge.mjs
+echo "▸ Done. The profile auto-applies; keys read cmux directly, LCD from CodexBar."
+echo "  Reminder: cmux Socket Control Mode must be 'Automation' (see header)."
+echo "▸ Watching for changes (Ctrl-C to stop)…"
+npm run watch

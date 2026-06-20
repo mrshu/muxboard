@@ -1,6 +1,6 @@
 import streamDeck, { DeviceType, LogLevel } from "@elgato/streamdeck";
 import { DEFAULT_CONFIG, resolveConfig, type MuxboardConfig } from "./config.js";
-import { CmuxBridgeClient } from "./core/cmux/bridgeClient.js";
+import { CmuxClient } from "./core/cmux/client.js";
 import { CodexbarClient } from "./core/codexbar/client.js";
 import { Store } from "./core/services/store.js";
 import { CmuxService } from "./core/services/cmuxService.js";
@@ -41,8 +41,9 @@ async function main(): Promise<void> {
   // event loop with no open handles and exit the process cleanly.
   const config: MuxboardConfig = { ...DEFAULT_CONFIG };
   const store = new Store(config.codexbarProviders);
-  // The plugin runs outside any cmux session, so it reads cmux via the bridge.
-  const cmux = new CmuxBridgeClient({ baseUrl: config.cmuxBridgeUrl });
+  // Talk to cmux directly. This requires cmux's automation mode
+  // (socketControlMode: "automation") so the plugin's process is accepted.
+  const cmux = new CmuxClient({ bin: config.cmuxBin });
   const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
   const cmuxService = new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger });
   const codexbarService = new CodexbarService({
@@ -75,7 +76,7 @@ async function main(): Promise<void> {
   // Now the websocket exists: settings round-trips are safe.
   Object.assign(config, await resolveConfigAfterConnect());
   logger.info(
-    `Muxboard config: bridge="${config.cmuxBridgeUrl}" codexbar="${config.codexbarBaseUrl}" providers=${config.codexbarProviders.join(",")}`,
+    `Muxboard config: cmux="${config.cmuxBin}" codexbar="${config.codexbarBaseUrl}" providers=${config.codexbarProviders.join(",")}`,
   );
 
   cmuxService.start();

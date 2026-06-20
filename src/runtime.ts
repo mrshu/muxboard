@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import type { MuxboardConfig } from "./config.js";
 import type { Logger } from "./core/services/logger.js";
 import type { Store } from "./core/services/store.js";
-import type { CmuxSource } from "./core/cmux/source.js";
+import type { CmuxClient } from "./core/cmux/client.js";
 import type { CmuxService } from "./core/services/cmuxService.js";
 import type { CodexbarService } from "./core/services/codexbarService.js";
 
@@ -13,7 +13,7 @@ import type { CodexbarService } from "./core/services/codexbarService.js";
 export interface Runtime {
   config: MuxboardConfig;
   store: Store;
-  cmux: CmuxSource;
+  cmux: CmuxClient;
   cmuxService: CmuxService;
   codexbarService: CodexbarService;
   logger: Logger;
