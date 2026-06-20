@@ -1,0 +1,14 @@
+# Files excluded from the packed .streamDeckPlugin (gitignore syntax).
+# Note: streamdeck pack already excludes .git, .env*, *.log and *.js.map by
+# default — these are the extras specific to this plugin.
+
+# Runtime logs written by the plugin in-place during development.
+logs/
+
+# Device profiles are installed out-of-band by scripts/install-profile.mjs
+# (Elgato's profile importer rejects hand-authored archives on recent builds),
+# so they must NOT ship inside the package.
+profiles/
+
+# Source maps are a dev artifact; .cjs.map isn't covered by the default *.js.map.
+*.cjs.map

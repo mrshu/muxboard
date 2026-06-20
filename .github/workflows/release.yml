@@ -1,0 +1,67 @@
+name: Release
+
+# Builds and packs the plugin into a .streamDeckPlugin installer.
+# Publishing a GitHub Release attaches the artifact to it; a manual run
+# (workflow_dispatch) uploads it as a build artifact for inspection.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      # Quality gates — fail the release if the core transforms regress.
+      - run: npm run typecheck
+      - run: npm test
+
+      # bin/ is gitignored, so the bundle must be (re)built here. Icons are
+      # committed, so no icon generation step is needed.
+      - run: npm run build
+
+      # Stream Deck wants a 4-part version (major.minor.patch.build). A release
+      # tag is 3-part semver (e.g. v0.1.1), so strip the leading "v" and append
+      # ".0". Manual runs fall back to the manifest's version.
+      - name: Derive Stream Deck version
+        id: ver
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -n "$TAG" ]; then
+            echo "version=${TAG#v}.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack
+        run: |
+          if [ -n "${{ steps.ver.outputs.version }}" ]; then
+            npx streamdeck pack --no-update-check -f \
+              --version "${{ steps.ver.outputs.version }}" \
+              com.mrshu.muxboard.sdPlugin
+          else
+            npx streamdeck pack --no-update-check -f com.mrshu.muxboard.sdPlugin
+          fi
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.streamDeckPlugin"
+
+      - name: Upload build artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: muxboard-streamDeckPlugin
+          path: "*.streamDeckPlugin"

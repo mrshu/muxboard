@@ -11,6 +11,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
+    "pack": "npm run build && streamdeck pack --no-update-check -f com.mrshu.muxboard.sdPlugin",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "preview": "tsx scripts/preview.ts",
