@@ -28,8 +28,8 @@ unreachable, the display degrades gracefully and the rest keeps working:
 | Surface | Shows | Source |
 | --- | --- | --- |
 | **8 keys** | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` |
-| **LCD strip** (4×200×100) | Session / weekly quota, route health, spend | `codexbar serve` HTTP |
-| **4 dials** | Scroll · filter · provider · refresh | local state |
+| **LCD strip** (4×200×100) | One CodexBar provider per segment: session + weekly quota, spend | `codexbar serve` HTTP |
+| **4 dials** | Scroll · filter · refresh | local state |
 
 > **Required cmux setting.** cmux's control socket rejects processes outside a
 > cmux session by default (`socketControlMode: cmuxOnly`), and the Stream Deck
@@ -43,17 +43,19 @@ unreachable, the display degrades gracefully and the rest keeps working:
   mapped from the structured `body` — **no terminal scraping**.
 - **Pressing a key** runs `cmux open-notification --id <uuid>`, which focuses the
   workspace + surface and marks the row read (it does **not** dismiss it).
-- **The LCD** polls CodexBar per provider and shows the session/weekly windows
-  with reset countdowns, a route/health pill, and today's spend.
+- **The LCD** shows one CodexBar provider per segment (`codex`, `claude`,
+  `minimax`, `kimi` by default), each with its name (colored by health), today's
+  spend, session + weekly gauges with % remaining, and the session reset — so all
+  providers are visible at a glance.
 
 ### Dials (Stream Deck+)
 
 | Dial | Rotate | Press |
 | --- | --- | --- |
-| 1 · SESSION | Scroll the queue (when > 8 items) | Jump to newest item |
-| 2 · WEEKLY | Cycle filter: all → claude → codex → pi | Reset filter to all |
-| 3 · ROUTE | Cycle CodexBar provider | Open CodexBar source URL |
-| 4 · SPEND | — | Force refresh both polls |
+| 1 | Scroll the queue (when > 8 items) | Jump to newest item |
+| 2 | Cycle filter: all → claude → codex → pi | Reset filter to all |
+| 3 | — | Open CodexBar source URL |
+| 4 | — | Force refresh both polls |
 
 ---
 
@@ -192,7 +194,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | --- | --- | --- |
 | `cmuxBin` | `"cmux"` | Binary path or name (spawned directly) |
 | `codexbarBaseUrl` | `"http://127.0.0.1:17777"` | `codexbar serve --port 17777` base URL |
-| `codexbarProviders` | `["codex", "claude"]` | Polled + cycled by dial 3 |
+| `codexbarProviders` | `["codex","claude","minimax","kimi"]` | One per LCD segment, in order |
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
 | `enabledAgents` | all | Agents allowed onto the queue |
