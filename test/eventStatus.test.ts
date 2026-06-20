@@ -66,3 +66,44 @@ test("falls back to injected clock when occurred_at is missing/unparseable", () 
   t.ingest({ name: "agent.hook.Stop", payload: { hook_event_name: "Stop", workspace_id: "w1" } });
   assert.equal(t.snapshot().w1.since, 999);
 });
+
+const setStatus = (value: string, ws: string, occurred_at: string) => ({
+  name: "sidebar.metadata.updated",
+  occurred_at,
+  payload: { command: "set_status", args: `claude_code ${value} --icon=bolt --tab=${ws} --pid=5` },
+});
+
+test("ingests cmux's own set_status verdict (Running/Idle/Needs)", () => {
+  const t = new WorkspaceStatusTracker();
+  assert.equal(t.ingest(setStatus("Running", "w1", "2026-06-20T12:00:00Z")), true);
+  assert.equal(t.snapshot().w1.state, "running");
+  assert.equal(t.snapshot().w1.since, Date.parse("2026-06-20T12:00:00Z"));
+  // Multi-word label "Needs input" maps to needs.
+  t.ingest(setStatus("Needs input", "w1", "2026-06-20T12:01:00Z"));
+  assert.equal(t.snapshot().w1.state, "needs");
+});
+
+test("set_status is authoritative: hook events can't override it", () => {
+  const t = new WorkspaceStatusTracker();
+  t.ingest(setStatus("Idle", "w1", "2026-06-20T12:00:00Z"));
+  // A stale/raw hook says running, but cmux's verdict (idle) must win.
+  assert.equal(
+    t.ingest({
+      name: "agent.hook.PreToolUse",
+      occurred_at: "2026-06-20T12:00:30Z",
+      payload: { hook_event_name: "PreToolUse", workspace_id: "w1" },
+    }),
+    false,
+  );
+  assert.equal(t.snapshot().w1.state, "idle");
+});
+
+test("hooks still drive workspaces cmux publishes no set_status for", () => {
+  const t = new WorkspaceStatusTracker();
+  t.ingest({
+    name: "agent.hook.PreToolUse",
+    occurred_at: "2026-06-20T12:00:00Z",
+    payload: { hook_event_name: "PreToolUse", workspace_id: "w9" },
+  });
+  assert.equal(t.snapshot().w9.state, "running");
+});

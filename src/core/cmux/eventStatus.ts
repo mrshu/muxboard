@@ -32,6 +32,19 @@ export function hookToState(hookEventName: string): WorkspaceState | null {
   return null;
 }
 
+/**
+ * Map cmux's own computed status label to a state. cmux pushes these via
+ * `sidebar.metadata.updated` (`set_status`), e.g. "Running" / "Idle" /
+ * "Needs input" — its authoritative, debounced verdict that drives its UI.
+ */
+export function statusLabelToState(label: string): WorkspaceState | null {
+  const v = label.trim().toLowerCase();
+  if (v.startsWith("running")) return "running";
+  if (v.startsWith("idle")) return "idle";
+  if (v.startsWith("needs")) return "needs";
+  return null;
+}
+
 /** Raw shape of a `cmux events` row (only the fields we read). */
 export interface CmuxEvent {
   name?: unknown;
@@ -39,15 +52,24 @@ export interface CmuxEvent {
   payload?: unknown;
 }
 
+type Tracked = WorkspaceStatus & { source: "status" | "hook" };
+
 /**
- * Accumulates the latest state per workspace from the agent event stream.
+ * Accumulates the latest state per workspace from the cmux event stream.
  *
- * Crucially, `since` only advances when the state actually *changes*: a burst
- * of PreToolUse events while working keeps the original "working since" time,
- * so the displayed duration reflects the whole burst, not the last tool call.
+ * Two sources, in priority order:
+ *  1. cmux's own `set_status` verdict (sidebar.metadata.updated) — authoritative;
+ *     it's what drives cmux's UI, so we trust it over re-deriving anything.
+ *  2. raw `agent.hook.*` events — a fallback for workspaces cmux doesn't publish
+ *     a status for, mapped to running/needs/idle ourselves.
+ *
+ * Once a workspace has a `set_status`, hook events for it are ignored so the two
+ * sources can't fight. `since` only advances when the state actually *changes*,
+ * so a burst of events while working keeps the original "working since" time and
+ * the displayed duration reflects the whole burst, not the last event.
  */
 export class WorkspaceStatusTracker {
-  private readonly map = new Map<string, WorkspaceStatus>();
+  private readonly map = new Map<string, Tracked>();
   private readonly now: () => number;
 
   constructor(now: () => number = () => Date.now()) {
@@ -56,32 +78,53 @@ export class WorkspaceStatusTracker {
 
   /**
    * Ingest one event. Returns true iff it changed a workspace's status (so the
-   * caller can skip a redundant store update). Non-agent events, unknown hook
-   * names, and rows without a workspace id are ignored.
+   * caller can skip a redundant store update). Irrelevant events are ignored.
    */
   ingest(ev: CmuxEvent): boolean {
-    if (typeof ev?.name !== "string" || !ev.name.startsWith("agent.hook.")) return false;
+    const name = typeof ev?.name === "string" ? ev.name : "";
     const p = ev.payload && typeof ev.payload === "object" ? (ev.payload as Record<string, unknown>) : {};
-    const wsId = typeof p.workspace_id === "string" ? p.workspace_id : "";
-    if (!wsId) return false;
-    const hook =
-      typeof p.hook_event_name === "string" ? p.hook_event_name : ev.name.slice("agent.hook.".length);
-    const state = hookToState(hook);
-    if (!state) return false;
+    if (name === "sidebar.metadata.updated") return this.ingestStatus(p, ev.occurred_at);
+    if (name.startsWith("agent.hook.")) {
+      const hook = typeof p.hook_event_name === "string" ? p.hook_event_name : name.slice("agent.hook.".length);
+      return this.apply(typeof p.workspace_id === "string" ? p.workspace_id : "", hookToState(hook), ev.occurred_at, "hook");
+    }
+    return false;
+  }
 
+  /** Parse a `set_status` sidebar event: `<key> <Label...> --tab=<wsId> …`. */
+  private ingestStatus(p: Record<string, unknown>, occurredAt: unknown): boolean {
+    if (typeof p.command !== "string" || !p.command.includes("set_status")) return false;
+    const args = typeof p.args === "string" ? p.args : "";
+    const tab = /--tab=(\S+)/.exec(args);
+    if (!tab) return false;
+    // Status value = the tokens after the key, before any --flag (e.g. "Needs input").
+    const value = args
+      .split(/\s+/)
+      .slice(1)
+      .filter((t) => !t.startsWith("--"))
+      .join(" ");
+    return this.apply(tab[1], statusLabelToState(value), occurredAt, "status");
+  }
+
+  /** Apply a resolved (wsId, state) with source precedence + since-on-change. */
+  private apply(wsId: string, state: WorkspaceState | null, occurredAt: unknown, source: "status" | "hook"): boolean {
+    if (!wsId || !state) return false;
     const prev = this.map.get(wsId);
-    if (prev && prev.state === state) return false; // same state: keep `since`
-
-    const occurredMs = typeof ev.occurred_at === "string" ? Date.parse(ev.occurred_at) : NaN;
+    if (prev && source === "hook" && prev.source === "status") return false; // cmux's verdict wins
+    if (prev && prev.state === state) {
+      if (prev.source !== source) prev.source = source; // upgrade hook→status authority
+      return false; // same state: keep `since`
+    }
+    const occurredMs = typeof occurredAt === "string" ? Date.parse(occurredAt) : NaN;
     const since = Number.isNaN(occurredMs) ? this.now() : occurredMs;
-    this.map.set(wsId, { state, since });
+    this.map.set(wsId, { state, since, source });
     return true;
   }
 
-  /** Immutable snapshot keyed by workspace id. */
+  /** Immutable snapshot keyed by workspace id (source is internal). */
   snapshot(): Record<string, WorkspaceStatus> {
     const out: Record<string, WorkspaceStatus> = {};
-    for (const [k, v] of this.map) out[k] = { ...v };
+    for (const [k, v] of this.map) out[k] = { state: v.state, since: v.since };
     return out;
   }
 }

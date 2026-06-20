@@ -17,10 +17,11 @@ export interface CmuxEventsServiceOptions {
  * Subscribes to cmux's agent event stream and feeds live per-workspace status
  * into the store.
  *
- * Runs `cmux events --category agent` as a long-lived child process, parses the
- * newline-delimited JSON, and maintains a WorkspaceStatusTracker. On any state
- * change it pushes a snapshot into the store, which re-enriches the keys so
- * activity + age reflect the live state rather than a stale notification.
+ * Runs `cmux events` as a long-lived child process, parses the newline-delimited
+ * JSON, and maintains a WorkspaceStatusTracker (cmux's own `set_status` verdict,
+ * falling back to raw agent hooks). On any state change it pushes a snapshot into
+ * the store, which re-enriches the keys so activity + age reflect the live state
+ * rather than a stale notification.
  *
  * Entirely best-effort: if cmux lacks `events`, the process dies, or spawning
  * fails, the plugin keeps working on the notification poll + title-glyph
@@ -61,11 +62,12 @@ export class CmuxEventsService {
     if (this.stopped) return;
     let child: ChildProcess;
     try {
-      child = spawn(
-        this.bin,
-        ["events", "--category", "agent", "--reconnect", "--no-heartbeat", "--no-ack"],
-        { env: cmuxEnv(), stdio: ["ignore", "pipe", "ignore"] },
-      );
+      // No --category filter: we need both `agent.hook.*` (category agent) and
+      // `set_status` (category sidebar). The tracker ignores everything else.
+      child = spawn(this.bin, ["events", "--reconnect", "--no-heartbeat", "--no-ack"], {
+        env: cmuxEnv(),
+        stdio: ["ignore", "pipe", "ignore"],
+      });
     } catch (err) {
       this.log.warn(`cmux events spawn failed: ${message(err)}`);
       this.scheduleReconnect();
