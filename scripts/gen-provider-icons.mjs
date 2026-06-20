@@ -53,7 +53,12 @@ export interface ProviderIcon {
 
 export const PROVIDER_ICONS: Record<string, ProviderIcon> = ${JSON.stringify(out, null, 2)};
 
-/** Inline a provider icon as an SVG group, scaled to box and tinted \`color\`. */
+/**
+ * Inline a provider icon at (x,y), scaled to \`size\` and tinted \`color\`.
+ *
+ * Uses a <g transform> (translate+scale) rather than a nested <svg>, because
+ * the Stream Deck SVG renderer does not handle nested <svg>/viewBox scaling.
+ */
 export function providerIconSvg(
   provider: string,
   x: number,
@@ -63,7 +68,11 @@ export function providerIconSvg(
 ): string {
   const icon = PROVIDER_ICONS[provider.toLowerCase()];
   if (!icon) return "";
-  return \`<svg x="\${x}" y="\${y}" width="\${size}" height="\${size}" viewBox="\${icon.viewBox}"><g fill="\${color}">\${icon.body}</g></svg>\`;
+  const [minX, minY, vbW, vbH] = icon.viewBox.split(/[\\s,]+/).map(Number);
+  const s = size / Math.max(vbW || 1, vbH || 1);
+  const tx = x - (minX || 0) * s;
+  const ty = y - (minY || 0) * s;
+  return \`<g transform="translate(\${tx.toFixed(2)} \${ty.toFixed(2)}) scale(\${s.toFixed(4)})" fill="\${color}">\${icon.body}</g>\`;
 }
 `;
 

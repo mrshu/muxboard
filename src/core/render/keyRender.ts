@@ -54,12 +54,12 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     : isBlocked
       ? `<text x="13" y="${bandTop + 18}" font-size="14" font-weight="800" fill="${excColor}" letter-spacing="1">PERMISSION</text>`
       : "";
-  const msgTop = exc ? bandTop + 38 : bandTop + 18;
-  const lines = wrapText(item.message || item.body || "", 17, exc ? 2 : 3);
+  const msgTop = exc ? bandTop + 40 : bandTop + 20;
+  const lines = wrapText(item.message || item.body || "", 14, exc ? 2 : 3);
   const msg = lines
     .map(
       (l, i) =>
-        `<text x="13" y="${msgTop + i * 18}" font-size="14" fill="#c7ccd4">${escapeXml(l)}</text>`,
+        `<text x="13" y="${msgTop + i * 21}" font-size="17" font-weight="500" fill="#cfd4dc">${escapeXml(l)}</text>`,
     )
     .join("");
 
