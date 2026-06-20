@@ -57,6 +57,26 @@ test("newestVisible returns slot-0 item", () => {
   assert.equal(top?.agent, "codex");
 });
 
+test("event status overrides item activity and drives the age clock", () => {
+  const store = freshStore();
+  const ws = store.getState().items[0].workspaceId;
+  // Mark that workspace as actively working since a known time.
+  store.setWorkspaceStatus({ [ws]: { state: "running", since: 1_000_000 } });
+  const item = store.getState().items.find((i) => i.workspaceId === ws)!;
+  assert.equal(item.activity, "working");
+  assert.equal(item.activitySince, 1_000_000);
+
+  // Flip to idle: activity becomes waiting, since advances.
+  store.setWorkspaceStatus({ [ws]: { state: "idle", since: 2_000_000 } });
+  const idle = store.getState().items.find((i) => i.workspaceId === ws)!;
+  assert.equal(idle.activity, "waiting");
+  assert.equal(idle.activitySince, 2_000_000);
+
+  // Workspaces without event status are left untouched (no activitySince).
+  store.setWorkspaceStatus({ "no-such-ws": { state: "running", since: 5 } });
+  assert.equal(store.getState().items[0].activitySince, undefined);
+});
+
 test("provider rotation is a no-op with 4 or fewer providers", () => {
   const store = new Store(["codex", "claude", "minimax", "kimi"]);
   store.rotateProviders(1);

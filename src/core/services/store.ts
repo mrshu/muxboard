@@ -3,6 +3,7 @@ import type {
   AppState,
   AttentionItem,
   ProviderUsage,
+  WorkspaceStatus,
 } from "../types.js";
 import {
   applyFilter,
@@ -46,6 +47,7 @@ export class Store {
       filter: "all",
       cmuxOffline: false,
       usage: {},
+      workspaceStatus: {},
       // Seeded empty; filled from CodexBar discovery on the first poll.
       providers: [...providers],
       providerOffset: 0,
@@ -71,10 +73,31 @@ export class Store {
   private recompute(): void {
     const allItems = sortNewestFirst(this.state.allItems);
     // Filter by agent, collapse to the newest item per workspace (one key per
-    // repo), then pin exceptions (failed/permission) to the front for triage.
-    const items = triageOrder(dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter)));
+    // repo), enrich with live event status, then pin exceptions
+    // (failed/permission) to the front for triage. Enrichment happens BEFORE
+    // triageOrder so an event-driven "working" sinks the pane correctly.
+    const enriched = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter)).map((it) =>
+      this.applyStatus(it),
+    );
+    const items = triageOrder(enriched);
     const offset = clampOffset(this.state.offset, items.length);
     this.state = { ...this.state, allItems, items, offset };
+  }
+
+  /**
+   * Overlay the live event-stream status onto an item: the authoritative
+   * activity (running → working, else waiting) and the "since" timestamp that
+   * drives the age. No event data → item is returned unchanged (the title-glyph
+   * activity and notification createdAt remain the fallback).
+   */
+  private applyStatus(item: AttentionItem): AttentionItem {
+    const st = this.state.workspaceStatus[item.workspaceId];
+    if (!st) return item;
+    return {
+      ...item,
+      activity: st.state === "running" ? "working" : "waiting",
+      activitySince: st.since,
+    };
   }
 
   /** Replace the cmux attention items (from a poll). */
@@ -87,6 +110,16 @@ export class Store {
   setCmuxOffline(offline: boolean): void {
     if (this.state.cmuxOffline === offline) return;
     this.state = { ...this.state, cmuxOffline: offline };
+    this.emit();
+  }
+
+  /**
+   * Replace the live per-workspace status (from the cmux event stream) and
+   * re-enrich the visible items so activity/age reflect it immediately.
+   */
+  setWorkspaceStatus(workspaceStatus: Record<string, WorkspaceStatus>): void {
+    this.state = { ...this.state, workspaceStatus };
+    this.recompute();
     this.emit();
   }
 

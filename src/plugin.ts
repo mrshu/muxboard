@@ -4,6 +4,7 @@ import { CmuxClient } from "./core/cmux/client.js";
 import { CodexbarClient } from "./core/codexbar/client.js";
 import { Store } from "./core/services/store.js";
 import { CmuxService } from "./core/services/cmuxService.js";
+import { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import { CodexbarService } from "./core/services/codexbarService.js";
 import type { Logger } from "./core/services/logger.js";
 import type { Runtime } from "./runtime.js";
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   const cmux = new CmuxClient({ bin: config.cmuxBin, agentAliases: config.agentAliases });
   const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
   const cmuxService = new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger });
+  const cmuxEventsService = new CmuxEventsService({ bin: config.cmuxBin, store, logger });
   const codexbarService = new CodexbarService({
     client: codexbar,
     store,
@@ -59,6 +61,7 @@ async function main(): Promise<void> {
     store,
     cmux,
     cmuxService,
+    cmuxEventsService,
     codexbarService,
     logger,
     lastOpened: new Map<string, number>(),
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
   );
 
   cmuxService.start();
+  cmuxEventsService.start();
   codexbarService.start();
   logger.info("Polling started.");
 }

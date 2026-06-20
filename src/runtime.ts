@@ -4,6 +4,7 @@ import type { Logger } from "./core/services/logger.js";
 import type { Store } from "./core/services/store.js";
 import type { CmuxClient } from "./core/cmux/client.js";
 import type { CmuxService } from "./core/services/cmuxService.js";
+import type { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import type { CodexbarService } from "./core/services/codexbarService.js";
 
 /**
@@ -15,6 +16,7 @@ export interface Runtime {
   store: Store;
   cmux: CmuxClient;
   cmuxService: CmuxService;
+  cmuxEventsService: CmuxEventsService;
   codexbarService: CodexbarService;
   logger: Logger;
   /** Records the local "last opened" time for an attention item. */

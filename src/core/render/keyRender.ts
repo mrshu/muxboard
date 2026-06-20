@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
-import { escapeXml, fitText, formatAge } from "./format.js";
+import { escapeXml, fitText, formatAgeFromSeconds } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
@@ -31,8 +31,12 @@ function ageStyle(ageSeconds: number): { size: number; color: string } {
  */
 export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const a = agentTheme(item.agent);
-  const ageSeconds = Math.max(0, Math.floor((opts.nowMs - Date.parse(item.createdAt)) / 1000));
-  const age = formatAge(item.createdAt, opts.nowMs);
+  // Age clock: prefer the live activity start (from the cmux event stream) so a
+  // key reads "working for 2m" / "waiting since X", not the age of a stale
+  // notification. Fall back to the notification createdAt when no event data.
+  const sinceMs = item.activitySince ?? Date.parse(item.createdAt);
+  const ageSeconds = Math.max(0, Math.floor((opts.nowMs - sinceMs) / 1000));
+  const age = formatAgeFromSeconds(ageSeconds);
   const ageS = ageStyle(ageSeconds);
   const S = KEY_SIZE;
 

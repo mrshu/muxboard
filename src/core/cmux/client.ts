@@ -63,6 +63,15 @@ const AUGMENTED_PATH = [
   .filter(Boolean)
   .join(":");
 
+/**
+ * Environment for spawning cmux: the augmented PATH (so a bare `cmux` resolves
+ * under the Stream Deck app's minimal PATH) plus CMUX_QUIET to keep stdout
+ * clean. Shared by the exec-based client and the long-lived events stream.
+ */
+export function cmuxEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, PATH: AUGMENTED_PATH, CMUX_QUIET: "1" };
+}
+
 const defaultRunner: CommandRunner = async (bin, args) => {
   // 10s ceiling: cmux list/focus calls are fast; a hang must not wedge the loop.
   const { stdout, stderr } = await execFileAsync(bin, args, {

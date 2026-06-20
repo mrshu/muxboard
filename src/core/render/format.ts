@@ -9,7 +9,12 @@
 export function formatAge(createdAtIso: string, nowMs: number): string {
   const then = Date.parse(createdAtIso);
   if (Number.isNaN(then)) return "?";
-  const sec = Math.max(0, Math.floor((nowMs - then) / 1000));
+  return formatAgeFromSeconds(Math.floor((nowMs - then) / 1000));
+}
+
+/** Format an age given directly in seconds (shared by age-from-ms callers). */
+export function formatAgeFromSeconds(seconds: number): string {
+  const sec = Math.max(0, Math.floor(seconds));
   if (sec < 5) return "now";
   if (sec < 60) return `${sec}s`;
   const min = Math.floor(sec / 60);

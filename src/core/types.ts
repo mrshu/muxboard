@@ -7,6 +7,15 @@
 
 export type AgentKind = "claude" | "codex" | "pi" | "unknown";
 
+/** Live workspace state from cmux's agent event stream (set_status mirror). */
+export type WorkspaceState = "running" | "needs" | "idle";
+
+/** A workspace's current state plus when it entered that state (epoch ms). */
+export interface WorkspaceStatus {
+  state: WorkspaceState;
+  since: number;
+}
+
 export type AttentionReason =
   | "finished"
   | "failed"
@@ -28,6 +37,12 @@ export interface AttentionItem {
   reason: AttentionReason;
   /** Whether the agent is actively working vs idle/waiting for you. */
   activity: "working" | "waiting";
+  /**
+   * Epoch ms the current activity began, from the cmux event stream when
+   * available. Drives the key's age display so it reflects the live state
+   * ("working for 2m") instead of the (possibly stale) notification time.
+   */
+  activitySince?: number;
   /** The workspace's cmux color (hex), used for the key border. */
   color?: string;
   /** Raw notification body (used for the reason mapping + hints). */
@@ -86,6 +101,8 @@ export interface AppState {
   cmuxOffline: boolean;
   /** CodexBar usage per provider, keyed by provider id. */
   usage: Record<string, ProviderUsage>;
+  /** Live per-workspace status from the cmux event stream, keyed by id. */
+  workspaceStatus: Record<string, WorkspaceStatus>;
   /** Providers shown across the LCD segments, in display order. */
   providers: string[];
   /**
