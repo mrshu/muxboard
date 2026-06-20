@@ -155,10 +155,14 @@ Status is mapped from `body`, strongest signal first:
 Notes:
 
 - Rows missing `id` or `workspace_id` are dropped (never fatal).
-- `is_read` is not used as a filter; every listed notification is treated as
-  needing attention. Notifications are collapsed to one per workspace (newest
-  wins), so each repo occupies a single key showing its current state. Pressing a
-  key marks it read via `open-notification` but leaves it in the list.
+- `is_read` is not used to drop rows; every listed notification still occupies a
+  key. It is used to defuse urgency, though: cmux leaves a notification in the
+  list after you answer it (only flipping `is_read`), so a read `failed`/`blocked`
+  row is demoted to `waiting` — the key stays but loses the badge and the triage
+  front-pin. Unread `failed`/`blocked` keep their urgency. Notifications are
+  collapsed to one per workspace (newest wins), so each repo occupies a single key
+  showing its current state. Pressing a key marks it read via `open-notification`
+  but leaves it in the list.
 - To emit one yourself: `cmux notify --title "Codex CLI" --body "Task failed: ..."`
   (run inside the target workspace, or pass `--workspace`).
 
