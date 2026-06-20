@@ -1,0 +1,13 @@
+{
+  "coding_agents": [
+    { "id": "claude", "display_name": "Claude Code", "resources": { "pids": [100, 101] } },
+    { "id": "codex", "display_name": "Codex", "resources": { "pids": [200] } }
+  ],
+  "windows": [
+    { "workspaces": [
+      { "id": "WS-CLAUDE", "panes": [ { "surfaces": [ { "ref": "surface:1", "root_pids": [100] } ] } ] },
+      { "id": "WS-CODEX",  "panes": [ { "surfaces": [ { "ref": "surface:2", "root_pids": [200] } ] } ] },
+      { "id": "WS-PLAIN",  "panes": [ { "surfaces": [ { "ref": "surface:3", "root_pids": [999] } ] } ] }
+    ] }
+  ]
+}

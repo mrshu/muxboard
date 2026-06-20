@@ -5,6 +5,7 @@ import {
   detectReason,
   normalizeNotifications,
 } from "../src/core/cmux/normalize.js";
+import { parseCodingAgents, toAgentKind } from "../src/core/cmux/agents.js";
 import {
   assignSlots,
   clampOffset,
@@ -23,6 +24,31 @@ test("detectAgent maps titles to agent kinds, with alias override", () => {
   assert.equal(detectAgent("fieldtheory-cli"), "unknown");
   // alias map identifies a custom-named agent cmux doesn't tag
   assert.equal(detectAgent("⠴ fieldtheory-cli", { fieldtheory: "codex" }), "codex");
+});
+
+test("parseCodingAgents maps workspace → agent from running processes", () => {
+  const map = parseCodingAgents(loadFixture("cmux-top.json"));
+  assert.equal(map.get("WS-CLAUDE"), "claude");
+  assert.equal(map.get("WS-CODEX"), "codex");
+  assert.equal(map.get("WS-PLAIN"), undefined); // no coding-agent process
+  assert.equal(toAgentKind("gemini"), "unknown");
+});
+
+test("process-detected agent overrides the title (e.g. codex named 'fieldtheory-cli')", () => {
+  const raw = [
+    {
+      id: "n1",
+      title: "⠴ fieldtheory-cli",
+      tab_title: "fieldtheory-cli",
+      body: "Ran the update again",
+      workspace_id: "WS-CODEX",
+      created_at: "2026-06-20T12:00:00Z",
+    },
+  ];
+  const map = parseCodingAgents(loadFixture("cmux-top.json"));
+  const [item] = normalizeNotifications(raw, {}, map);
+  assert.equal(item.agent, "codex"); // from process, not the custom title
+  assert.equal(item.reason, "waiting");
 });
 
 test("detectReason picks the strongest signal, defaulting to waiting", () => {

@@ -80,6 +80,7 @@ function deriveTitle(tabTitle: string, body: string): string {
 export function normalizeNotification(
   raw: RawCmuxNotification,
   aliases: AgentAliases = {},
+  workspaceAgents?: Map<string, AgentKind>,
 ): AttentionItem | null {
   const id = str(raw.id);
   const workspaceId = str(raw.workspace_id);
@@ -90,10 +91,12 @@ export function normalizeNotification(
   const tabTitle = str(raw.tab_title);
   const createdAt = str(raw.created_at) || new Date(0).toISOString();
 
+  // Prefer the agent detected from the actual running process (authoritative);
+  // fall back to alias/keyword matching on the title + tab name.
+  const processAgent = workspaceAgents?.get(workspaceId);
   return {
     id,
-    // Match aliases/keywords against both the title and the tab name.
-    agent: detectAgent(`${title} ${tabTitle}`, aliases),
+    agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
     workspaceId,
     surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
@@ -105,12 +108,16 @@ export function normalizeNotification(
 }
 
 /** Normalize a raw notification array, dropping malformed rows. */
-export function normalizeNotifications(raw: unknown, aliases: AgentAliases = {}): AttentionItem[] {
+export function normalizeNotifications(
+  raw: unknown,
+  aliases: AgentAliases = {},
+  workspaceAgents?: Map<string, AgentKind>,
+): AttentionItem[] {
   if (!Array.isArray(raw)) return [];
   const out: AttentionItem[] = [];
   for (const row of raw) {
     if (row && typeof row === "object") {
-      const item = normalizeNotification(row as RawCmuxNotification, aliases);
+      const item = normalizeNotification(row as RawCmuxNotification, aliases, workspaceAgents);
       if (item) out.push(item);
     }
   }

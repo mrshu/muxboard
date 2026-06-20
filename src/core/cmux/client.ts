@@ -2,8 +2,9 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
-import type { AttentionItem } from "../types.js";
+import type { AgentKind, AttentionItem } from "../types.js";
 import { type AgentAliases, normalizeNotifications } from "./normalize.js";
+import { parseCodingAgents } from "./agents.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -78,6 +79,8 @@ export interface CmuxClientOptions {
   runner?: CommandRunner;
   /** Custom-name → agent map applied during normalization. */
   agentAliases?: AgentAliases;
+  /** Epoch-ms clock, injectable for tests (agent-cache TTL). */
+  now?: () => number;
 }
 
 /**
@@ -90,18 +93,53 @@ export class CmuxClient {
   private readonly bin: string;
   private readonly runner: CommandRunner;
   private readonly aliases: AgentAliases;
+  /** Cached workspace→agent map (from `top`), refreshed on a slow cadence. */
+  private agentCache: Map<string, AgentKind> = new Map();
+  private agentCacheAt = 0;
+  private readonly now: () => number;
+  private static readonly AGENT_TTL_MS = 5000;
 
   constructor(opts: CmuxClientOptions = {}) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
     this.runner = opts.runner ?? defaultRunner;
     this.aliases = opts.agentAliases ?? {};
+    this.now = opts.now ?? (() => Date.now());
   }
 
   /** Fetch and normalize the current attention queue. */
   async listAttention(): Promise<AttentionItem[]> {
-    const { stdout } = await this.runner(this.bin, ["list-notifications", "--json"]);
+    const [{ stdout }, workspaceAgents] = await Promise.all([
+      this.runner(this.bin, ["list-notifications", "--json"]),
+      this.codingAgentsByWorkspace(),
+    ]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed, this.aliases);
+    return normalizeNotifications(parsed, this.aliases, workspaceAgents);
+  }
+
+  /**
+   * Map of workspaceId → agent, derived from the actual running process via
+   * `cmux top --processes`. This is the authoritative agent identity (a codex
+   * CLI in a pane named "fieldtheory-cli" is still detected as codex). Cached
+   * for a few seconds since the running agent rarely changes, and best-effort:
+   * on failure we return the last cache (or empty) so the title heuristic wins.
+   */
+  async codingAgentsByWorkspace(): Promise<Map<string, AgentKind>> {
+    if (this.now() - this.agentCacheAt < CmuxClient.AGENT_TTL_MS) return this.agentCache;
+    try {
+      const { stdout } = await this.runner(this.bin, [
+        "--json",
+        "--id-format",
+        "uuids",
+        "top",
+        "--processes",
+        "--all",
+      ]);
+      this.agentCache = parseCodingAgents(JSON.parse(stdout));
+      this.agentCacheAt = this.now();
+    } catch {
+      // Keep the last cache; the title/alias heuristic covers the gap.
+    }
+    return this.agentCache;
   }
 
   /**

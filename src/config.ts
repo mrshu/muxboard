@@ -41,8 +41,9 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
   enabledAgents: ["claude", "codex", "pi", "unknown"],
-  // Custom-named agents → their real type. Extend with your own names.
-  agentAliases: { fieldtheory: "codex" },
+  // Agents are detected from the running process; this is only a manual override
+  // fallback (name substring → agent) for cases that can't be detected.
+  agentAliases: {},
 };
 
 const ALL_AGENTS: AgentKind[] = ["claude", "codex", "pi", "unknown"];

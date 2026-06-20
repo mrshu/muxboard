@@ -143,11 +143,12 @@ rows returned by `cmux list-notifications --json`:
 }
 ```
 
-**Agent** is matched from the notification name (case-insensitive): contains
-`claude` → `claude`, `codex` → `codex`, a `pi` word → `pi`, otherwise `unknown`.
-cmux doesn't tag custom-named agents (e.g. a codex CLI shown as
-`fieldtheory-cli`), so the `agentAliases` config maps a name substring to an
-agent — e.g. `{ "fieldtheory": "codex" }`.
+**Agent** is detected from the **running process**: Muxboard reads cmux's
+`top --processes` `coding_agents` (matched to the workspace by PID), so a codex
+CLI in a pane named `fieldtheory-cli` is still identified as codex. If the
+process can't be resolved, it falls back to matching the title/tab name
+(`claude`/`codex`/`pi`), then the optional `agentAliases` override, else
+`unknown`.
 
 **Status** is mapped from `body`, strongest signal first:
 
@@ -201,7 +202,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
 | `enabledAgents` | all | Agents allowed onto the queue |
-| `agentAliases` | `{ "fieldtheory": "codex" }` | Name substring → agent, for custom-named agents |
+| `agentAliases` | `{}` | Manual override (name substring → agent); process detection is primary |
 
 ---
 
