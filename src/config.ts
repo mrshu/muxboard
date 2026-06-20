@@ -23,7 +23,8 @@ export interface MuxboardConfig {
 
 export const DEFAULT_CONFIG: MuxboardConfig = {
   cmuxBin: "cmux",
-  codexbarBaseUrl: "http://127.0.0.1:8080",
+  // 17777 keeps CodexBar's default 8080 free; run `codexbar serve --port 17777`.
+  codexbarBaseUrl: "http://127.0.0.1:17777",
   codexbarProviders: ["codex", "claude"],
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,

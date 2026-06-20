@@ -14,15 +14,19 @@ PLUGIN_DIR="com.mrshu.muxboard.sdPlugin"
 PLUGIN_UUID="com.mrshu.muxboard"
 STREAMDECK="npx --no-install streamdeck"
 
+# CodexBar port. Hardcoded to 17777 (keeps CodexBar's default 8080 free);
+# override with CODEXBAR_PORT=NNNN. Must match the plugin's codexbarBaseUrl.
+CODEXBAR_PORT="${CODEXBAR_PORT:-17777}"
+
 echo "▸ Generating icons (if missing) and building…"
 [ -f "$PLUGIN_DIR/imgs/plugin/icon.png" ] || npm run icons
 npm run build
 
-# Ensure CodexBar serve is reachable; start it in the background if not.
-if ! curl -sf -m 2 "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+# Ensure CodexBar serve is reachable; start it on CODEXBAR_PORT if not.
+if ! curl -sf -m 2 "http://127.0.0.1:${CODEXBAR_PORT}/health" >/dev/null 2>&1; then
   if command -v codexbar >/dev/null 2>&1; then
-    echo "▸ Starting 'codexbar serve' in the background (port 8080)…"
-    (codexbar serve >/tmp/muxboard-codexbar.log 2>&1 &)
+    echo "▸ Starting 'codexbar serve --port ${CODEXBAR_PORT}' in the background…"
+    (codexbar serve --port "${CODEXBAR_PORT}" >/tmp/muxboard-codexbar.log 2>&1 &)
   else
     echo "⚠ codexbar not found on PATH — the LCD will show an offline state."
   fi

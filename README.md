@@ -54,8 +54,9 @@ unreachable, the display degrades gracefully and the rest keeps working:
 
 - **Node.js ≥ 20** (developed on v26).
 - **cmux** on your `PATH` (or set `cmuxBin`). Verified against cmux 0.64.16.
-- **CodexBar** for the LCD: run `codexbar serve` (defaults to port **8080**).
-  Optional — the keys work without it.
+- **CodexBar** for the LCD: run `codexbar serve --port 17777`. Muxboard defaults
+  to **17777** (keeping CodexBar's own default 8080 free). Optional — the keys
+  work without it.
 - **Stream Deck+** hardware **and** the free
   [Elgato Stream Deck desktop app](https://www.elgato.com/stream-deck) to run the
   plugin on the device. The app is what launches the plugin process.
@@ -83,7 +84,7 @@ show with no Stream Deck+ and no desktop app.
 ### Run on the device
 
 1. Install and open the **Elgato Stream Deck** desktop app.
-2. Start CodexBar if you want the LCD: `codexbar serve` (port 8080).
+2. Start CodexBar if you want the LCD: `codexbar serve --port 17777`.
 3. Build, generate icons, and link the plugin:
    ```bash
    npm run icons
@@ -145,7 +146,7 @@ Notes:
 
 ## CodexBar contract
 
-Muxboard polls `codexbar serve` (default `http://127.0.0.1:8080`). It queries
+Muxboard polls `codexbar serve` (default `http://127.0.0.1:17777`). It queries
 each provider individually — `/usage?provider=all` returns nothing — and handles
 both payload shapes CodexBar emits:
 
@@ -168,7 +169,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | Field | Default | Notes |
 | --- | --- | --- |
 | `cmuxBin` | `"cmux"` | Binary path or name |
-| `codexbarBaseUrl` | `"http://127.0.0.1:8080"` | `codexbar serve` base URL |
+| `codexbarBaseUrl` | `"http://127.0.0.1:17777"` | `codexbar serve --port 17777` base URL |
 | `codexbarProviders` | `["codex", "claude"]` | Polled + cycled by dial 3 |
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |

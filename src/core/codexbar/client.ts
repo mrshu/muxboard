@@ -17,7 +17,7 @@ const defaultFetchJson: FetchJson = async (url) => {
 };
 
 export interface CodexbarClientOptions {
-  /** Base URL of `codexbar serve`. Defaults to http://127.0.0.1:8080. */
+  /** Base URL of `codexbar serve`. Defaults to http://127.0.0.1:17777. */
   baseUrl?: string;
   /** Injected JSON fetcher for tests. */
   fetchJson?: FetchJson;
@@ -34,7 +34,7 @@ export class CodexbarClient {
   private readonly fetchJson: FetchJson;
 
   constructor(opts: CodexbarClientOptions = {}) {
-    this.baseUrl = (opts.baseUrl ?? "http://127.0.0.1:8080").replace(/\/+$/, "");
+    this.baseUrl = (opts.baseUrl ?? "http://127.0.0.1:17777").replace(/\/+$/, "");
     this.fetchJson = opts.fetchJson ?? defaultFetchJson;
   }
 
