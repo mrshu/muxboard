@@ -1,6 +1,7 @@
 import type { ProviderUsage, UsageWindow } from "../types.js";
 import { providerColor, usageColor } from "./palette.js";
 import { escapeXml, formatCountdown, formatEur, formatPercent } from "./format.js";
+import { providerIconSvg } from "./providerIcons.js";
 
 /** Touch-strip segment size: one of the four 200×100 LCD regions. */
 export const SEG_W = 200;
@@ -54,10 +55,13 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
   const name = shortProvider((usage.provider || "?").toUpperCase());
   // Name uses CodexBar's brand color; gauges still convey health via usageColor.
   const nameColor = providerColor(usage.provider || "");
+  // CodexBar's brand glyph, tinted to match, in the header.
+  const icon = providerIconSvg(usage.provider || "", 12, 9, 18, nameColor);
+  const nameX = icon ? 36 : 12;
 
   if (!usage.ok) {
     return segFrame(
-      `<text x="12" y="26" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
+      `${icon}<text x="${nameX}" y="26" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
        <text x="12" y="58" font-size="17" font-weight="700" fill="#ff7a7a">offline</text>
        ${usage.error ? `<text x="12" y="80" font-size="11" fill="#8a909a">${escapeXml(shortError(usage.error))}</text>` : ""}`,
       "#7d3b3b",
@@ -67,7 +71,7 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
   const cost = usage.costTodayEur !== undefined ? formatEur(usage.costTodayEur) : "";
   const footer = [cost ? `${cost} today` : "", ctx.stale ? "stale" : ""].filter(Boolean).join(" · ");
   return segFrame(
-    `<text x="12" y="24" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
+    `${icon}<text x="${nameX}" y="25" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
      <text x="${SEG_W - 10}" y="23" font-size="10" text-anchor="end" fill="#5a606a">reset →</text>
      ${quotaRow(50, "S", usage.session, ctx.nowMs)}
      ${quotaRow(72, "W", usage.weekly, ctx.nowMs)}

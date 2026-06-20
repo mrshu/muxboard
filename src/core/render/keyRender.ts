@@ -1,6 +1,7 @@
 import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
 import { escapeXml, formatAge, shortName, wrapText } from "./format.js";
+import { providerIconSvg } from "./providerIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
 export const KEY_SIZE = 144;
@@ -73,7 +74,10 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
     <rect x="13" y="13" width="32" height="32" rx="8" fill="${a.accent}"/>
-    <text x="29" y="36" font-size="22" font-weight="700" text-anchor="middle" fill="#10100f">${escapeXml(a.glyph)}</text>
+    ${
+      providerIconSvg(item.agent, 18, 18, 22, "#10100f") ||
+      `<text x="29" y="36" font-size="22" font-weight="700" text-anchor="middle" fill="#10100f">${escapeXml(a.glyph)}</text>`
+    }
     <text x="${S - 12}" y="38" font-size="${ageS.size}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
     <text x="13" y="64" font-size="19" font-weight="800" fill="${a.fg}">${repo}</text>
     <rect x="7" y="${bandTop - 6}" width="${S - 14}" height="${S - bandTop}" rx="9" fill="#15171c" opacity="0.85"/>
