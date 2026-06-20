@@ -88,6 +88,11 @@ export interface AppState {
   usage: Record<string, ProviderUsage>;
   /** Providers shown across the LCD segments, in display order. */
   providers: string[];
+  /**
+   * Rotation offset into `providers` for the LCD window (dial 3). Only moves
+   * when there are more providers than segments; otherwise pinned to 0.
+   */
+  providerOffset: number;
   /** Epoch ms of the last successful CodexBar refresh. */
   codexbarUpdatedAtMs: number | null;
   /** True when CodexBar serve is unreachable. */

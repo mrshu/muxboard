@@ -17,6 +17,15 @@ type Listener = (state: AppState) => void;
 /** Cycle order for the agent filter (dial 2). */
 const FILTER_CYCLE: AgentFilter[] = ["all", "claude", "codex", "pi"];
 
+/** Number of LCD touch-strip segments (one per dial). */
+const LCD_SEGMENTS = 4;
+
+/** Wrap `n` into `[0, len)`; returns 0 when there is nothing to wrap into. */
+function wrap(n: number, len: number): number {
+  if (len <= 0) return 0;
+  return ((n % len) + len) % len;
+}
+
 /**
  * In-memory application state with a tiny subscribe/emit API.
  *
@@ -39,6 +48,7 @@ export class Store {
       usage: {},
       // Seeded empty; filled from CodexBar discovery on the first poll.
       providers: [...providers],
+      providerOffset: 0,
       codexbarUpdatedAtMs: null,
       codexbarOffline: false,
     };
@@ -88,10 +98,16 @@ export class Store {
   setUsage(usages: ProviderUsage[], updatedAtMs: number, offline: boolean): void {
     const usage: Record<string, ProviderUsage> = { ...this.state.usage };
     for (const u of usages) usage[u.provider] = u;
+    const providers =
+      offline || usages.length === 0 ? this.state.providers : usages.map((u) => u.provider);
     this.state = {
       ...this.state,
       usage,
-      providers: offline || usages.length === 0 ? this.state.providers : usages.map((u) => u.provider),
+      providers,
+      // Keep the rotation offset valid as discovery changes the set: wrap it
+      // into range, and pin to 0 once everything fits on screen again.
+      providerOffset:
+        providers.length > LCD_SEGMENTS ? wrap(this.state.providerOffset, providers.length) : 0,
       codexbarUpdatedAtMs: offline ? this.state.codexbarUpdatedAtMs : updatedAtMs,
       codexbarOffline: offline,
     };
@@ -131,5 +147,32 @@ export class Store {
     this.state = { ...this.state, filter: "all", offset: 0 };
     this.recompute();
     this.emit();
+  }
+
+  // ---- dial 3: rotate the LCD provider window -------------------------------
+  /**
+   * Rotate which providers occupy the four LCD segments. A no-op unless there
+   * are more providers than segments (otherwise all are already visible). The
+   * offset wraps, so the window cycles endlessly in either direction.
+   */
+  rotateProviders(delta: number): void {
+    if (this.state.providers.length <= LCD_SEGMENTS) return;
+    const next = wrap(this.state.providerOffset + delta, this.state.providers.length);
+    if (next === this.state.providerOffset) return;
+    this.state = { ...this.state, providerOffset: next };
+    this.emit();
+  }
+
+  /**
+   * The provider id shown on each of the `count` LCD segments, applying the
+   * rotation offset and wrapping. Segments beyond the provider count are
+   * `undefined` (rendered as muted blanks).
+   */
+  visibleProviderWindow(count = LCD_SEGMENTS): (string | undefined)[] {
+    const { providers, providerOffset } = this.state;
+    const n = providers.length;
+    return Array.from({ length: count }, (_, i) =>
+      i < n ? providers[wrap(providerOffset + i, n)] : undefined,
+    );
   }
 }

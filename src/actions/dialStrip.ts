@@ -25,7 +25,7 @@ const toDataUri = (svg: string): string =>
  * dial's behavior:
  *   col 0  rotate=scroll attention      press=jump to newest
  *   col 1  rotate=cycle agent filter    press=reset filter
- *   col 2  (rotate unused)              press=open CodexBar source
+ *   col 2  rotate=rotate providers      press=open CodexBar /usage
  *   col 3  (rotate unused)              press=force refresh
  */
 @action({ UUID: "com.mrshu.muxboard.dial" })
@@ -64,7 +64,12 @@ export class DialStripAction extends SingletonAction {
       case 1:
         this.runtime.store.cycleFilter(dir);
         break;
-      // cols 2 & 3: rotation unused (each segment is a fixed provider)
+      case 2:
+        // Rotate the LCD provider window when there are more providers than
+        // segments (a no-op otherwise). Multi-tick spins move proportionally.
+        this.runtime.store.rotateProviders(ticks);
+        break;
+      // col 3: rotation unused
     }
   }
 
@@ -96,8 +101,12 @@ export class DialStripAction extends SingletonAction {
         this.runtime.store.resetFilter();
         break;
       case 2:
-        // Open the CodexBar source (its served base URL) if possible.
-        openUrl(this.runtime.config.codexbarBaseUrl, this.runtime.logger);
+        // Open CodexBar's /usage endpoint (the base URL root serves nothing);
+        // GET /usage returns one entry per enabled provider.
+        openUrl(
+          `${this.runtime.config.codexbarBaseUrl.replace(/\/+$/, "")}/usage`,
+          this.runtime.logger,
+        );
         break;
       case 3:
         await Promise.allSettled([
@@ -120,8 +129,11 @@ export class DialStripAction extends SingletonAction {
       Date.now(),
       this.runtime.codexbarService.staleThresholdMs,
     );
-    // One provider per segment, in config order, so all are visible at a glance.
-    const usages = state.providers.map((p) => state.usage[p]);
+    // One provider per segment, in display order with the dial-3 rotation
+    // offset applied, so a list longer than four segments can be scrolled through.
+    const usages = this.runtime.store
+      .visibleProviderWindow()
+      .map((p) => (p ? state.usage[p] : undefined));
     const segments = renderLcdSegments(usages, { nowMs: Date.now(), stale });
     const svg = segments[col] ?? segments[0];
 

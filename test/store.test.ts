@@ -56,3 +56,42 @@ test("newestVisible returns slot-0 item", () => {
   const top = store.newestVisible();
   assert.equal(top?.agent, "codex");
 });
+
+test("provider rotation is a no-op with 4 or fewer providers", () => {
+  const store = new Store(["codex", "claude", "minimax", "kimi"]);
+  store.rotateProviders(1);
+  assert.equal(store.getState().providerOffset, 0);
+  assert.deepEqual(store.visibleProviderWindow(), ["codex", "claude", "minimax", "kimi"]);
+});
+
+test("provider rotation cycles the LCD window when there are more than 4", () => {
+  const store = new Store(["a", "b", "c", "d", "e"]);
+  // Forward one: window slides and wraps so all four segments stay filled.
+  store.rotateProviders(1);
+  assert.equal(store.getState().providerOffset, 1);
+  assert.deepEqual(store.visibleProviderWindow(), ["b", "c", "d", "e"]);
+
+  // Multi-tick spin accumulates and wraps modulo the provider count.
+  store.rotateProviders(2);
+  assert.equal(store.getState().providerOffset, 3);
+  assert.deepEqual(store.visibleProviderWindow(), ["d", "e", "a", "b"]);
+
+  // Backwards past zero wraps to the end.
+  store.rotateProviders(-4);
+  assert.equal(store.getState().providerOffset, 4);
+  assert.deepEqual(store.visibleProviderWindow(), ["e", "a", "b", "c"]);
+});
+
+test("provider rotation resets when discovery drops below 5 providers", () => {
+  const store = new Store(["a", "b", "c", "d", "e"]);
+  store.rotateProviders(3);
+  assert.equal(store.getState().providerOffset, 3);
+  // A later poll discovers only three providers: nothing left to rotate.
+  store.setUsage(
+    ["a", "b", "c"].map((provider) => ({ provider, ok: true })),
+    1000,
+    false,
+  );
+  assert.equal(store.getState().providerOffset, 0);
+  assert.deepEqual(store.visibleProviderWindow(), ["a", "b", "c", undefined]);
+});
