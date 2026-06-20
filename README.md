@@ -36,9 +36,10 @@ unreachable, the display degrades gracefully and the rest keeps working:
 > plugin is accepted. Without it, the keys stay on the muted "cmux offline"
 > state. See [Requirements](#requirements).
 
-- Keys are sorted newest-first by the notification `created_at` and assigned to
-  physical slots. Agent is read from the notification `title`; status is mapped
-  from the structured `body`, with no terminal scraping.
+- Keys are assigned to physical slots newest-first, with the panes that need you
+  pinned ahead of those actively working. Agent, status, and age are fused from
+  several cmux signals (no terminal scraping) — see
+  [How a pane's state is derived](#how-a-panes-state-is-derived).
 - Pressing a key runs `cmux open-notification --id <uuid>`, which focuses the
   workspace + surface and marks the row read (it does not dismiss it).
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
@@ -166,6 +167,55 @@ Notes:
 - To emit one yourself: `cmux notify --title "Codex CLI" --body "Task failed: ..."`
   (run inside the target workspace, or pass `--workspace`).
 
+## How a pane's state is derived
+
+A key shows two things: a **status** (working / waiting / permission / failed) and
+an **age**. Neither comes from a single cmux field — cmux's notifications,
+title-spinner, and agent state each tell a partial, often-stale story. Muxboard
+fuses several signals so a key reflects what's *actually* true, which in practice
+is frequently more accurate than any one cmux surface on its own. Each signal is
+best-effort and degrades to the next when unavailable.
+
+**1. On the queue, and the reason — `cmux list-notifications`.** A notification
+puts a pane on a key. The reason (`failed` / `blocked` / `waiting` / `finished`)
+is mapped from structured fields, never by scraping the free-form body (see the
+table above). cmux keeps a notification in the list after you respond and only
+flips `is_read`, so a permission/failure you've **already answered** (`is_read:
+true`) is demoted to `waiting` — the key stays but drops the urgent badge and the
+front-pin. Unread urgent reasons keep their urgency.
+
+**2. Activity (working vs waiting) — the `cmux events` stream.** Muxboard
+subscribes to cmux's event stream and prefers cmux's **own computed verdict**
+(`set_status`: `Running` / `Idle` / `Needs`), which is what drives cmux's UI. For
+workspaces cmux doesn't publish a status for, it falls back to deriving state
+from raw agent hooks (`UserPromptSubmit`/`PreToolUse` → working, `Stop`/
+`SessionEnd` → idle, `Notification`/`AskUserQuestion` → needs). An actively
+working pane shows `● working` and **sinks below** the panes still waiting on you
+(triage), since it no longer needs you. If the stream is unavailable, the
+workspace title's spinner glyph is the fallback.
+
+**3. Age — when the *current state* began, not when a notification fired.** The
+age is computed from the activity-transition timestamp (`occurred_at`) when
+available, so a key reads "working for 2m" or "waiting since 09:31" — not the age
+of a stale, lingering notification. Falls back to the notification `created_at`.
+
+**4. A busy command counts as working — `cmux top`.** An agent can finish its
+turn and return to waiting while a command it launched keeps running. A workspace
+whose process CPU is at/above `busyCpuPercent` (from `cmux top`) is treated as
+working even when the agent has yielded, with a short hysteresis window so a
+*bursty* command doesn't flicker. An explicit "needs you" (permission) still wins
+over busy, so prompts stay visible.
+
+**Priority on the grid:** needs-you (permission) → failed → waiting →
+actively-working (last). The newest item is key 1.
+
+**Known limitation.** A Claude agent waiting on its **own background subagent**
+does that work *in-process*: cmux reports no spinner, no `set_status`, and low
+CPU, so the pane reads `waiting`. The only ground truth is the agent's own
+terminal screen, which Muxboard deliberately does not scrape. This narrow case
+(an agent blocked on its own background task) is the one state no cmux signal
+exposes.
+
 ## CodexBar contract
 
 Muxboard polls `codexbar serve` (default `http://127.0.0.1:17777`). It queries
@@ -195,6 +245,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
 | `enabledAgents` | all | Agents allowed onto the queue |
 | `agentAliases` | `{}` | Manual override (name substring → agent); process detection is primary |
+| `busyCpuPercent` | `40` | Workspace CPU% (from `cmux top`) at/above which a running command counts as "working" |
 
 ## Architecture
 
@@ -208,10 +259,11 @@ src/
   config.ts          defaults + defensive resolveConfig()
   core/              dependency-free, unit-tested, no SDK import
     types.ts
-    cmux/            client (CLI wrapper), normalize (agent/reason), sort
+    cmux/            client (CLI wrapper), normalize (agent/reason), sort,
+                     eventStatus (live state from the event stream + CPU)
     codexbar/        client (HTTP), normalize (dual-shape + error + cost)
     render/          palette, format, keyRender (SVG), lcdRender (SVG)
-    services/        store (state + dial machines), cmux/codexbar poll loops
+    services/        store, cmux/codexbar poll loops, cmuxEvents (event stream)
   actions/           attentionKey (8 keys), dialStrip (4 dials): thin SDK glue
 scripts/             preview / validate / gen-icons / install-profile / dev.sh
 test/                fixtures + node:test suite
