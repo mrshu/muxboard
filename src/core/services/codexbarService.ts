@@ -74,6 +74,8 @@ export class CodexbarService {
       const offline = usages.length === 0;
       if (offline) {
         this.log.warn("codexbar poll: no providers (server unavailable?)");
+      } else {
+        this.log.info(`codexbar poll ok: ${usages.map((u) => u.provider).join(",")}`);
       }
       this.store.setUsage(usages, this.now(), offline);
     } catch (err) {
