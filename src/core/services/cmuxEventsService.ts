@@ -37,6 +37,14 @@ export class CmuxEventsService {
   private buf = "";
   private stopped = false;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  /** Highest event seq seen, so a restart resumes via --after (lossless). */
+  private lastSeq: number | null = null;
+  /** Epoch ms of the last byte received, for stall detection. */
+  private lastDataAt = 0;
+  /** Restart the stream if no data arrives for this long (silent stall). */
+  private static readonly STALL_MS = 120_000;
+  private static readonly WATCHDOG_MS = 30_000;
 
   constructor(opts: CmuxEventsServiceOptions) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
@@ -48,26 +56,33 @@ export class CmuxEventsService {
   start(): void {
     this.stopped = false;
     this.spawnStream();
+    if (!this.watchdog) {
+      this.watchdog = setInterval(() => this.checkStall(), CmuxEventsService.WATCHDOG_MS);
+      this.watchdog.unref?.(); // never keep the process alive for this
+    }
   }
 
   stop(): void {
     this.stopped = true;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
+    if (this.watchdog) clearInterval(this.watchdog);
+    this.watchdog = null;
     this.child?.kill();
     this.child = null;
   }
 
   private spawnStream(): void {
     if (this.stopped) return;
+    // Default flags (acks + heartbeats ON): --no-ack disables the flow-control
+    // acks that keep cmux sending, which silently stalls the stream after a
+    // while. No --category: we need agent.hook.* AND set_status; --after resumes
+    // from the last seq so a restart loses nothing.
+    const args = ["events", "--reconnect"];
+    if (this.lastSeq != null) args.push("--after", String(this.lastSeq));
     let child: ChildProcess;
     try {
-      // No --category filter: we need both `agent.hook.*` (category agent) and
-      // `set_status` (category sidebar). The tracker ignores everything else.
-      child = spawn(this.bin, ["events", "--reconnect", "--no-heartbeat", "--no-ack"], {
-        env: cmuxEnv(),
-        stdio: ["ignore", "pipe", "ignore"],
-      });
+      child = spawn(this.bin, args, { env: cmuxEnv(), stdio: ["ignore", "pipe", "ignore"] });
     } catch (err) {
       this.log.warn(`cmux events spawn failed: ${message(err)}`);
       this.scheduleReconnect();
@@ -75,6 +90,7 @@ export class CmuxEventsService {
     }
     this.child = child;
     this.buf = "";
+    this.lastDataAt = Date.now();
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => this.onData(chunk));
     child.on("error", (err) => this.log.warn(`cmux events error: ${err.message}`));
@@ -82,11 +98,12 @@ export class CmuxEventsService {
       this.child = null;
       this.scheduleReconnect();
     });
-    this.log.info("cmux events stream started.");
+    this.log.info(`cmux events stream started${this.lastSeq != null ? ` (after seq ${this.lastSeq})` : ""}.`);
   }
 
   /** Parse newline-delimited JSON, feed the tracker, push on any change. */
   private onData(chunk: string): void {
+    this.lastDataAt = Date.now();
     this.buf += chunk;
     let changed = false;
     let nl: number;
@@ -100,9 +117,21 @@ export class CmuxEventsService {
       } catch {
         continue; // partial/garbage line; skip
       }
+      if (typeof ev.seq === "number" && (this.lastSeq == null || ev.seq > this.lastSeq)) {
+        this.lastSeq = ev.seq;
+      }
       if (this.tracker.ingest(ev)) changed = true;
     }
     if (changed) this.store.setWorkspaceStatus(this.tracker.snapshot());
+  }
+
+  /** Kill a silently stalled stream so `close` triggers a resumed reconnect. */
+  private checkStall(): void {
+    if (this.stopped || !this.child) return;
+    if (Date.now() - this.lastDataAt > CmuxEventsService.STALL_MS) {
+      this.log.warn("cmux events stream stalled (no data); restarting.");
+      this.child.kill(); // → 'close' → scheduleReconnect() resumes via --after
+    }
   }
 
   private scheduleReconnect(): void {

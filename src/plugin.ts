@@ -90,6 +90,22 @@ async function main(): Promise<void> {
   cmuxEventsService.start();
   codexbarService.start();
   logger.info("Polling started.");
+
+  // Stop services on shutdown so the long-lived `cmux events` child is killed
+  // rather than orphaned (Node doesn't reap child processes on exit).
+  const shutdown = (): void => {
+    cmuxEventsService.stop();
+    cmuxService.stop();
+    codexbarService.stop();
+  };
+  process.once("SIGTERM", () => {
+    shutdown();
+    process.exit(0);
+  });
+  process.once("SIGINT", () => {
+    shutdown();
+    process.exit(0);
+  });
 }
 
 void main();

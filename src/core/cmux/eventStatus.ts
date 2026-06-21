@@ -50,6 +50,8 @@ export interface CmuxEvent {
   name?: unknown;
   occurred_at?: unknown;
   payload?: unknown;
+  /** Monotonic sequence number, used to resume the stream after a restart. */
+  seq?: unknown;
 }
 
 type Tracked = WorkspaceStatus & { source: "status" | "hook" };
