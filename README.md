@@ -90,6 +90,16 @@ profile. To build from source instead, see [Quick start](#quick-start).
   `~/.config/cmux/cmux.json`), then fully quit and relaunch cmux. This is
   required for the keys to work; without it cmux rejects the plugin. Verify with
   `cmux capabilities | grep access_mode` (should read `"automation"`).
+- cmux agent hooks, for accurate live working/waiting state. The state and age
+  on each key come from cmux's agent event stream, which cmux emits from agent
+  hooks (injected automatically by cmux's Claude wrapper, for other agents run
+  `cmux hooks setup`). They are not required to launch, but without them the keys
+  fall back to the notification feed plus process CPU and can read stale (a wrong
+  "waiting" or a frozen age) until the agent session restarts. If a long-running
+  session stops emitting them, restart it (or `cmux hooks setup`) to resume.
+  Check the feed is live: `cmux events --limit 5` should show recent
+  `agent.hook.*` rows while an agent works. See
+  [How a pane's state is derived](#how-a-panes-state-is-derived).
 - CodexBar for the LCD: run `codexbar serve --port 17777`. Muxboard defaults to
   17777 (keeping CodexBar's own default 8080 free). Optional; the keys work
   without it.
@@ -364,6 +374,14 @@ npm run typecheck
   dropdown. (The app's profile importer rejects bundled profiles as "content
   corrupted" on recent macOS builds, so the profile is written directly into the
   app's store instead.)
+- A key is stuck on a stale state (wrong "waiting", or an age that won't move
+  even though the agent is active). cmux's agent hook feed has gone quiet for
+  that session, so Muxboard has no live signal and falls back to the last
+  notification. Confirm it: `cmux events --limit 5` shows recent UI rows but no
+  `agent.hook.*` while an agent works. Fix it upstream: restart that agent
+  session (or `cmux hooks setup`) so the hooks resume. Muxboard can't synthesize
+  agent state cmux isn't emitting; a CPU-bound command still reads as working via
+  `cmux top`, but an agent merely waiting on remote inference has no signal.
 
 ## Privacy & non-goals
 
