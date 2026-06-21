@@ -65,8 +65,11 @@ profile. To build from source instead, see [Quick start](#quick-start).
   pinned ahead of those actively working. Agent, status, and age are fused from
   several cmux signals (no terminal scraping); see
   [How a pane's state is derived](#how-a-panes-state-is-derived).
-- Pressing a key runs `cmux open-notification --id <uuid>`, which focuses the
+- Tapping a key runs `cmux open-notification --id <uuid>`, which focuses the
   workspace + surface and marks the row read (it does not dismiss it).
+- Long-pressing a key (hold ~0.6s) runs `cmux dismiss-notification --id <uuid>`,
+  removing it from the queue ("seen it, nothing further") without switching to
+  cmux. The key clears on the next poll.
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
   rather than a hardcoded list. Each segment carries the provider name in
   CodexBar's brand color, today's spend, session and weekly gauges with percent

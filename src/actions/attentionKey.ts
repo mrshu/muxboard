@@ -2,6 +2,7 @@ import streamDeck, {
   action,
   SingletonAction,
   type KeyDownEvent,
+  type KeyUpEvent,
   type WillAppearEvent,
   type WillDisappearEvent,
   type KeyAction,
@@ -30,6 +31,10 @@ export class AttentionKeyAction extends SingletonAction {
   private readonly keys = new Map<string, KeyAction>();
   /** Last rendered SVG per action id, to skip no-op redraws. */
   private readonly lastSvg = new Map<string, string>();
+  /** Epoch ms each key was pressed, to tell a long-press from a tap. */
+  private readonly pressedAt = new Map<string, number>();
+  /** Hold this long to dismiss the notification instead of focusing it. */
+  private static readonly LONG_PRESS_MS = 600;
 
   constructor(runtime: Runtime) {
     super();
@@ -49,10 +54,35 @@ export class AttentionKeyAction extends SingletonAction {
     this.lastSvg.delete(ev.action.id);
   }
 
-  override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-    const item = this.itemForAction(ev.action);
-    if (!item) return; // empty slot: nothing to focus
+  override onKeyDown(ev: KeyDownEvent): void {
+    // Defer the action to key-up so we can distinguish a tap from a long-press.
+    this.pressedAt.set(ev.action.id, Date.now());
+  }
 
+  override async onKeyUp(ev: KeyUpEvent): Promise<void> {
+    const downAt = this.pressedAt.get(ev.action.id);
+    this.pressedAt.delete(ev.action.id);
+    const item = this.itemForAction(ev.action);
+    if (!item) return; // empty slot
+
+    const longPress = downAt !== undefined && Date.now() - downAt >= AttentionKeyAction.LONG_PRESS_MS;
+    // Long-press dismisses a real notification ("seen it, nothing further").
+    // Synthetic running panes have no notification, so they always just focus.
+    if (longPress && !item.synthetic) {
+      try {
+        await this.runtime.cmux.dismissNotification(item.id);
+        await ev.action.showOk();
+      } catch (err) {
+        this.runtime.logger.warn(`dismiss failed: ${message(err)}`);
+        await ev.action.showAlert();
+      }
+      return;
+    }
+    await this.focus(item, ev.action);
+  }
+
+  /** Bring cmux forward and jump to the pane (tap behavior). */
+  private async focus(item: AttentionItem, action: KeyAction): Promise<void> {
     bringCmuxToFront(this.runtime.logger);
     // A synthetic "running" pane has no notification id; focus its workspace.
     if (item.synthetic) {
@@ -60,7 +90,7 @@ export class AttentionKeyAction extends SingletonAction {
         await this.runtime.cmux.selectWorkspace(item.workspaceId);
       } catch (err) {
         this.runtime.logger.warn(`focus running pane failed: ${message(err)}`);
-        await ev.action.showAlert();
+        await action.showAlert();
       }
       return;
     }
@@ -72,7 +102,7 @@ export class AttentionKeyAction extends SingletonAction {
         await this.runtime.cmux.selectWorkspace(item.workspaceId);
       } catch (err2) {
         this.runtime.logger.error(`focus fallback failed: ${message(err2)}`);
-        await ev.action.showAlert();
+        await action.showAlert();
         return;
       }
     }

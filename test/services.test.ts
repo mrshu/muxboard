@@ -37,6 +37,18 @@ test("CmuxClient.openNotification calls the blessed jump primitive", async () =>
   assert.deepEqual(calls[0], ["open-notification", "--id", "ABC-123"]);
 });
 
+test("CmuxClient.dismissNotification removes a notification by id", async () => {
+  const calls: string[][] = [];
+  const client = new CmuxClient({
+    runner: async (_bin, args) => {
+      calls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+  });
+  await client.dismissNotification("ABC-123");
+  assert.deepEqual(calls[0], ["dismiss-notification", "--id", "ABC-123"]);
+});
+
 test("CmuxService keeps last-good items and flags offline after 2 failures", async () => {
   const store = new Store(["codex"]);
   let mode: "ok" | "fail" = "ok";

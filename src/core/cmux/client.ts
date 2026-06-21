@@ -246,6 +246,14 @@ export class CmuxClient {
   }
 
   /**
+   * Dismiss (remove) a notification by id, e.g. "seen it, nothing further".
+   * The pane leaves the queue on the next poll.
+   */
+  async dismissNotification(id: string): Promise<void> {
+    await this.runner(this.bin, ["dismiss-notification", "--id", id]);
+  }
+
+  /**
    * Fallback focus path used only when open-notification fails.
    *
    * cmux has no `focus-surface` command (surfaces are focused via their pane or
