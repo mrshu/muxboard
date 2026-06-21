@@ -51,7 +51,9 @@ export class CmuxService {
     if (this.inFlight) return; // never overlap polls
     this.inFlight = true;
     try {
-      const items = await this.client.listAttention();
+      // Pass the live event-stream status so the client can synthesize
+      // notification-less "running" panes that have no title spinner.
+      const items = await this.client.listAttention(this.store.getState().workspaceStatus);
       this.consecutiveFailures = 0;
       this.store.setAttention(items, false);
     } catch (err) {

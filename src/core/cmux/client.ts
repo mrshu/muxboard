@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentKind, AttentionItem } from "../types.js";
+import type { AgentKind, AttentionItem, WorkspaceStatus } from "../types.js";
 import { type AgentAliases, buildRunningItems, normalizeNotifications } from "./normalize.js";
 import { parseCodingAgents, parseWorkspaceCpu } from "./agents.js";
 import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
@@ -133,8 +133,15 @@ export class CmuxClient {
     this.busyCpuPercent = opts.busyCpuPercent ?? 40;
   }
 
-  /** Fetch and normalize the current attention queue. */
-  async listAttention(): Promise<AttentionItem[]> {
+  /**
+   * Fetch and normalize the current attention queue.
+   *
+   * `status` is the live per-workspace status from the event stream (passed in
+   * by the poll service). It is the authoritative "running" signal used to
+   * synthesize notification-less working panes, since cmux's title spinner is
+   * absent for custom-titled workspaces.
+   */
+  async listAttention(status: Record<string, WorkspaceStatus> = {}): Promise<AttentionItem[]> {
     const [{ stdout }, agents, workspaces] = await Promise.all([
       this.runner(this.bin, ["list-notifications", "--json"]),
       this.codingAgentsByWorkspace(),
@@ -149,7 +156,13 @@ export class CmuxClient {
     // Append actively-working agent panes that have no notification, so they're
     // listed (at the end, via triage). Skip workspaces already on a key.
     const covered = new Set(items.map((i) => i.workspaceId));
-    const running = buildRunningItems(workspaces, agents, covered, new Date(this.now()).toISOString());
+    const running = buildRunningItems(
+      workspaces,
+      agents,
+      covered,
+      new Date(this.now()).toISOString(),
+      status,
+    );
     return [...items, ...running];
   }
 

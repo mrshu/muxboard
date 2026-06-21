@@ -49,6 +49,42 @@ test("CmuxClient.dismissNotification removes a notification by id", async () => 
   assert.deepEqual(calls[0], ["dismiss-notification", "--id", "ABC-123"]);
 });
 
+test("CmuxService surfaces a running, custom-titled, notification-less pane from the event stream", async () => {
+  const store = new Store();
+  // The live event stream (set_status) is authoritative and marks the workspace
+  // running; cmux's workspace-list title has no spinner because it is custom.
+  store.setWorkspaceStatus({ "w-bug": { state: "running", since: 0 } });
+  const client = new CmuxClient({
+    runner: async (_bin, args) => {
+      if (args[0] === "list-notifications") return { stdout: "[]", stderr: "" };
+      if (args.includes("top")) return { stdout: "{}", stderr: "" };
+      if (args.includes("workspace"))
+        return {
+          stdout: JSON.stringify({
+            workspaces: [
+              {
+                ref: "w-bug",
+                title: "Bug Review Report",
+                has_custom_title: true,
+                custom_title: "Bug Review Report",
+              },
+            ],
+          }),
+          stderr: "",
+        };
+      return { stdout: "", stderr: "" };
+    },
+  });
+  const service = new CmuxService({ client, store, pollMs: 10_000 });
+
+  await service.poll();
+  const items = store.getState().items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].workspaceId, "w-bug");
+  assert.equal(items[0].activity, "working");
+  assert.equal(items[0].synthetic, true);
+});
+
 test("CmuxService keeps last-good items and flags offline after 2 failures", async () => {
   const store = new Store(["codex"]);
   let mode: "ok" | "fail" = "ok";

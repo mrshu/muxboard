@@ -1,4 +1,4 @@
-import type { AgentKind, AttentionItem, AttentionReason } from "../types.js";
+import type { AgentKind, AttentionItem, AttentionReason, WorkspaceStatus } from "../types.js";
 import { cleanTitle, detectActivity, type WorkspaceInfo } from "./workspaces.js";
 
 const basename = (p: string): string => {
@@ -168,20 +168,27 @@ export function normalizeNotifications(
 }
 
 /**
- * Synthesize "running" items for agent workspaces that are actively working
- * (a live spinner in the workspace title) but have no notification, so they can
- * be listed at the end of the queue. `covered` is the set of workspace ids that
- * already have a notification item (skipped here to avoid duplicates).
+ * Synthesize "running" items for agent workspaces that are actively working but
+ * have no notification, so they can be listed at the end of the queue. A pane
+ * counts as working when EITHER the live event stream reports it `running`
+ * (authoritative `set_status`) OR its title carries cmux's spinner glyph (the
+ * fallback when the stream is unavailable). The event-stream signal matters
+ * because cmux omits the spinner from a workspace's JSON title once it has a
+ * custom title, so the title heuristic alone misses every custom-titled pane.
+ * `covered` is the set of workspace ids that already have a notification item
+ * (skipped here to avoid duplicates); `status` is the live per-workspace status.
  */
 export function buildRunningItems(
   workspaces: Map<string, WorkspaceInfo>,
   agents: Map<string, AgentKind>,
   covered: Set<string>,
   nowIso: string,
+  status: Record<string, WorkspaceStatus> = {},
 ): AttentionItem[] {
   const out: AttentionItem[] = [];
   for (const [workspaceId, ws] of workspaces) {
-    if (ws.activity !== "working" || covered.has(workspaceId)) continue;
+    const working = status[workspaceId]?.state === "running" || ws.activity === "working";
+    if (!working || covered.has(workspaceId)) continue;
     out.push({
       id: workspaceId, // no notification; the workspace id is the focus key
       agent: agents.get(workspaceId) ?? "unknown",

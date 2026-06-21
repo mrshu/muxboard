@@ -32,6 +32,23 @@ test("buildRunningItems synthesizes working panes with no notification", async (
   assert.equal(items[0].synthetic, true);
 });
 
+test("buildRunningItems synthesizes a running pane from the event stream when the title has no spinner", async () => {
+  const { buildRunningItems } = await import("../src/core/cmux/normalize.js");
+  // A custom-titled workspace: cmux omits the spinner glyph from its JSON title,
+  // so the title heuristic reads "waiting" even though the agent is running. The
+  // event stream's set_status verdict is authoritative and must still surface it.
+  const workspaces = new Map([
+    ["w-custom", { title: "Bug Review Report", message: "", activity: "waiting" as const }],
+  ]);
+  const agents = new Map([["w-custom", "claude" as const]]);
+  const status = { "w-custom": { state: "running" as const, since: 0 } };
+  const items = buildRunningItems(workspaces, agents, new Set(), "2026-06-21T12:00:00Z", status);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].workspaceId, "w-custom");
+  assert.equal(items[0].activity, "working");
+  assert.equal(items[0].synthetic, true);
+});
+
 test("triageOrder pins needs-input above plain waiting, below permission", () => {
   const mk = (id: string, extra: Partial<AttentionItem>): AttentionItem => ({
     id,
