@@ -114,6 +114,8 @@ export class CmuxClient {
   private readonly busyCpuPercent: number;
   /** workspaceId → epoch ms it last exceeded the busy threshold (hysteresis). */
   private readonly lastBusyAt: Map<string, number> = new Map();
+  /** workspaceId → epoch ms the current busy window started (the "since" clock). */
+  private readonly busySince: Map<string, number> = new Map();
   /** Keep a pane "busy" this long after CPU drops, so bursty commands don't flicker. */
   private static readonly BUSY_GRACE_MS = 30_000;
   /** Cached workspace→info map (title + message, from `workspace list`). */
@@ -147,20 +149,32 @@ export class CmuxClient {
   }
 
   /**
-   * Workspaces with a command running, by CPU from the cached `top`, with
-   * hysteresis: a pane that crosses the threshold stays "busy" for a grace
-   * window after CPU drops, so a bursty command (a test loop, a build) reads as
-   * continuously working instead of flickering between bursts.
+   * Workspaces with a command running, by CPU from the cached `top`, mapped to
+   * when the current busy window *started*. Hysteresis: a pane stays "busy" for
+   * a grace window after CPU drops, so a bursty command (a test loop, a build)
+   * reads as continuously working instead of flickering between bursts — and the
+   * busy-since clock survives the gaps.
+   *
+   * This is the one "working" signal that does NOT depend on cmux's agent hooks,
+   * so it stays correct (with a fresh timestamp) even when the hook stream is
+   * stale or absent.
    */
-  private busyWorkspaces(): Set<string> {
+  private busyWorkspaces(): Map<string, number> {
     const now = this.now();
     for (const [id, cpu] of this.cpuCache) {
-      if (cpu >= this.busyCpuPercent) this.lastBusyAt.set(id, now);
+      if (cpu >= this.busyCpuPercent) {
+        this.lastBusyAt.set(id, now);
+        if (!this.busySince.has(id)) this.busySince.set(id, now); // window start
+      }
     }
-    const out = new Set<string>();
+    const out = new Map<string, number>();
     for (const [id, at] of this.lastBusyAt) {
-      if (now - at <= CmuxClient.BUSY_GRACE_MS) out.add(id);
-      else this.lastBusyAt.delete(id);
+      if (now - at <= CmuxClient.BUSY_GRACE_MS) {
+        out.set(id, this.busySince.get(id) ?? at);
+      } else {
+        this.lastBusyAt.delete(id);
+        this.busySince.delete(id);
+      }
     }
     return out;
   }

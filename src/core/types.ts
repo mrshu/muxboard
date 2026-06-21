@@ -42,6 +42,8 @@ export interface AttentionItem {
    * `cmux top`), even if the agent itself has gone idle. Counts as "working".
    */
   busy?: boolean;
+  /** Epoch ms the current busy window started (drives the age when busy). */
+  busySince?: number;
   /**
    * Epoch ms the current activity began, from the cmux event stream when
    * available. Drives the key's age display so it reflects the live state

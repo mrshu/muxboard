@@ -97,11 +97,14 @@ export class Store {
     // it stays visible. Otherwise the pane is working if the agent is running
     // OR a command is crunching (busy) even though the agent itself went idle.
     const working = st?.state === "needs" ? false : st?.state === "running" || item.busy === true;
-    return {
-      ...item,
-      activity: working ? "working" : "waiting",
-      activitySince: st?.since ?? item.activitySince,
-    };
+    // Age clock = the MOST RECENT evidence of the current state. A live busy-since
+    // beats a stale agent-event since, so an active pane never reads "working 10h"
+    // when the hook stream froze hours ago.
+    const sinces: number[] = [];
+    if (st) sinces.push(st.since);
+    if (item.busy && item.busySince != null) sinces.push(item.busySince);
+    const activitySince = sinces.length ? Math.max(...sinces) : item.activitySince;
+    return { ...item, activity: working ? "working" : "waiting", activitySince };
   }
 
   /** Replace the cmux attention items (from a poll). */
