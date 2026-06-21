@@ -84,6 +84,30 @@ test("event status overrides item activity and drives the age clock", () => {
   assert.equal(store.getState().items[0].activitySince, undefined);
 });
 
+test("synthetic running panes are listed while working, dropped when not", () => {
+  const store = new Store(["codex"]);
+  const base = {
+    id: "n1", agent: "claude" as const, workspaceId: "wn", title: "Need you",
+    reason: "waiting" as const, activity: "waiting" as const, body: "", message: "",
+    createdAt: "2026-06-20T12:00:00Z",
+  };
+  const run = {
+    id: "wr", agent: "claude" as const, workspaceId: "wr", title: "Running",
+    reason: "waiting" as const, activity: "working" as const, body: "", message: "",
+    createdAt: "2026-06-20T12:05:00Z", synthetic: true,
+  };
+  store.setAttention([base, run], false);
+  let items = store.getState().items;
+  assert.equal(items.length, 2);
+  assert.equal(items[items.length - 1].id, "wr"); // running pane sinks to the end
+
+  // Live status says that workspace is idle now → the synthetic pane is dropped.
+  store.setWorkspaceStatus({ wr: { state: "idle", since: 1 } });
+  items = store.getState().items;
+  assert.ok(!items.some((i) => i.id === "wr"));
+  assert.equal(items.length, 1);
+});
+
 test("a busy command makes a pane 'working' even when the agent is idle", () => {
   const store = freshStore();
   const ws = store.getState().items[0].workspaceId;

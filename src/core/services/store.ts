@@ -76,9 +76,12 @@ export class Store {
     // repo), enrich with live event status, then pin exceptions
     // (failed/permission) to the front for triage. Enrichment happens BEFORE
     // triageOrder so an event-driven "working" sinks the pane correctly.
-    const enriched = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter)).map((it) =>
-      this.applyStatus(it),
-    );
+    const enriched = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter))
+      .map((it) => this.applyStatus(it))
+      // A synthetic "running" pane is only listed while it's actually working;
+      // once the live status says otherwise, drop it (a real notification will
+      // cover it if it then needs you).
+      .filter((it) => !it.synthetic || it.activity === "working");
     const items = triageOrder(enriched);
     const offset = clampOffset(this.state.offset, items.length);
     this.state = { ...this.state, allItems, items, offset };

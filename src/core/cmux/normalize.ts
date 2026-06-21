@@ -166,3 +166,35 @@ export function normalizeNotifications(
   }
   return out;
 }
+
+/**
+ * Synthesize "running" items for agent workspaces that are actively working
+ * (a live spinner in the workspace title) but have no notification, so they can
+ * be listed at the end of the queue. `covered` is the set of workspace ids that
+ * already have a notification item (skipped here to avoid duplicates).
+ */
+export function buildRunningItems(
+  workspaces: Map<string, WorkspaceInfo>,
+  agents: Map<string, AgentKind>,
+  covered: Set<string>,
+  nowIso: string,
+): AttentionItem[] {
+  const out: AttentionItem[] = [];
+  for (const [workspaceId, ws] of workspaces) {
+    if (ws.activity !== "working" || covered.has(workspaceId)) continue;
+    out.push({
+      id: workspaceId, // no notification; the workspace id is the focus key
+      agent: agents.get(workspaceId) ?? "unknown",
+      workspaceId,
+      title: (ws.title ?? "").trim() || workspaceId,
+      reason: "waiting", // overridden by the working activity in render/triage
+      activity: "working",
+      color: ws.color,
+      body: "",
+      message: (ws.message ?? "").trim(),
+      createdAt: nowIso,
+      synthetic: true,
+    });
+  }
+  return out;
+}

@@ -54,6 +54,16 @@ export class AttentionKeyAction extends SingletonAction {
     if (!item) return; // empty slot: nothing to focus
 
     bringCmuxToFront(this.runtime.logger);
+    // A synthetic "running" pane has no notification id; focus its workspace.
+    if (item.synthetic) {
+      try {
+        await this.runtime.cmux.selectWorkspace(item.workspaceId);
+      } catch (err) {
+        this.runtime.logger.warn(`focus running pane failed: ${message(err)}`);
+        await ev.action.showAlert();
+      }
+      return;
+    }
     try {
       await this.runtime.cmux.openNotification(item.id);
     } catch (err) {

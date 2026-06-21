@@ -16,6 +16,22 @@ import {
 } from "../src/core/cmux/sort.js";
 import type { AttentionItem } from "../src/core/types.js";
 
+test("buildRunningItems synthesizes working panes with no notification", async () => {
+  const { buildRunningItems } = await import("../src/core/cmux/normalize.js");
+  const workspaces = new Map([
+    ["w-run", { title: "Building", message: "", color: "#abc", activity: "working" as const }],
+    ["w-idle", { title: "Idle", message: "", activity: "waiting" as const }],
+    ["w-has-notif", { title: "Notified", message: "", activity: "working" as const }],
+  ]);
+  const agents = new Map([["w-run", "claude" as const]]);
+  const items = buildRunningItems(workspaces, agents, new Set(["w-has-notif"]), "2026-06-21T12:00:00Z");
+  assert.equal(items.length, 1); // only w-run (idle excluded, notified excluded)
+  assert.equal(items[0].workspaceId, "w-run");
+  assert.equal(items[0].agent, "claude");
+  assert.equal(items[0].activity, "working");
+  assert.equal(items[0].synthetic, true);
+});
+
 test("triageOrder pins needs-input above plain waiting, below permission", () => {
   const mk = (id: string, extra: Partial<AttentionItem>): AttentionItem => ({
     id,

@@ -64,6 +64,12 @@ export interface AttentionItem {
   message: string;
   /** ISO-8601 creation timestamp (sort key). */
   createdAt: string;
+  /**
+   * True for a pane added because it's actively working but has no notification
+   * (a "running" item, listed at the end). Pressing it focuses the workspace
+   * directly rather than opening a notification.
+   */
+  synthetic?: boolean;
 }
 
 /** A usage window (session or weekly) for a CodexBar provider. */

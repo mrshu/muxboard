@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentKind, AttentionItem } from "../types.js";
-import { type AgentAliases, normalizeNotifications } from "./normalize.js";
+import { type AgentAliases, buildRunningItems, normalizeNotifications } from "./normalize.js";
 import { parseCodingAgents, parseWorkspaceCpu } from "./agents.js";
 import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
@@ -141,11 +141,16 @@ export class CmuxClient {
       this.workspaceInfo(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
-    return normalizeNotifications(parsed, this.aliases, {
+    const items = normalizeNotifications(parsed, this.aliases, {
       agents,
       workspaces,
       busyWorkspaces: this.busyWorkspaces(),
     });
+    // Append actively-working agent panes that have no notification, so they're
+    // listed (at the end, via triage). Skip workspaces already on a key.
+    const covered = new Set(items.map((i) => i.workspaceId));
+    const running = buildRunningItems(workspaces, agents, covered, new Date(this.now()).toISOString());
+    return [...items, ...running];
   }
 
   /**
