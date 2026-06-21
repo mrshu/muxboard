@@ -239,8 +239,11 @@ and degrades to the next when unavailable.
    doesn't flicker. An explicit "needs you" still wins over busy, so permission
    prompts stay visible.
 
-Grid priority is needs-you (permission), then failed, then waiting, then
-actively-working last. The newest item is key 1.
+Grid priority, front to back: failed, then permission, then needs-input (cmux's
+"Needs" status, shown as a prominent `◆ NEEDS YOU` badge), then plain waiting,
+then actively-working last. The newest item is key 1. Actively-working panes are
+listed even without a notification; they land at the very end, so the panes that
+need you always stay up front, and pressing one focuses its workspace.
 
 Known limitation: a Claude agent waiting on its own background subagent does that
 work in-process, where cmux reports no spinner, no `set_status`, and low CPU, so
@@ -378,10 +381,66 @@ npm run typecheck
   even though the agent is active). cmux's agent hook feed has gone quiet for
   that session, so Muxboard has no live signal and falls back to the last
   notification. Confirm it: `cmux events --limit 5` shows recent UI rows but no
-  `agent.hook.*` while an agent works. Fix it upstream: restart that agent
-  session (or `cmux hooks setup`) so the hooks resume. Muxboard can't synthesize
-  agent state cmux isn't emitting; a CPU-bound command still reads as working via
-  `cmux top`, but an agent merely waiting on remote inference has no signal.
+  `agent.hook.*` while an agent works. See the FAQ entry below; the usual cause
+  is a PATH issue where cmux's `claude` wrapper is shadowed.
+
+## FAQ
+
+### Claude panes show stale/wrong state (or don't appear), but codex works
+
+This is almost always a PATH problem, and it's upstream of Muxboard: cmux's
+[#5796](https://github.com/manaflow-ai/cmux/issues/5796). cmux injects Claude's
+hooks through a `claude` wrapper shim on PATH. If Claude Code's own
+`~/.local/bin/claude` (created/updated by its auto-installer) sits earlier on
+PATH, it shadows the shim, so `claude` runs the real binary and no hooks fire.
+Codex is unaffected because its hooks are a file (`~/.codex/hooks.json`), not a
+PATH shim. Diagnose:
+
+```bash
+which claude        # if it's ~/.local/bin/claude (not a .../cmux-cli-shims/... path), the shim is shadowed
+cmux events --limit 5   # codex emits agent.hook.* while working; Claude emits none
+```
+
+Fix: make cmux's shim win on PATH by re-prepending its shim dir after your PATH
+setup runs, then start your Claude sessions in a fresh cmux terminal (pre-existing
+sessions won't recover). Add to the end of your shell config:
+
+```fish
+# ~/.config/fish/config.fish
+for d in $PATH
+    if string match -q '*cmux-cli-shims*' -- $d
+        set -gx PATH $d $PATH
+        break
+    end
+end
+```
+
+```bash
+# ~/.zshrc (or ~/.bashrc with the loop adapted)
+for __d in ${(s/:/)PATH}; do
+  if [[ "$__d" == *cmux-cli-shims* ]]; then export PATH="$__d:$PATH"; break; fi
+done
+unset __d
+```
+
+After a fresh session, `which claude` should resolve to a `.../cmux-cli-shims/...`
+path. Verify hooks with `cmux events --limit 5`: you should now see
+`agent.hook.PreToolUse` while the agent works.
+
+### A pane shows "working" but with a stale-looking age
+
+Without the agent-hook stream, Muxboard can't know exactly when work started, so
+the age falls back to the last notification time. Once hooks fire (see above),
+the age reflects the live activity. A CPU-bound command (build/test) is also
+detected as working via `cmux top`; an agent merely waiting on remote inference
+has no local signal.
+
+### Why is an active agent not on a key?
+
+Muxboard lists actively-working panes at the end of the queue, but only once cmux
+reports them as working (a live spinner / hook activity). A brand-new agent with
+no notification and no live "working" signal yet won't appear until it either
+needs you or cmux marks it working.
 
 ## Privacy & non-goals
 
