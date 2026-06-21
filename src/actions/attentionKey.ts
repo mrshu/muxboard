@@ -31,8 +31,10 @@ export class AttentionKeyAction extends SingletonAction {
   private readonly keys = new Map<string, KeyAction>();
   /** Last rendered SVG per action id, to skip no-op redraws. */
   private readonly lastSvg = new Map<string, string>();
-  /** Epoch ms each key was pressed, to tell a long-press from a tap. */
-  private readonly pressedAt = new Map<string, number>();
+  /** Pending long-press timers per key (fire the dismiss while still held). */
+  private readonly longPress = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Keys whose long-press already fired, so the release does nothing more. */
+  private readonly consumed = new Set<string>();
   /** Hold this long to dismiss the notification instead of focusing it. */
   private static readonly LONG_PRESS_MS = 600;
 
@@ -50,35 +52,55 @@ export class AttentionKeyAction extends SingletonAction {
   }
 
   override onWillDisappear(ev: WillDisappearEvent): void {
-    this.keys.delete(ev.action.id);
-    this.lastSvg.delete(ev.action.id);
+    const id = ev.action.id;
+    this.keys.delete(id);
+    this.lastSvg.delete(id);
+    const timer = this.longPress.get(id);
+    if (timer) clearTimeout(timer);
+    this.longPress.delete(id);
+    this.consumed.delete(id);
   }
 
   override onKeyDown(ev: KeyDownEvent): void {
-    // Defer the action to key-up so we can distinguish a tap from a long-press.
-    this.pressedAt.set(ev.action.id, Date.now());
+    const id = ev.action.id;
+    this.consumed.delete(id);
+    const item = this.itemForAction(ev.action);
+    // Arm a long-press dismiss for real notifications: it fires while the key is
+    // still held (instant ✓), and the eventual release becomes a no-op. A tap
+    // (release before the threshold) cancels it and focuses instead.
+    if (item && !item.synthetic && ev.action.isKey()) {
+      const action = ev.action;
+      const timer = setTimeout(() => {
+        this.longPress.delete(id);
+        this.consumed.add(id);
+        void this.dismiss(item, action);
+      }, AttentionKeyAction.LONG_PRESS_MS);
+      this.longPress.set(id, timer);
+    }
   }
 
   override async onKeyUp(ev: KeyUpEvent): Promise<void> {
-    const downAt = this.pressedAt.get(ev.action.id);
-    this.pressedAt.delete(ev.action.id);
-    const item = this.itemForAction(ev.action);
-    if (!item) return; // empty slot
-
-    const longPress = downAt !== undefined && Date.now() - downAt >= AttentionKeyAction.LONG_PRESS_MS;
-    // Long-press dismisses a real notification ("seen it, nothing further").
-    // Synthetic running panes have no notification, so they always just focus.
-    if (longPress && !item.synthetic) {
-      try {
-        await this.runtime.cmux.dismissNotification(item.id);
-        await ev.action.showOk();
-      } catch (err) {
-        this.runtime.logger.warn(`dismiss failed: ${message(err)}`);
-        await ev.action.showAlert();
-      }
-      return;
+    const id = ev.action.id;
+    const timer = this.longPress.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.longPress.delete(id);
     }
-    await this.focus(item, ev.action);
+    // The long-press already dismissed on hold; the release does nothing more.
+    if (this.consumed.delete(id)) return;
+    const item = this.itemForAction(ev.action);
+    if (item) await this.focus(item, ev.action);
+  }
+
+  /** Long-press: remove the notification ("seen it, nothing further"). */
+  private async dismiss(item: AttentionItem, action: KeyAction): Promise<void> {
+    try {
+      await this.runtime.cmux.dismissNotification(item.id);
+      await action.showOk();
+    } catch (err) {
+      this.runtime.logger.warn(`dismiss failed: ${message(err)}`);
+      await action.showAlert();
+    }
   }
 
   /** Bring cmux forward and jump to the pane (tap behavior). */
