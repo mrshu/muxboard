@@ -51,6 +51,26 @@ test("a working pane overrides a lingering permission/failed notification", () =
   assert.match(work, /working/);
 });
 
+test("a needs-input pane is shown prominently, distinct from plain waiting", () => {
+  const base = {
+    id: "x",
+    agent: "claude" as const,
+    workspaceId: "w",
+    title: "RCJ Scoreboard",
+    reason: "waiting" as const,
+    activity: "waiting" as const,
+    body: "",
+    message: "",
+    createdAt: "2026-06-20T12:08:00Z",
+  };
+  const needs = renderKey({ ...base, needsInput: true }, { nowMs: NOW_MS, slotNumber: 1 });
+  assert.match(needs, /NEEDS YOU/);
+  assert.doesNotMatch(needs, />waiting</); // not the plain grey label
+  // A working pane ignores a stale needs flag.
+  const work = renderKey({ ...base, needsInput: true, activity: "working" }, { nowMs: NOW_MS, slotNumber: 1 });
+  assert.doesNotMatch(work, /NEEDS YOU/);
+});
+
 test("renderEmptyKey and renderCmuxOffline produce valid muted SVGs", () => {
   const empty = renderEmptyKey(8);
   assert.match(empty, /<svg/);

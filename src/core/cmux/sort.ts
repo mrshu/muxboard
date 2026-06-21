@@ -35,10 +35,11 @@ export function applyFilter(items: AttentionItem[], filter: AgentFilter): Attent
  * waiting on you) sink to the end regardless of their lingering notification.
  */
 function itemRank(item: AttentionItem): number {
-  if (item.activity === "working") return 3;
+  if (item.activity === "working") return 4; // actively working: sink to the end
   if (item.reason === "failed") return 0;
-  if (item.reason === "blocked") return 1;
-  return 2; // waiting
+  if (item.reason === "blocked") return 1; // permission
+  if (item.needsInput) return 2; // cmux "Needs": agent waiting on you
+  return 3; // plain waiting
 }
 
 /**

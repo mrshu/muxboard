@@ -104,7 +104,12 @@ export class Store {
     if (st) sinces.push(st.since);
     if (item.busy && item.busySince != null) sinces.push(item.busySince);
     const activitySince = sinces.length ? Math.max(...sinces) : item.activitySince;
-    return { ...item, activity: working ? "working" : "waiting", activitySince };
+    return {
+      ...item,
+      activity: working ? "working" : "waiting",
+      activitySince,
+      needsInput: st?.state === "needs" || undefined,
+    };
   }
 
   /** Replace the cmux attention items (from a poll). */

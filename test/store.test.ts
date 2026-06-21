@@ -71,6 +71,13 @@ test("event status overrides item activity and drives the age clock", () => {
   const idle = store.getState().items.find((i) => i.workspaceId === ws)!;
   assert.equal(idle.activity, "waiting");
   assert.equal(idle.activitySince, 2_000_000);
+  assert.ok(!idle.needsInput);
+
+  // cmux "Needs": waiting on you → needsInput flag set.
+  store.setWorkspaceStatus({ [ws]: { state: "needs", since: 3_000_000 } });
+  const needs = store.getState().items.find((i) => i.workspaceId === ws)!;
+  assert.equal(needs.activity, "waiting");
+  assert.equal(needs.needsInput, true);
 
   // Workspaces without event status are left untouched (no activitySince).
   store.setWorkspaceStatus({ "no-such-ws": { state: "running", since: 5 } });

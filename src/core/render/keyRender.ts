@@ -45,21 +45,32 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   // the agent resumes (working), it no longer needs you, so "working" wins.
   const isFailed = !working && item.reason === "failed";
   const isBlocked = !working && item.reason === "blocked";
+  // cmux's live "Needs" status: the agent is waiting on you. More prominent than
+  // plain waiting, below an explicit permission/failure.
+  const needsInput = !working && !isFailed && !isBlocked && item.needsInput === true;
 
   // Status line (bottom): what the pane is doing. "working" (building/changing)
-  // means it's busy again; failed/permission are the ones that still want you.
+  // means it's busy again; failed/permission/needs-input are the ones that want you.
   const status = working
     ? { text: "● working", color: "#4ec9b0" }
     : isFailed
       ? { text: "✕ FAILED", color: "#ff4d4f" }
       : isBlocked
         ? { text: "PERMISSION", color: "#ffb02e" }
-        : { text: "waiting", color: "#9aa0aa" };
+        : needsInput
+          ? { text: "◆ NEEDS YOU", color: "#ffd24a" }
+          : { text: "waiting", color: "#9aa0aa" };
 
-  // Border = the workspace's own cmux color; failed/blocked override (critical)
-  // only while still waiting; a working pane keeps its workspace color.
-  const borderColor = isFailed ? "#ff4d4f" : isBlocked ? "#ffb02e" : (item.color ?? null);
-  const borderW = isFailed ? 8 : isBlocked ? 6 : item.color ? 6 : 0;
+  // Border = the workspace's own cmux color; failed/blocked/needs override
+  // (critical) only while still waiting; a working pane keeps its workspace color.
+  const borderColor = isFailed
+    ? "#ff4d4f"
+    : isBlocked
+      ? "#ffb02e"
+      : needsInput
+        ? "#ffd24a"
+        : (item.color ?? null);
+  const borderW = isFailed ? 8 : isBlocked ? 6 : needsInput ? 6 : item.color ? 6 : 0;
   const border = borderW
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`
     : "";

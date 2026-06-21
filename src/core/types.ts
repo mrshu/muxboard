@@ -45,6 +45,12 @@ export interface AttentionItem {
   /** Epoch ms the current busy window started (drives the age when busy). */
   busySince?: number;
   /**
+   * True when cmux's live status for the workspace is "Needs" (the agent is
+   * waiting on you for input/a choice). Shown more prominently than plain
+   * waiting, and pinned above it.
+   */
+  needsInput?: boolean;
+  /**
    * Epoch ms the current activity began, from the cmux event stream when
    * available. Drives the key's age display so it reflects the live state
    * ("working for 2m") instead of the (possibly stale) notification time.

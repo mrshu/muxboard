@@ -12,8 +12,31 @@ import {
   coordinatesToSlot,
   dedupeNewestPerWorkspace,
   sortNewestFirst,
+  triageOrder,
 } from "../src/core/cmux/sort.js";
 import type { AttentionItem } from "../src/core/types.js";
+
+test("triageOrder pins needs-input above plain waiting, below permission", () => {
+  const mk = (id: string, extra: Partial<AttentionItem>): AttentionItem => ({
+    id,
+    agent: "claude",
+    workspaceId: id,
+    title: id,
+    reason: "waiting",
+    activity: "waiting",
+    body: "",
+    message: "",
+    createdAt: "2026-06-20T12:00:00Z",
+    ...extra,
+  });
+  const ordered = triageOrder([
+    mk("plain", {}),
+    mk("working", { activity: "working" }),
+    mk("needs", { needsInput: true }),
+    mk("perm", { reason: "blocked" }),
+  ]).map((i) => i.id);
+  assert.deepEqual(ordered, ["perm", "needs", "plain", "working"]);
+});
 import { loadFixture } from "./helpers.js";
 
 test("detectAgent maps titles to agent kinds, with alias override", () => {
