@@ -14,7 +14,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { normalizeUsageResponse, extractCostToday } from "../src/core/codexbar/normalize.js";
-import { sortNewestFirst, assignSlots, KEY_COUNT } from "../src/core/cmux/sort.js";
+import { sortNewestFirst, triageOrder, assignSlots, KEY_COUNT } from "../src/core/cmux/sort.js";
+import type { AttentionItem } from "../src/core/types.js";
 import { renderKey, renderEmptyKey, renderCmuxOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
 import { renderLcdSegments, SEG_W, SEG_H } from "../src/core/render/lcdRender.js";
 
@@ -45,9 +46,24 @@ function main(): void {
     ["P1P1P1P1-0000-0000-0000-0000000P1P11", { title: "pizza-service", message: "", color: "#006B6B", activity: "working" as const }],
     ["5A1A04C5-9FF8-4445-ACD7-E10E482E9DEB", { title: "fieldtheory-cli", message: "", activity: "working" as const }],
   ]);
-  const items = sortNewestFirst(
+  const base = sortNewestFirst(
     normalizeNotifications(loadFixture("cmux-notifications.json"), {}, { workspaces }),
   );
+  // Showcase the live states: flag one waiting pane as cmux "Needs input", and
+  // add a running pane with no notification (sorted to the end via triage).
+  const running: AttentionItem = {
+    id: "demo-run", agent: "claude", workspaceId: "demo-run", title: "muxboard",
+    reason: "waiting", activity: "working", color: "#2f6df6", body: "", message: "",
+    createdAt: "2026-06-20T12:09:30Z", synthetic: true,
+  };
+  const items = triageOrder([
+    ...base.map((it) =>
+      it.title === "RCJ Scoreboard"
+        ? { ...it, reason: "waiting" as const, activity: "waiting" as const, needsInput: true }
+        : it,
+    ),
+    running,
+  ]);
   const slots = assignSlots(items, 0);
   const keySvgs = slots.map((item, i) =>
     item ? renderKey(item, { nowMs, slotNumber: i + 1 }) : renderEmptyKey(i + 1),
