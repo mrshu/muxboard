@@ -100,6 +100,31 @@ test("orca permission worktree -> blocked + needsInput", () => {
   assert.equal(items[0].workspaceId, "repo::/p");
 });
 
+test("orca active worktree with an AskUserQuestion agent -> blocked + needsInput", () => {
+  // Orca leaves the worktree status at "active" when an agent calls
+  // AskUserQuestion (it does not roll it up to "permission"), so the row would
+  // be dropped unless we detect the blocked question off the agent's toolName.
+  const items = normalizeWorktrees([wt({
+    status: "active",
+    agents: [{ state: "waiting", agentType: "claude", toolName: "AskUserQuestion", stateStartedAt: 1782000000000 }],
+  })], NOW);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].reason, "blocked");
+  assert.equal(items[0].needsInput, true);
+  assert.equal(items[0].activity, "waiting");
+  assert.equal(items[0].agent, "claude");
+});
+
+test("orca active worktree with a non-question waiting agent stays unsurfaced", () => {
+  // We key on the AskUserQuestion tool specifically, not on a bare "waiting"
+  // state in an otherwise-active worktree.
+  const items = normalizeWorktrees([wt({
+    status: "active",
+    agents: [{ state: "waiting", agentType: "claude", toolName: "Read" }],
+  })], NOW);
+  assert.equal(items.length, 0);
+});
+
 test("orca done+interrupted -> failed; clean done -> finished", () => {
   const failed = normalizeWorktrees([wt({ status: "done", agents: [{ state: "done", agentType: "codex", interrupted: true }] })], NOW);
   assert.equal(failed[0].reason, "failed");

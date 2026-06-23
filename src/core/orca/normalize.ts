@@ -6,6 +6,7 @@ export interface RawOrcaAgent {
   agentType?: unknown;         // "claude" | "codex" | ... (open set)
   prompt?: unknown;
   lastAssistantMessage?: unknown;
+  toolName?: unknown;          // the tool the agent last invoked, e.g. "AskUserQuestion"
   interrupted?: unknown;
   stateStartedAt?: unknown;    // epoch ms
   updatedAt?: unknown;         // epoch ms
@@ -81,11 +82,29 @@ function iso(ms: number | undefined, nowIso: string): string {
  */
 export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): AttentionItem | null {
   const workspaceId = str(raw.worktreeId);
-  const status = str(raw.status);
-  if (!workspaceId || (status !== "permission" && status !== "working" && status !== "done")) {
-    return null;
-  }
+  if (!workspaceId) return null;
   const agents = Array.isArray(raw.agents) ? (raw.agents as RawOrcaAgent[]) : [];
+
+  // An agent that called AskUserQuestion is blocked on your answer, but Orca
+  // leaves the worktree status at "active" rather than rolling it up to
+  // "permission" the way a tool-permission prompt does. Detect that off the
+  // agent's toolName and treat it as a permission-style needs-input row so the
+  // question still surfaces as a key. A blocked question is the highest-priority
+  // state, so it wins over the raw status when both are present.
+  const asking = agents.some(
+    (a) =>
+      str(a.toolName) === "AskUserQuestion" &&
+      (str(a.state) === "waiting" || str(a.state) === "blocked"),
+  );
+  const rawStatus = str(raw.status);
+  const status = asking
+    ? "permission"
+    : rawStatus === "permission" || rawStatus === "working" || rawStatus === "done"
+      ? rawStatus
+      : "";
+  // Only permission/working/done (or an AskUserQuestion-blocked agent) warrant a
+  // key; an active/inactive worktree with no pending question does not.
+  if (!status) return null;
   const primary = primaryAgent(agents, status);
   // A surfaced status (permission/working/done) is rolled up from agent states,
   // so a row with no agents is malformed — drop it rather than invent a key.
