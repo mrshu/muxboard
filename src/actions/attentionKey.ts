@@ -138,7 +138,9 @@ export class AttentionKeyAction extends SingletonAction {
     let svg: string;
     const cmuxDown = state.cmuxOffline;
     const orcaDown = !state.orcaActive || state.orcaOffline;
-    const allDown = cmuxDown && orcaDown && (state.cmuxOffline || (state.orcaActive && state.orcaOffline));
+    // Tile only when every ACTIVE source is offline (an inactive Orca, which
+    // never started, doesn't keep the board blank when cmux is down).
+    const allDown = cmuxDown && orcaDown;
     if (allDown && slot === 0 && state.items.length === 0) {
       const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
       svg = renderSourceOffline(labels.join(" + ") || "cmux");

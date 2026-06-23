@@ -38,8 +38,6 @@ export interface AttentionBackend {
   focus(item: AttentionItem): Promise<void>;
   /** Long-press action. cmux removes the notification; Orca re-focuses. */
   dismiss(item: AttentionItem): Promise<void>;
-  /** Bring the source app forward (no surface jump). */
-  bringToFront(): void;
 }
 
 /** Bring an app to the foreground on macOS (best-effort). */
@@ -55,7 +53,6 @@ export function makeCmuxBackend(
   markOpened: (id: string) => void,
 ): AttentionBackend {
   return {
-    bringToFront: () => bringAppToFront("cmux", logger),
     async focus(item) {
       bringAppToFront("cmux", logger);
       if (item.synthetic) {
@@ -78,7 +75,6 @@ export function makeCmuxBackend(
 
 export function makeOrcaBackend(orca: OrcaClient, logger: Logger): AttentionBackend {
   return {
-    bringToFront: () => bringAppToFront("Orca", logger),
     async focus(item) {
       bringAppToFront("Orca", logger);
       await orca.focus(item);
