@@ -131,6 +131,22 @@ test("orca createdAt falls back to updatedAt then lastOutputAt", () => {
   assert.equal(items[0].createdAt, new Date(1782000050000).toISOString());
 });
 
+test("orca surfaced statuses with no agents are dropped (malformed rows)", () => {
+  for (const status of ["permission", "working", "done"]) {
+    assert.equal(normalizeWorktrees([wt({ status, agents: [] })], NOW).length, 0, `${status} agents:[]`);
+    assert.equal(normalizeWorktrees([wt({ status, agents: undefined })], NOW).length, 0, `${status} no agents`);
+  }
+});
+
+test("orca tolerates an out-of-range timestamp without rejecting the poll", () => {
+  const items = normalizeWorktrees([wt({
+    status: "done",
+    agents: [{ state: "done", agentType: "claude", stateStartedAt: 1e100 }],
+  })], NOW);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].createdAt, NOW); // bad timestamp falls back to now, no throw
+});
+
 test("orca active/inactive worktrees are not surfaced; unknown agent type maps to unknown", () => {
   assert.equal(normalizeWorktrees([wt({ status: "active" }), wt({ status: "inactive" })], NOW).length, 0);
   const g = normalizeWorktrees([wt({ status: "done", agents: [{ state: "done", agentType: "gemini" }] })], NOW);

@@ -67,7 +67,11 @@ function primaryAgent(agents: RawOrcaAgent[], status: string): RawOrcaAgent | un
 
 /** ISO timestamp from an epoch-ms value, falling back to nowIso. */
 function iso(ms: number | undefined, nowIso: string): string {
-  return ms != null ? new Date(ms).toISOString() : nowIso;
+  if (ms == null) return nowIso;
+  const d = new Date(ms);
+  // An out-of-range (but finite) epoch throws from toISOString(); fall back
+  // rather than let one bad timestamp reject the whole poll.
+  return Number.isFinite(d.getTime()) ? d.toISOString() : nowIso;
 }
 
 /**
@@ -83,12 +87,15 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
   }
   const agents = Array.isArray(raw.agents) ? (raw.agents as RawOrcaAgent[]) : [];
   const primary = primaryAgent(agents, status);
-  const agent = primary ? toAgentKind(str(primary.agentType)) : "unknown";
+  // A surfaced status (permission/working/done) is rolled up from agent states,
+  // so a row with no agents is malformed — drop it rather than invent a key.
+  if (!primary) return null;
+  const agent = toAgentKind(str(primary.agentType));
   const title = str(raw.displayName) || str(raw.repo) || workspaceId;
-  const message = primary ? str(primary.lastAssistantMessage) || str(primary.prompt) : "";
-  const since = primary ? num(primary.stateStartedAt) : undefined;
+  const message = str(primary.lastAssistantMessage) || str(primary.prompt);
+  const since = num(primary.stateStartedAt);
   const createdAt = iso(
-    since ?? (primary ? num(primary.updatedAt) : undefined) ?? num(raw.lastOutputAt),
+    since ?? num(primary.updatedAt) ?? num(raw.lastOutputAt),
     nowIso,
   );
 
@@ -107,7 +114,7 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
     synthetic = true;
   } else {
     // status === "done"
-    reason = primary && primary.interrupted === true ? "failed" : "finished";
+    reason = primary.interrupted === true ? "failed" : "finished";
     activity = "waiting";
   }
 
