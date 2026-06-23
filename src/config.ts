@@ -38,6 +38,15 @@ export interface MuxboardConfig {
    * and below a real CPU-bound command (≥100% = a full core).
    */
   busyCpuPercent: number;
+  /** orca CLI binary path or name. */
+  orcaBin: string;
+  /** Orca poll interval (ms). */
+  orcaPollMs: number;
+  /**
+   * Whether to run the Orca poller. "auto" (default) starts it only when an
+   * Orca runtime is reachable; true forces it on; false disables it.
+   */
+  enableOrca: "auto" | boolean;
 }
 
 export const DEFAULT_CONFIG: MuxboardConfig = {
@@ -52,6 +61,9 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   // fallback (name substring → agent) for cases that can't be detected.
   agentAliases: {},
   busyCpuPercent: 40,
+  orcaBin: "orca",
+  orcaPollMs: 1500,
+  enableOrca: "auto",
 };
 
 const ALL_AGENTS: AgentKind[] = ["claude", "codex", "pi", "unknown"];
@@ -71,6 +83,9 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
     enabledAgents: cleanAgents(p.enabledAgents) ?? DEFAULT_CONFIG.enabledAgents,
     agentAliases: cleanAliases(p.agentAliases) ?? DEFAULT_CONFIG.agentAliases,
     busyCpuPercent: clampInt(p.busyCpuPercent, 1, 100_000, DEFAULT_CONFIG.busyCpuPercent),
+    orcaBin: nonEmpty(p.orcaBin) ?? DEFAULT_CONFIG.orcaBin,
+    orcaPollMs: clampInt(p.orcaPollMs, 500, 10_000, DEFAULT_CONFIG.orcaPollMs),
+    enableOrca: coerceEnableOrca(p.enableOrca),
   };
 }
 
@@ -108,4 +123,9 @@ function cleanAgents(v: unknown): AgentKind[] | undefined {
   if (!Array.isArray(v)) return undefined;
   const out = v.filter((x): x is AgentKind => ALL_AGENTS.includes(x as AgentKind));
   return out.length > 0 ? out : undefined;
+}
+
+function coerceEnableOrca(v: unknown): "auto" | boolean {
+  if (v === true || v === false) return v;
+  return "auto";
 }

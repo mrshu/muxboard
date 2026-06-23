@@ -8,6 +8,9 @@ import { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import { CodexbarService } from "./core/services/codexbarService.js";
 import type { Logger } from "./core/services/logger.js";
 import type { Runtime } from "./runtime.js";
+import { makeCmuxBackend, makeOrcaBackend } from "./runtime.js";
+import { OrcaClient } from "./core/orca/client.js";
+import { OrcaService } from "./core/services/orcaService.js";
 import { AttentionKeyAction } from "./actions/attentionKey.js";
 import { DialStripAction } from "./actions/dialStrip.js";
 
@@ -50,6 +53,8 @@ async function main(): Promise<void> {
     busyCpuPercent: config.busyCpuPercent,
   });
   const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
+  const orca = new OrcaClient({ bin: config.orcaBin });
+  const orcaService = new OrcaService({ client: orca, store, pollMs: config.orcaPollMs, logger });
   const cmuxService = new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger });
   const cmuxEventsService = new CmuxEventsService({ bin: config.cmuxBin, store, logger });
   const codexbarService = new CodexbarService({
@@ -72,6 +77,10 @@ async function main(): Promise<void> {
     markOpened(id: string) {
       this.lastOpened.set(id, Date.now());
     },
+    backends: {
+      cmux: makeCmuxBackend(cmux, logger, (id) => runtime.markOpened(id)),
+      orca: makeOrcaBackend(orca, logger),
+    },
   };
 
   streamDeck.actions.registerAction(new AttentionKeyAction(runtime));
@@ -91,12 +100,39 @@ async function main(): Promise<void> {
   codexbarService.start();
   logger.info("Polling started.");
 
+  // Start the Orca poller per config: forced on, or auto when a runtime is
+  // reachable. In auto mode, if Orca isn't up yet, re-probe on a slow cadence so
+  // opening Orca later brings the board to life without a plugin restart.
+  let orcaStarted = false;
+  let orcaProbe: ReturnType<typeof setInterval> | null = null;
+  const startOrca = (): void => {
+    if (orcaStarted) return;
+    orcaStarted = true;
+    store.setOrcaActive(true);
+    orcaService.start();
+    logger.info("Orca poller started.");
+  };
+  const tryStartOrca = async (): Promise<void> => {
+    if (orcaStarted) return;
+    if (config.enableOrca === false) return;
+    if (config.enableOrca === true || (await orca.reachable())) {
+      startOrca();
+      if (orcaProbe) { clearInterval(orcaProbe); orcaProbe = null; }
+    }
+  };
+  void tryStartOrca();
+  if (config.enableOrca === "auto") {
+    orcaProbe = setInterval(() => void tryStartOrca(), 30_000);
+  }
+
   // Stop services on shutdown so the long-lived `cmux events` child is killed
   // rather than orphaned (Node doesn't reap child processes on exit).
   const shutdown = (): void => {
     cmuxEventsService.stop();
     cmuxService.stop();
     codexbarService.stop();
+    orcaService.stop();
+    if (orcaProbe) clearInterval(orcaProbe);
   };
   process.once("SIGTERM", () => {
     shutdown();

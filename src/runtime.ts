@@ -29,19 +29,6 @@ export interface Runtime {
   backends: Record<AttentionSource, AttentionBackend>;
 }
 
-/**
- * Bring cmux to the foreground on macOS.
- *
- * Best-effort: uses `open -a cmux`, which activates the app without altering
- * any cmux state. Failures are swallowed so a focus attempt never throws into
- * the key handler.
- */
-export function bringCmuxToFront(logger: Logger): void {
-  execFile("open", ["-a", "cmux"], (err) => {
-    if (err) logger.warn(`bringCmuxToFront failed: ${err.message}`);
-  });
-}
-
 /** Per-source focus/dismiss capability resolved by item.source. */
 export interface AttentionBackend {
   /** Bring the source app forward and jump to the item's surface. */

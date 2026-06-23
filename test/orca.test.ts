@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { resolveConfig, DEFAULT_CONFIG } from "../src/config.js";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
@@ -178,4 +179,14 @@ test("sourceGlyphSvg emits a tinted group for known sources", () => {
 test("renderKey includes the source badge group", () => {
   const svg = renderKey(item({ id: "o1", source: "orca", title: "feat" }), { nowMs: Date.parse("2026-06-23T12:00:10Z"), slotNumber: 1 });
   assert.match(svg, /<g transform=/); // the badge group is present
+});
+
+test("resolveConfig defaults and coerces Orca knobs", () => {
+  assert.equal(DEFAULT_CONFIG.enableOrca, "auto");
+  assert.equal(DEFAULT_CONFIG.orcaBin, "orca");
+  const r = resolveConfig({ enableOrca: true, orcaBin: " /usr/local/bin/orca ", orcaPollMs: 1 });
+  assert.equal(r.enableOrca, true);
+  assert.equal(r.orcaBin, "/usr/local/bin/orca");
+  assert.equal(r.orcaPollMs, 500); // clamped to the 500 floor
+  assert.equal(resolveConfig({ enableOrca: "nonsense" as unknown as "auto" }).enableOrca, "auto");
 });
