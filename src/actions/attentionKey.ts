@@ -143,7 +143,7 @@ export class AttentionKeyAction extends SingletonAction {
     const allDown = cmuxDown && orcaDown;
     if (allDown && slot === 0 && state.items.length === 0) {
       const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
-      svg = renderSourceOffline(labels.join(" + ") || "cmux");
+      svg = renderSourceOffline(labels.join(" + "));
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item

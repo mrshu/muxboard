@@ -26,9 +26,12 @@ export type AttentionReason =
   | "waiting"
   | "unknown";
 
-/** A single cmux pane that needs the user's attention. */
+/** A single pane/worktree that needs the user's attention (cmux or Orca). */
 export interface AttentionItem {
-  /** cmux notification id (uuid). Used as the focus/open key. */
+  /**
+   * Unique item id and focus key. For cmux: the notification uuid. For Orca:
+   * the worktree id (a composite `repoId::path`, not a uuid).
+   */
   id: string;
   /** The backend this item came from (cmux notification vs Orca worktree). */
   source: AttentionSource;
