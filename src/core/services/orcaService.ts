@@ -52,7 +52,11 @@ export class OrcaService {
       this.store.setAttention(items, false, "orca");
     } catch (err) {
       this.consecutiveFailures++;
-      this.log.warn(`orca poll failed (${this.consecutiveFailures}): ${message(err)}`);
+      const detail =
+        err && typeof err === "object" && "stderr" in err
+          ? ` stderr=${String((err as { stderr?: unknown }).stderr).slice(0, 200)}`
+          : "";
+      this.log.warn(`orca poll failed (${this.consecutiveFailures}): ${message(err)}${detail}`);
       if (this.consecutiveFailures >= 2) {
         this.store.setSourceOffline("orca", true);
       }
