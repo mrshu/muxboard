@@ -133,6 +133,7 @@ export function normalizeNotification(
 
   return {
     id,
+    source: "cmux",
     agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
     workspaceId,
     surfaceId: str(raw.surface_id) || undefined,
@@ -191,6 +192,7 @@ export function buildRunningItems(
     if (!working || covered.has(workspaceId)) continue;
     out.push({
       id: workspaceId, // no notification; the workspace id is the focus key
+      source: "cmux",
       agent: agents.get(workspaceId) ?? "unknown",
       workspaceId,
       title: (ws.title ?? "").trim() || workspaceId,

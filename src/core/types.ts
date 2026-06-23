@@ -7,6 +7,9 @@
 
 export type AgentKind = "claude" | "codex" | "pi" | "unknown";
 
+/** Which backend an attention item originates from. */
+export type AttentionSource = "cmux" | "orca";
+
 /** Live workspace state from cmux's agent event stream (set_status mirror). */
 export type WorkspaceState = "running" | "needs" | "idle";
 
@@ -27,6 +30,8 @@ export type AttentionReason =
 export interface AttentionItem {
   /** cmux notification id (uuid). Used as the focus/open key. */
   id: string;
+  /** The backend this item came from (cmux notification vs Orca worktree). */
+  source: AttentionSource;
   agent: AgentKind;
   workspaceId: string;
   surfaceId?: string;
@@ -118,6 +123,10 @@ export interface AppState {
   filter: AgentFilter;
   /** True when the cmux feed is currently unavailable. */
   cmuxOffline: boolean;
+  /** True when the Orca feed is currently unavailable. */
+  orcaOffline: boolean;
+  /** True once the Orca poller has been started (auto-detected reachable). */
+  orcaActive: boolean;
   /** CodexBar usage per provider, keyed by provider id. */
   usage: Record<string, ProviderUsage>;
   /** Live per-workspace status from the cmux event stream, keyed by id. */

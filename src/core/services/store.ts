@@ -46,6 +46,8 @@ export class Store {
       offset: 0,
       filter: "all",
       cmuxOffline: false,
+      orcaOffline: false,
+      orcaActive: false,
       usage: {},
       workspaceStatus: {},
       // Seeded empty; filled from CodexBar discovery on the first poll.
