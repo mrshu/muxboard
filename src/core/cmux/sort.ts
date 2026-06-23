@@ -63,8 +63,9 @@ export function dedupeNewestPerWorkspace(sortedNewestFirst: AttentionItem[]): At
   const seen = new Set<string>();
   const out: AttentionItem[] = [];
   for (const it of sortedNewestFirst) {
-    if (seen.has(it.workspaceId)) continue;
-    seen.add(it.workspaceId);
+    const key = `${it.source}:${it.workspaceId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(it);
   }
   return out;

@@ -2,6 +2,7 @@ import type {
   AgentFilter,
   AppState,
   AttentionItem,
+  AttentionSource,
   ProviderUsage,
   WorkspaceStatus,
 } from "../types.js";
@@ -38,6 +39,8 @@ function wrap(n: number, len: number): number {
 export class Store {
   private state: AppState;
   private readonly listeners = new Set<Listener>();
+  /** Raw attention items per source, merged into allItems on recompute. */
+  private itemsBySource: Record<AttentionSource, AttentionItem[]> = { cmux: [], orca: [] };
 
   constructor(providers: string[] = []) {
     this.state = {
@@ -73,7 +76,8 @@ export class Store {
 
   /** Recompute filtered+sorted items and clamp the offset. */
   private recompute(): void {
-    const allItems = sortNewestFirst(this.state.allItems);
+    const merged = [...this.itemsBySource.cmux, ...this.itemsBySource.orca];
+    const allItems = sortNewestFirst(merged);
     // Filter by agent, collapse to the newest item per workspace (one key per
     // repo), enrich with live event status, then pin exceptions
     // (failed/permission) to the front for triage. Enrichment happens BEFORE
@@ -117,16 +121,27 @@ export class Store {
     };
   }
 
-  /** Replace the cmux attention items (from a poll). */
-  setAttention(items: AttentionItem[], offline: boolean): void {
-    this.state = { ...this.state, allItems: items, cmuxOffline: offline };
+  /** Replace one source's attention items (from its poll). */
+  setAttention(items: AttentionItem[], offline: boolean, source: AttentionSource = "cmux"): void {
+    this.itemsBySource[source] = items;
+    const offlineField = source === "cmux" ? "cmuxOffline" : "orcaOffline";
+    this.state = { ...this.state, [offlineField]: offline };
     this.recompute();
     this.emit();
   }
 
-  setCmuxOffline(offline: boolean): void {
-    if (this.state.cmuxOffline === offline) return;
-    this.state = { ...this.state, cmuxOffline: offline };
+  /** Mark a single source offline/online without replacing its items. */
+  setSourceOffline(source: AttentionSource, offline: boolean): void {
+    const field = source === "cmux" ? "cmuxOffline" : "orcaOffline";
+    if (this.state[field] === offline) return;
+    this.state = { ...this.state, [field]: offline };
+    this.emit();
+  }
+
+  /** Mark the Orca poller as active (auto-detected reachable and started). */
+  setOrcaActive(active: boolean): void {
+    if (this.state.orcaActive === active) return;
+    this.state = { ...this.state, orcaActive: active };
     this.emit();
   }
 

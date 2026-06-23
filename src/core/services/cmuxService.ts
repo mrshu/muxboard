@@ -61,7 +61,7 @@ export class CmuxService {
       const detail = err && typeof err === "object" && "stderr" in err ? ` stderr=${String((err as { stderr?: unknown }).stderr).slice(0, 200)}` : "";
       this.log.warn(`cmux poll failed (${this.consecutiveFailures}): ${message(err)}${detail}`);
       if (this.consecutiveFailures >= 2) {
-        this.store.setCmuxOffline(true);
+        this.store.setSourceOffline("cmux", true);
       }
     } finally {
       this.inFlight = false;
