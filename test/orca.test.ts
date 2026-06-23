@@ -5,6 +5,9 @@ import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
 import { OrcaService } from "../src/core/services/orcaService.js";
+import { OrcaClient } from "../src/core/orca/client.js";
+import { normalizeWorktrees } from "../src/core/orca/normalize.js";
+import { makeOrcaBackend } from "../src/runtime.js";
 import { sourceGlyphSvg } from "../src/core/render/sourceIcons.js";
 import { renderKey } from "../src/core/render/keyRender.js";
 
