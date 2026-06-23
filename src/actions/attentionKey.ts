@@ -8,7 +8,6 @@ import streamDeck, {
   type KeyAction,
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
-import { bringCmuxToFront } from "../runtime.js";
 import { assignSlots, coordinatesToSlot } from "../core/cmux/sort.js";
 import { renderKey, renderEmptyKey, renderCmuxOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
@@ -92,10 +91,10 @@ export class AttentionKeyAction extends SingletonAction {
     if (item) await this.focus(item, ev.action);
   }
 
-  /** Long-press: remove the notification ("seen it, nothing further"). */
+  /** Long-press: cmux removes the notification; Orca re-focuses the worktree. */
   private async dismiss(item: AttentionItem, action: KeyAction): Promise<void> {
     try {
-      await this.runtime.cmux.dismissNotification(item.id);
+      await this.runtime.backends[item.source].dismiss(item);
       await action.showOk();
     } catch (err) {
       this.runtime.logger.warn(`dismiss failed: ${message(err)}`);
@@ -103,32 +102,14 @@ export class AttentionKeyAction extends SingletonAction {
     }
   }
 
-  /** Bring cmux forward and jump to the pane (tap behavior). */
+  /** Bring the source app forward and jump to the pane (tap behavior). */
   private async focus(item: AttentionItem, action: KeyAction): Promise<void> {
-    bringCmuxToFront(this.runtime.logger);
-    // A synthetic "running" pane has no notification id; focus its workspace.
-    if (item.synthetic) {
-      try {
-        await this.runtime.cmux.selectWorkspace(item.workspaceId);
-      } catch (err) {
-        this.runtime.logger.warn(`focus running pane failed: ${message(err)}`);
-        await action.showAlert();
-      }
-      return;
-    }
     try {
-      await this.runtime.cmux.openNotification(item.id);
+      await this.runtime.backends[item.source].focus(item);
     } catch (err) {
-      this.runtime.logger.warn(`open-notification failed, falling back: ${message(err)}`);
-      try {
-        await this.runtime.cmux.selectWorkspace(item.workspaceId);
-      } catch (err2) {
-        this.runtime.logger.error(`focus fallback failed: ${message(err2)}`);
-        await action.showAlert();
-        return;
-      }
+      this.runtime.logger.error(`focus failed: ${message(err)}`);
+      await action.showAlert();
     }
-    this.runtime.markOpened(item.id);
   }
 
   /** Re-render every appeared key from current state. */

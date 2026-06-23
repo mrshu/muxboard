@@ -153,3 +153,15 @@ test("OrcaClient.focus picks the most recent terminal handle", async () => {
   assert.ok(focusCall);
   assert.ok(focusCall.includes("term_new"));
 });
+
+import { makeOrcaBackend } from "../src/runtime.js";
+
+test("orca backend dismiss focuses the worktree (clears unread)", async () => {
+  const calls: AttentionItem[] = [];
+  const orca = { async focus(it: AttentionItem) { calls.push(it); } } as unknown as import("../src/core/orca/client.js").OrcaClient;
+  const backend = makeOrcaBackend(orca, { info() {}, warn() {}, error() {} });
+  const it = item({ id: "o1", source: "orca" });
+  await backend.dismiss(it); // long-press on an Orca key
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].id, "o1");
+});

@@ -10,7 +10,6 @@ import streamDeck, {
 } from "@elgato/streamdeck";
 import { execFile } from "node:child_process";
 import type { Runtime } from "../runtime.js";
-import { bringCmuxToFront } from "../runtime.js";
 import { renderLcdSegments } from "../core/render/lcdRender.js";
 import { isStale } from "../core/services/codexbarService.js";
 
@@ -87,10 +86,8 @@ export class DialStripAction extends SingletonAction {
         // Jump to the newest visible attention item.
         const item = this.runtime.store.newestVisible();
         if (!item) return;
-        bringCmuxToFront(this.runtime.logger);
         try {
-          await this.runtime.cmux.openNotification(item.id);
-          this.runtime.markOpened(item.id);
+          await this.runtime.backends[item.source].focus(item);
         } catch (err) {
           this.runtime.logger.warn(`dial jump failed: ${message(err)}`);
           await a.showAlert();
