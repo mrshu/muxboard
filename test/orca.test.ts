@@ -72,7 +72,6 @@ test("same workspaceId in two sources is NOT deduped together", () => {
   assert.equal(store.getState().items.length, 2);
 });
 
-import { normalizeWorktrees } from "../src/core/orca/normalize.js";
 
 const NOW = "2026-06-23T12:00:00Z";
 
@@ -135,7 +134,6 @@ test("orca active/inactive worktrees are not surfaced; unknown agent type maps t
   assert.equal(g[0].agent, "unknown");
 });
 
-import { OrcaClient } from "../src/core/orca/client.js";
 
 function fakeRunner(map: Record<string, string>) {
   return async (_bin: string, args: string[]) => {
@@ -215,7 +213,6 @@ test("OrcaClient.focus throws when terminal focus returns ok:false", async () =>
   );
 });
 
-import { makeOrcaBackend } from "../src/runtime.js";
 
 test("orca backend dismiss focuses the worktree (clears unread)", async () => {
   const calls: AttentionItem[] = [];
