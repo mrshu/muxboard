@@ -13,10 +13,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
+import { normalizeWorktrees } from "../src/core/orca/normalize.js";
 import { normalizeUsageResponse, extractCostToday } from "../src/core/codexbar/normalize.js";
 import { sortNewestFirst, triageOrder, assignSlots, KEY_COUNT } from "../src/core/cmux/sort.js";
 import type { AttentionItem } from "../src/core/types.js";
-import { renderKey, renderEmptyKey, renderCmuxOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderSourceOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
 import { renderLcdSegments, SEG_W, SEG_H } from "../src/core/render/lcdRender.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,10 +53,12 @@ function main(): void {
   // Showcase the live states: flag one waiting pane as cmux "Needs input", and
   // add a running pane with no notification (sorted to the end via triage).
   const running: AttentionItem = {
-    id: "demo-run", agent: "claude", workspaceId: "demo-run", title: "muxboard",
+    id: "demo-run", source: "cmux", agent: "claude", workspaceId: "demo-run", title: "muxboard",
     reason: "waiting", activity: "working", color: "#2f6df6", body: "", message: "",
     createdAt: "2026-06-20T12:09:30Z", synthetic: true,
   };
+  const orcaRaw = loadFixture("orca-worktree-ps.json") as { result: { worktrees: unknown[] } };
+  const orcaItems = normalizeWorktrees(orcaRaw.result.worktrees, new Date("2026-06-23T12:05:00Z").toISOString());
   const items = triageOrder([
     ...base.map((it) =>
       it.title === "RCJ Scoreboard"
@@ -63,6 +66,7 @@ function main(): void {
         : it,
     ),
     running,
+    ...orcaItems,
   ]);
   const slots = assignSlots(items, 0);
   const keySvgs = slots.map((item, i) =>
@@ -86,7 +90,7 @@ function main(): void {
   writeFileSync(join(outDir, "dashboard.png"), svgToPng(composite(keySvgs, segs), 880));
 
   // --- Offline scenario (acceptance #6) ------------------------------------
-  const offlineKeys = [renderCmuxOffline(), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
+  const offlineKeys = [renderSourceOffline("cmux"), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
   const offlineSegs = renderLcdSegments([], { nowMs, stale: true });
   writeFileSync(join(outDir, "dashboard-offline.png"), svgToPng(composite(offlineKeys, offlineSegs), 880));
 

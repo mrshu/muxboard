@@ -206,6 +206,24 @@ Notes:
 - To emit one yourself: `cmux notify --title "Codex CLI" --body "Task failed: ..."`
   (run inside the target workspace, or pass `--workspace`).
 
+## Orca support
+
+Muxboard also surfaces [Orca](https://onorca.dev) worktrees alongside cmux
+panes on the same keys. It polls `orca worktree ps --json`: a worktree whose
+agent needs you (`permission`) shows as a needs-input key, a finished agent
+(`done`) as finished (or failed when interrupted), and an actively working
+agent as a working key that sinks to the end. Each key carries a small badge —
+the Orca mark or a cmux monogram — so you can tell the two apart.
+
+Orca is **auto-detected**: the poller starts only when an Orca runtime is
+reachable (`orca status`), so cmux-only users see no change. Set
+`enableOrca: true|false` in the plugin's global settings to force it on or off,
+and `orcaBin`/`orcaPollMs` to tune the binary path and cadence.
+
+Pressing an Orca key brings Orca forward and jumps to the worktree's most
+recent terminal (`orca terminal focus`). Orca has no dismiss primitive, so a
+long-press focuses the worktree too (which clears its unread in Orca).
+
 ## How a pane's state is derived
 
 A key shows a status (working, waiting, permission, or failed) and an age.

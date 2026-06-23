@@ -1,0 +1,8 @@
+{ "ok": true, "result": { "worktrees": [
+  { "worktreeId": "r1::/p/auth", "repo": "auth-svc", "displayName": "fix-login", "status": "permission",
+    "lastOutputAt": 1782174656809,
+    "agents": [{ "state": "waiting", "agentType": "claude", "lastAssistantMessage": "May I edit auth.ts?", "stateStartedAt": 1782174600000 }] },
+  { "worktreeId": "r2::/p/api", "repo": "api", "displayName": "perf", "status": "working",
+    "lastOutputAt": 1782174650000,
+    "agents": [{ "state": "working", "agentType": "codex", "stateStartedAt": 1782174500000 }] }
+] } }
