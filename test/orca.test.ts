@@ -8,7 +8,7 @@ import { OrcaService } from "../src/core/services/orcaService.js";
 import { OrcaClient } from "../src/core/orca/client.js";
 import { normalizeWorktrees } from "../src/core/orca/normalize.js";
 import { makeOrcaBackend } from "../src/runtime.js";
-import { sourceGlyphSvg } from "../src/core/render/sourceIcons.js";
+import { sourceGlyphSvg, sourceTint } from "../src/core/render/sourceIcons.js";
 import { renderKey } from "../src/core/render/keyRender.js";
 
 test("cmux notifications are stamped with source 'cmux'", () => {
@@ -248,6 +248,19 @@ test("sourceGlyphSvg emits a tinted group for known sources", () => {
   assert.match(orca, /<g transform=/);
   assert.match(orca, /#8b919c/);
   assert.doesNotMatch(orca, /currentColor/); // color substituted in
+});
+
+test("sourceTint gives orca and cmux distinct colors", () => {
+  assert.notEqual(sourceTint("orca"), sourceTint("cmux"));
+  assert.match(sourceTint("orca"), /^#[0-9a-f]{6}$/i);
+  assert.match(sourceTint("cmux"), /^#[0-9a-f]{6}$/i);
+});
+
+test("renderKey tints the source badge by source", () => {
+  const orca = renderKey(item({ id: "o1", source: "orca", title: "feat" }), { nowMs: Date.parse("2026-06-23T12:00:10Z"), slotNumber: 1 });
+  const cmux = renderKey(item({ id: "c1", source: "cmux", title: "feat" }), { nowMs: Date.parse("2026-06-23T12:00:10Z"), slotNumber: 1 });
+  assert.match(orca, new RegExp(sourceTint("orca")));
+  assert.match(cmux, new RegExp(sourceTint("cmux")));
 });
 
 test("renderKey includes the source badge group", () => {

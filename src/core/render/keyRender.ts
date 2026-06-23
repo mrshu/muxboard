@@ -2,7 +2,7 @@ import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
 import { escapeXml, fitText, formatAgeFromSeconds } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
-import { sourceGlyphSvg } from "./sourceIcons.js";
+import { sourceGlyphSvg, sourceTint } from "./sourceIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
 export const KEY_SIZE = 144;
@@ -91,9 +91,10 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     )
     .join("");
 
-  // Source badge bottom-right (muted): the real Orca mark / a cmux monogram, so
-  // a key's origin is legible at a glance when both sources share the board.
-  const badge = sourceGlyphSvg(item.source, S - 30, S - 26, 20, "#7c828d");
+  // Source badge bottom-right: the real Orca mark / a cmux monogram, tinted by
+  // source (blue=orca, green=cmux) and sized up so a key's origin reads at a
+  // glance on the physical device when both sources share the board.
+  const badge = sourceGlyphSvg(item.source, S - 36, S - 32, 26, sourceTint(item.source));
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs>
