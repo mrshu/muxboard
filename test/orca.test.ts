@@ -148,13 +148,44 @@ test("OrcaClient.focus picks the most recent terminal handle", async () => {
         { handle: "term_other", worktreeId: "other::/q", lastOutputAt: 999 },
       ] } }), stderr: "" };
     }
-    return { stdout: "{}", stderr: "" };
+    return { stdout: JSON.stringify({ ok: true }), stderr: "" };
   };
   const client = new OrcaClient({ runner });
   await client.focus({ id: "r::/p", source: "orca", agent: "claude", workspaceId: "r::/p", title: "t", reason: "blocked", activity: "waiting", body: "", message: "", createdAt: "2026-06-23T12:00:00Z" });
+  const listCall = calls.find((a) => a.includes("list"));
+  assert.ok(listCall);
+  assert.ok(listCall.includes("--worktree") && listCall.includes("id:r::/p")); // scoped server-side
   const focusCall = calls.find((a) => a.includes("focus"));
   assert.ok(focusCall);
   assert.ok(focusCall.includes("term_new"));
+});
+
+test("OrcaClient.listAttention throws on an ok:false envelope (so the poller keeps last-good)", async () => {
+  const ps = JSON.stringify({ ok: false, error: { code: "runtime_unreachable", message: "down" } });
+  const client = new OrcaClient({ runner: fakeRunner({ ps }) });
+  await assert.rejects(() => client.listAttention(), /worktree ps failed/);
+});
+
+test("OrcaClient.listAttention throws when worktrees is missing", async () => {
+  const ps = JSON.stringify({ ok: true, result: {} });
+  const client = new OrcaClient({ runner: fakeRunner({ ps }) });
+  await assert.rejects(() => client.listAttention(), /not an array/);
+});
+
+test("OrcaClient.focus throws when terminal focus returns ok:false", async () => {
+  const runner = async (_bin: string, args: string[]) => {
+    if (args.includes("list")) {
+      return { stdout: JSON.stringify({ ok: true, result: { terminals: [
+        { handle: "term_x", worktreeId: "r::/p", lastOutputAt: 1 },
+      ] } }), stderr: "" };
+    }
+    return { stdout: JSON.stringify({ ok: false, error: { code: "no_tab", message: "gone" } }), stderr: "" };
+  };
+  const client = new OrcaClient({ runner });
+  await assert.rejects(
+    () => client.focus({ id: "r::/p", source: "orca", agent: "claude", workspaceId: "r::/p", title: "t", reason: "blocked", activity: "waiting", body: "", message: "", createdAt: "2026-06-23T12:00:00Z" }),
+    /terminal focus failed/,
+  );
 });
 
 import { makeOrcaBackend } from "../src/runtime.js";

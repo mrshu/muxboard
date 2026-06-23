@@ -47,6 +47,37 @@ export interface OrcaClientOptions {
 interface OrcaEnvelope<T> {
   ok?: unknown;
   result?: T;
+  error?: { code?: unknown; message?: unknown };
+}
+
+/**
+ * Parse an `orca` CLI JSON envelope and return its result, throwing on a logical
+ * failure. The CLI exits 0 even on errors, signaling them only via `ok:false`,
+ * so a caller that ignored `ok` would treat an error envelope as success — an
+ * empty attention list that clobbers the last-good slice, or a "focus" that
+ * silently did nothing. Best-effort callers (reachable) catch instead.
+ */
+function requireOk<T>(stdout: string, what: string): OrcaEnvelope<T> {
+  let env: OrcaEnvelope<T>;
+  try {
+    env = JSON.parse(stdout) as OrcaEnvelope<T>;
+  } catch {
+    throw new Error(`orca ${what}: non-JSON response`);
+  }
+  if (env.ok !== true) {
+    const detail = env.error
+      ? `${String(env.error.code ?? "")} ${String(env.error.message ?? "")}`.trim()
+      : "ok:false";
+    throw new Error(`orca ${what} failed: ${detail}`);
+  }
+  return env;
+}
+
+/** Like requireOk but also requires a present `result` (commands we read from). */
+function unwrap<T>(stdout: string, what: string): T {
+  const env = requireOk<T>(stdout, what);
+  if (env.result == null) throw new Error(`orca ${what}: missing result`);
+  return env.result;
 }
 
 /** Thin best-effort wrapper over the `orca` CLI. */
@@ -64,9 +95,12 @@ export class OrcaClient {
   /** Poll `worktree ps` and normalize to attention items. */
   async listAttention(): Promise<AttentionItem[]> {
     const { stdout } = await this.runner(this.bin, ["worktree", "ps", "--json"]);
-    const env = JSON.parse(stdout) as OrcaEnvelope<{ worktrees?: unknown }>;
+    const result = unwrap<{ worktrees?: unknown }>(stdout, "worktree ps");
+    if (!Array.isArray(result.worktrees)) {
+      throw new Error("orca worktree ps: result.worktrees is not an array");
+    }
     const nowIso = new Date(this.now()).toISOString();
-    return normalizeWorktrees(env.result?.worktrees, nowIso);
+    return normalizeWorktrees(result.worktrees, nowIso);
   }
 
   /** True when `orca status` reports a reachable runtime. */
@@ -85,13 +119,29 @@ export class OrcaClient {
    * and switch to it. There is no worktree-focus verb, so we go via a terminal.
    */
   async focus(item: AttentionItem): Promise<void> {
-    const { stdout } = await this.runner(this.bin, ["terminal", "list", "--json"]);
-    const env = JSON.parse(stdout) as OrcaEnvelope<{ terminals?: RawTerminal[] }>;
-    const terminals = (env.result?.terminals ?? []).filter((t) => t.worktreeId === item.workspaceId);
+    // Scope the lookup to this worktree server-side (verified to accept the
+    // composite worktree id) so a busy runtime doesn't return every terminal,
+    // then re-filter defensively.
+    const { stdout } = await this.runner(this.bin, [
+      "terminal",
+      "list",
+      "--worktree",
+      `id:${item.workspaceId}`,
+      "--json",
+    ]);
+    const result = unwrap<{ terminals?: RawTerminal[] }>(stdout, "terminal list");
+    const terminals = (result.terminals ?? []).filter((t) => t.worktreeId === item.workspaceId);
     if (terminals.length === 0) throw new Error(`no live terminal for worktree ${item.workspaceId}`);
     const handle = terminals.reduce((a, b) => ((b.lastOutputAt ?? 0) > (a.lastOutputAt ?? 0) ? b : a)).handle;
     if (!handle) throw new Error(`no terminal handle for worktree ${item.workspaceId}`);
-    await this.runner(this.bin, ["terminal", "focus", "--terminal", handle, "--json"]);
+    const { stdout: focusOut } = await this.runner(this.bin, [
+      "terminal",
+      "focus",
+      "--terminal",
+      handle,
+      "--json",
+    ]);
+    requireOk(focusOut, "terminal focus");
   }
 }
 
