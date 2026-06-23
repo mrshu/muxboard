@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
+import { OrcaService } from "../src/core/services/orcaService.js";
 
 test("cmux notifications are stamped with source 'cmux'", () => {
   const items = normalizeNotifications([
@@ -26,6 +27,29 @@ test("store merges cmux and orca slices without clobbering", () => {
   store.setAttention([item({ id: "o1", source: "orca" })], false, "orca");
   const ids = store.getState().items.map((i) => i.id).sort();
   assert.deepEqual(ids, ["c1", "o1"]); // a second-source push keeps the first
+});
+
+test("OrcaService pushes orca items and flips offline after 2 failures", async () => {
+  const store = new Store();
+  let mode: "ok" | "fail" = "ok";
+  const client = {
+    async listAttention() {
+      if (mode === "fail") throw new Error("boom");
+      return [item({ id: "o1", source: "orca" })];
+    },
+  } as unknown as OrcaClient;
+  const svc = new OrcaService({ client, store, pollMs: 10_000 });
+
+  await svc.poll();
+  assert.equal(store.getState().items.some((i) => i.id === "o1"), true);
+  assert.equal(store.getState().orcaOffline, false);
+
+  mode = "fail";
+  await svc.poll();
+  assert.equal(store.getState().orcaOffline, false); // one failure rides out
+  await svc.poll();
+  assert.equal(store.getState().orcaOffline, true); // two consecutive -> offline
+  assert.equal(store.getState().items.some((i) => i.id === "o1"), true); // last good kept
 });
 
 test("same workspaceId in two sources is NOT deduped together", () => {
