@@ -87,12 +87,12 @@ test("event status overrides item activity and drives the age clock", () => {
 test("synthetic running panes are listed while working, dropped when not", () => {
   const store = new Store(["codex"]);
   const base = {
-    id: "n1", agent: "claude" as const, workspaceId: "wn", title: "Need you",
+    id: "n1", source: "cmux" as const, agent: "claude" as const, workspaceId: "wn", title: "Need you",
     reason: "waiting" as const, activity: "waiting" as const, body: "", message: "",
     createdAt: "2026-06-20T12:00:00Z",
   };
   const run = {
-    id: "wr", agent: "claude" as const, workspaceId: "wr", title: "Running",
+    id: "wr", source: "cmux" as const, agent: "claude" as const, workspaceId: "wr", title: "Running",
     reason: "waiting" as const, activity: "working" as const, body: "", message: "",
     createdAt: "2026-06-20T12:05:00Z", synthetic: true,
   };
