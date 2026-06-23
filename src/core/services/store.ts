@@ -100,6 +100,10 @@ export class Store {
    * activity and notification createdAt remain the fallback).
    */
   private applyStatus(item: AttentionItem): AttentionItem {
+    // The live status overlay and busy signal come from the cmux event stream,
+    // keyed by cmux workspace id. Orca items must never be touched by it, even
+    // if a worktree id ever collided with a cmux id.
+    if (item.source !== "cmux") return item;
     const st = this.state.workspaceStatus[item.workspaceId];
     if (!st && !item.busy) return item; // no live signal: keep the title-glyph fallback
     // "needs" (the agent is asking you for permission/input) takes priority so

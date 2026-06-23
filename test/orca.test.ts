@@ -55,6 +55,16 @@ test("OrcaService pushes orca items and flips offline after 2 failures", async (
   assert.equal(store.getState().items.some((i) => i.id === "o1"), true); // last good kept
 });
 
+test("cmux live status overlay never mutates an orca item sharing a workspaceId", () => {
+  const store = new Store();
+  store.setAttention([item({ id: "c", workspaceId: "shared", source: "cmux", activity: "waiting" })], false, "cmux");
+  store.setAttention([item({ id: "o", workspaceId: "shared", source: "orca", activity: "waiting" })], false, "orca");
+  store.setWorkspaceStatus({ shared: { state: "running", since: 0 } });
+  const byId = Object.fromEntries(store.getState().items.map((i) => [i.source, i]));
+  assert.equal(byId.cmux.activity, "working"); // cmux item picks up the overlay
+  assert.equal(byId.orca.activity, "waiting"); // orca item is untouched
+});
+
 test("same workspaceId in two sources is NOT deduped together", () => {
   const store = new Store();
   store.setAttention([item({ id: "x", workspaceId: "repo", source: "cmux" })], false, "cmux");
