@@ -80,3 +80,52 @@ test("orca active/inactive worktrees are not surfaced; unknown agent type maps t
   const g = normalizeWorktrees([wt({ status: "done", agents: [{ state: "done", agentType: "gemini" }] })], NOW);
   assert.equal(g[0].agent, "unknown");
 });
+
+import { OrcaClient } from "../src/core/orca/client.js";
+
+function fakeRunner(map: Record<string, string>) {
+  return async (_bin: string, args: string[]) => {
+    const key = args.find((a) => !a.startsWith("--")) ?? "";
+    const sub = args.includes("ps") ? "ps" : args.includes("list") ? "list" : args.includes("focus") ? "focus" : args.includes("status") ? "status" : key;
+    return { stdout: map[sub] ?? "{}", stderr: "" };
+  };
+}
+
+test("OrcaClient.listAttention parses ps JSON to items", async () => {
+  const ps = JSON.stringify({ ok: true, result: { worktrees: [
+    { worktreeId: "r::/p", repo: "r", displayName: "feat", status: "permission",
+      agents: [{ state: "waiting", agentType: "claude", lastAssistantMessage: "ok?" }] },
+  ] } });
+  const client = new OrcaClient({ runner: fakeRunner({ ps }), now: () => 0 });
+  const items = await client.listAttention();
+  assert.equal(items.length, 1);
+  assert.equal(items[0].source, "orca");
+  assert.equal(items[0].reason, "blocked");
+});
+
+test("OrcaClient.reachable reflects status JSON", async () => {
+  const up = JSON.stringify({ ok: true, result: { app: { running: true }, runtime: { reachable: true } } });
+  const down = JSON.stringify({ ok: false, result: { runtime: { reachable: false } } });
+  assert.equal(await new OrcaClient({ runner: fakeRunner({ status: up }) }).reachable(), true);
+  assert.equal(await new OrcaClient({ runner: fakeRunner({ status: down }) }).reachable(), false);
+});
+
+test("OrcaClient.focus picks the most recent terminal handle", async () => {
+  const calls: string[][] = [];
+  const runner = async (_bin: string, args: string[]) => {
+    calls.push(args);
+    if (args.includes("list")) {
+      return { stdout: JSON.stringify({ ok: true, result: { terminals: [
+        { handle: "term_old", worktreeId: "r::/p", lastOutputAt: 100 },
+        { handle: "term_new", worktreeId: "r::/p", lastOutputAt: 200 },
+        { handle: "term_other", worktreeId: "other::/q", lastOutputAt: 999 },
+      ] } }), stderr: "" };
+    }
+    return { stdout: "{}", stderr: "" };
+  };
+  const client = new OrcaClient({ runner });
+  await client.focus({ id: "r::/p", source: "orca", agent: "claude", workspaceId: "r::/p", title: "t", reason: "blocked", activity: "waiting", body: "", message: "", createdAt: "2026-06-23T12:00:00Z" });
+  const focusCall = calls.find((a) => a.includes("focus"));
+  assert.ok(focusCall);
+  assert.ok(focusCall.includes("term_new"));
+});
