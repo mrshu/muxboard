@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderKey, renderEmptyKey, renderCmuxOffline } from "../src/core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderSourceOffline } from "../src/core/render/keyRender.js";
 import {
   renderLcdSegments,
   routeStatus,
@@ -71,12 +71,13 @@ test("a needs-input pane is shown prominently, distinct from plain waiting", () 
   assert.doesNotMatch(work, /NEEDS YOU/);
 });
 
-test("renderEmptyKey and renderCmuxOffline produce valid muted SVGs", () => {
+test("renderEmptyKey and renderSourceOffline produce valid muted SVGs", () => {
   const empty = renderEmptyKey(8);
   assert.match(empty, /<svg/);
   assert.match(empty, />8<\/text>/);
-  const offline = renderCmuxOffline();
+  const offline = renderSourceOffline("cmux");
   assert.match(offline, /offline/);
+  assert.match(offline, /cmux/);
 });
 
 test("renderLcdSegments shows one provider per segment, all at a glance", () => {

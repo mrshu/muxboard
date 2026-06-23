@@ -2,6 +2,7 @@ import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
 import { escapeXml, fitText, formatAgeFromSeconds } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
+import { sourceGlyphSvg } from "./sourceIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
 export const KEY_SIZE = 144;
@@ -90,6 +91,10 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     )
     .join("");
 
+  // Source badge bottom-right (muted): the real Orca mark / a cmux monogram, so
+  // a key's origin is legible at a glance when both sources share the board.
+  const badge = sourceGlyphSvg(item.source, S - 30, S - 26, 20, "#7c828d");
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -108,6 +113,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     <text x="${S - 12}" y="34" font-size="${Math.min(ageS.size, 24)}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
     ${title}
     <text x="12" y="${S - 11}" font-size="15" font-weight="800" fill="${status.color}" letter-spacing="0.5">${escapeXml(status.text)}</text>
+    ${badge}
   </g>
 </svg>`;
 }
@@ -127,16 +133,16 @@ export function renderEmptyKey(slotNumber: number): string {
 }
 
 /**
- * Render a single muted "cmux unavailable" tile for slot 1 when the cmux feed
- * is down, so the keys communicate the outage instead of going dark silently.
+ * Render a single muted "<label> unavailable" tile for slot 1 when every active
+ * feed is down, so the keys communicate the outage instead of going dark.
  */
-export function renderCmuxOffline(): string {
+export function renderSourceOffline(label: string): string {
   const S = KEY_SIZE;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <rect width="${S}" height="${S}" rx="18" fill="#1a1416"/>
   <rect x="4" y="4" width="${S - 8}" height="${S - 8}" rx="15" fill="none" stroke="#7d3b3b" stroke-width="3"/>
   <text x="${S / 2}" y="64" font-size="40" text-anchor="middle" fill="#c66">⚠</text>
-  <text x="${S / 2}" y="98" font-size="20" font-weight="700" text-anchor="middle" fill="#e6b3b3" font-family="-apple-system, Helvetica, Arial, sans-serif">cmux</text>
+  <text x="${S / 2}" y="98" font-size="20" font-weight="700" text-anchor="middle" fill="#e6b3b3" font-family="-apple-system, Helvetica, Arial, sans-serif">${escapeXml(label)}</text>
   <text x="${S / 2}" y="120" font-size="16" text-anchor="middle" fill="#b88" font-family="-apple-system, Helvetica, Arial, sans-serif">offline</text>
 </svg>`;
 }

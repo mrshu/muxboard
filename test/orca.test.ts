@@ -4,6 +4,8 @@ import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
 import { OrcaService } from "../src/core/services/orcaService.js";
+import { sourceGlyphSvg } from "../src/core/render/sourceIcons.js";
+import { renderKey } from "../src/core/render/keyRender.js";
 
 test("cmux notifications are stamped with source 'cmux'", () => {
   const items = normalizeNotifications([
@@ -164,4 +166,16 @@ test("orca backend dismiss focuses the worktree (clears unread)", async () => {
   await backend.dismiss(it); // long-press on an Orca key
   assert.equal(calls.length, 1);
   assert.equal(calls[0].id, "o1");
+});
+
+test("sourceGlyphSvg emits a tinted group for known sources", () => {
+  const orca = sourceGlyphSvg("orca", 110, 120, 22, "#8b919c");
+  assert.match(orca, /<g transform=/);
+  assert.match(orca, /#8b919c/);
+  assert.doesNotMatch(orca, /currentColor/); // color substituted in
+});
+
+test("renderKey includes the source badge group", () => {
+  const svg = renderKey(item({ id: "o1", source: "orca", title: "feat" }), { nowMs: Date.parse("2026-06-23T12:00:10Z"), slotNumber: 1 });
+  assert.match(svg, /<g transform=/); // the badge group is present
 });

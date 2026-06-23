@@ -9,7 +9,7 @@ import streamDeck, {
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
 import { assignSlots, coordinatesToSlot } from "../core/cmux/sort.js";
-import { renderKey, renderEmptyKey, renderCmuxOffline } from "../core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderSourceOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
 
 const toDataUri = (svg: string): string =>
@@ -136,8 +136,12 @@ export class AttentionKeyAction extends SingletonAction {
     const state = this.runtime.store.getState();
 
     let svg: string;
-    if (state.cmuxOffline && slot === 0 && state.items.length === 0) {
-      svg = renderCmuxOffline();
+    const cmuxDown = state.cmuxOffline;
+    const orcaDown = !state.orcaActive || state.orcaOffline;
+    const allDown = cmuxDown && orcaDown && (state.cmuxOffline || (state.orcaActive && state.orcaOffline));
+    if (allDown && slot === 0 && state.items.length === 0) {
+      const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
+      svg = renderSourceOffline(labels.join(" + ") || "cmux");
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item
