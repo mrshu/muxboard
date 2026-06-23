@@ -8,6 +8,7 @@ export interface RawOrcaAgent {
   lastAssistantMessage?: unknown;
   interrupted?: unknown;
   stateStartedAt?: unknown;    // epoch ms
+  updatedAt?: unknown;         // epoch ms
 }
 
 /** A worktree row from `orca worktree ps --json`. */
@@ -35,12 +36,33 @@ export function toAgentKind(agentType: string): AgentKind {
   return "unknown";
 }
 
-/** Pick the agent that best characterizes the worktree's current status. */
+/** Recency of an agent's current state, for deterministic primary selection. */
+function recency(a: RawOrcaAgent): number {
+  return num(a.stateStartedAt) ?? num(a.updatedAt) ?? 0;
+}
+
+/**
+ * Pick the agent that best characterizes the worktree's current status: the
+ * MOST RECENT agent whose state matches the status (falling back to the most
+ * recent of all agents). Selecting by recency rather than array order makes the
+ * rendered reason deterministic for a multi-agent worktree — e.g. a `done`
+ * worktree with both an interrupted and a clean agent always reflects the latest.
+ */
 function primaryAgent(agents: RawOrcaAgent[], status: string): RawOrcaAgent | undefined {
-  if (status === "permission") return agents.find((a) => str(a.state) === "waiting" || str(a.state) === "blocked") ?? agents[0];
-  if (status === "working") return agents.find((a) => str(a.state) === "working") ?? agents[0];
-  if (status === "done") return agents.find((a) => str(a.state) === "done") ?? agents[0];
-  return agents[0];
+  const wantState =
+    status === "permission"
+      ? (s: string) => s === "waiting" || s === "blocked"
+      : status === "working"
+        ? (s: string) => s === "working"
+        : status === "done"
+          ? (s: string) => s === "done"
+          : () => false;
+  const matching = agents.filter((a) => wantState(str(a.state)));
+  const pool = matching.length ? matching : agents;
+  return pool.reduce<RawOrcaAgent | undefined>(
+    (best, a) => (best && recency(best) >= recency(a) ? best : a),
+    undefined,
+  );
 }
 
 /** ISO timestamp from an epoch-ms value, falling back to nowIso. */
@@ -65,7 +87,10 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
   const title = str(raw.displayName) || str(raw.repo) || workspaceId;
   const message = primary ? str(primary.lastAssistantMessage) || str(primary.prompt) : "";
   const since = primary ? num(primary.stateStartedAt) : undefined;
-  const createdAt = iso(since ?? num(raw.lastOutputAt), nowIso);
+  const createdAt = iso(
+    since ?? (primary ? num(primary.updatedAt) : undefined) ?? num(raw.lastOutputAt),
+    nowIso,
+  );
 
   let reason: AttentionReason;
   let activity: "working" | "waiting";

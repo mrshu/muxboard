@@ -102,6 +102,23 @@ test("orca working worktree -> synthetic running item", () => {
   assert.equal(items[0].synthetic, true);
 });
 
+test("orca picks the most-recent done agent regardless of array order", () => {
+  const recent = { state: "done", agentType: "claude", interrupted: true, stateStartedAt: 1782000200000 };
+  const older = { state: "done", agentType: "claude", interrupted: false, stateStartedAt: 1782000100000 };
+  const a = normalizeWorktrees([wt({ status: "done", agents: [older, recent] })], NOW);
+  const b = normalizeWorktrees([wt({ status: "done", agents: [recent, older] })], NOW);
+  assert.equal(a[0].reason, "failed"); // most recent is interrupted, both orders
+  assert.equal(b[0].reason, "failed");
+});
+
+test("orca createdAt falls back to updatedAt then lastOutputAt", () => {
+  const items = normalizeWorktrees([wt({
+    status: "done", lastOutputAt: 1782000000000,
+    agents: [{ state: "done", agentType: "claude", updatedAt: 1782000050000 }], // no stateStartedAt
+  })], NOW);
+  assert.equal(items[0].createdAt, new Date(1782000050000).toISOString());
+});
+
 test("orca active/inactive worktrees are not surfaced; unknown agent type maps to unknown", () => {
   assert.equal(normalizeWorktrees([wt({ status: "active" }), wt({ status: "inactive" })], NOW).length, 0);
   const g = normalizeWorktrees([wt({ status: "done", agents: [{ state: "done", agentType: "gemini" }] })], NOW);
