@@ -105,12 +105,14 @@ export class DialStripAction extends SingletonAction {
           this.runtime.logger,
         );
         break;
-      case 3:
-        await Promise.allSettled([
-          this.runtime.cmuxService.poll(),
-          this.runtime.codexbarService.poll(),
-        ]);
+      case 3: {
+        // Force-refresh every active source. Only poll Orca when it's running
+        // (auto-detected), so a cmux-only user doesn't trigger a failing CLI call.
+        const polls = [this.runtime.cmuxService.poll(), this.runtime.codexbarService.poll()];
+        if (this.runtime.store.getState().orcaActive) polls.push(this.runtime.orcaService.poll());
+        await Promise.allSettled(polls);
         break;
+      }
     }
   }
 

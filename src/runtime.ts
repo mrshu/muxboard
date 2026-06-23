@@ -8,6 +8,7 @@ import type { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import type { CodexbarService } from "./core/services/codexbarService.js";
 import type { AttentionItem, AttentionSource } from "./core/types.js";
 import type { OrcaClient } from "./core/orca/client.js";
+import type { OrcaService } from "./core/services/orcaService.js";
 
 /**
  * Shared runtime handed to the Stream Deck actions: the store they render from,
@@ -20,6 +21,8 @@ export interface Runtime {
   cmuxService: CmuxService;
   cmuxEventsService: CmuxEventsService;
   codexbarService: CodexbarService;
+  /** Orca poller; force-refresh triggers it when Orca is active. */
+  orcaService: OrcaService;
   logger: Logger;
   /** Records the local "last opened" time for an attention item. */
   markOpened(id: string): void;

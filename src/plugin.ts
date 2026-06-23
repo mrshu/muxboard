@@ -72,6 +72,7 @@ async function main(): Promise<void> {
     cmuxService,
     cmuxEventsService,
     codexbarService,
+    orcaService,
     logger,
     lastOpened: new Map<string, number>(),
     markOpened(id: string) {
