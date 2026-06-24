@@ -28,6 +28,14 @@ function wrap(n: number, len: number): number {
   return ((n % len) + len) % len;
 }
 
+/** Shallow equality for a {workspaceId: epochMs} map. */
+function sameNumberMap(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const k of keys) if (a[k] !== b[k]) return false;
+  return true;
+}
+
 /**
  * In-memory application state with a tiny subscribe/emit API.
  *
@@ -41,6 +49,8 @@ export class Store {
   private readonly listeners = new Set<Listener>();
   /** Raw attention items per source, merged into allItems on recompute. */
   private itemsBySource: Record<AttentionSource, AttentionItem[]> = { cmux: [], orca: [] };
+  /** Epoch ms per workspace of the user's latest cmux "clear notifications". */
+  private clearedNotifications: Record<string, number> = {};
 
   constructor(providers: string[] = []) {
     this.state = {
@@ -76,7 +86,11 @@ export class Store {
 
   /** Recompute filtered+sorted items and clamp the offset. */
   private recompute(): void {
-    const merged = [...this.itemsBySource.cmux, ...this.itemsBySource.orca];
+    // Drop any cmux key the user explicitly cleared in cmux (live event-stream
+    // signal), so it vanishes immediately rather than lingering until the next
+    // poll drops it from the notification list.
+    const cmux = this.itemsBySource.cmux.filter((it) => !this.isCleared(it));
+    const merged = [...cmux, ...this.itemsBySource.orca];
     const allItems = sortNewestFirst(merged);
     // Filter by agent, collapse to the newest item per workspace (one key per
     // repo), enrich with live event status, then pin exceptions
@@ -123,6 +137,33 @@ export class Store {
       activitySince,
       needsInput: st?.state === "needs" || undefined,
     };
+  }
+
+  /**
+   * True when the user cleared this cmux workspace's notifications at or after
+   * the item fired — i.e. they explicitly dismissed exactly this prompt. A
+   * re-ask (a newer notification) survives because its createdAt is past the
+   * clear time. Orca items, synthetic "running" panes (createdAt = now), and a
+   * bad/missing createdAt are never dropped.
+   */
+  private isCleared(item: AttentionItem): boolean {
+    if (item.source !== "cmux") return false;
+    const at = this.clearedNotifications[item.workspaceId];
+    if (at == null) return false;
+    const created = Date.parse(item.createdAt);
+    return !Number.isNaN(created) && created <= at;
+  }
+
+  /**
+   * Record the live per-workspace "clear notifications" times (from the cmux
+   * event stream) and drop any now-cleared key immediately. A no-op when nothing
+   * changed, so the far-more-frequent status updates don't pay for a recompute.
+   */
+  setClearedNotifications(cleared: Record<string, number>): void {
+    if (sameNumberMap(this.clearedNotifications, cleared)) return;
+    this.clearedNotifications = cleared;
+    this.recompute();
+    this.emit();
   }
 
   /** Replace one source's attention items (from its poll). */

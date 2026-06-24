@@ -3,7 +3,12 @@ import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentKind, AttentionItem, WorkspaceStatus } from "../types.js";
-import { type AgentAliases, buildRunningItems, normalizeNotifications } from "./normalize.js";
+import {
+  type AgentAliases,
+  buildRunningItems,
+  normalizeNotifications,
+  unreadNotifications,
+} from "./normalize.js";
 import { parseCodingAgents, parseWorkspaceCpu } from "./agents.js";
 import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
@@ -148,7 +153,10 @@ export class CmuxClient {
       this.workspaceInfo(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
-    const items = normalizeNotifications(parsed, this.aliases, {
+    // Drop notifications the user has already acted on (cmux only flips
+    // `is_read`, never removes the row) so a long-cleared prompt doesn't linger
+    // as a stale key.
+    const items = normalizeNotifications(unreadNotifications(parsed), this.aliases, {
       agents,
       workspaces,
       busyWorkspaces: this.busyWorkspaces(),

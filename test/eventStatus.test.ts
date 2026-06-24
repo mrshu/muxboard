@@ -107,3 +107,36 @@ test("hooks still drive workspaces cmux publishes no set_status for", () => {
   });
   assert.equal(t.snapshot().w9.state, "running");
 });
+
+const clearReq = (ws: string, occurred_at: string) => ({
+  name: "notification.clear_requested",
+  occurred_at,
+  // cmux carries the target in args (--tab=), with top-level workspace_id null.
+  payload: { command: "clear_notifications", args: `--tab=${ws}` },
+  workspace_id: null,
+});
+
+test("tracks the latest notification-clear time per workspace", () => {
+  const t = new WorkspaceStatusTracker();
+  assert.equal(t.ingest(clearReq("w1", "2026-06-20T12:00:00Z")), true);
+  assert.equal(t.clearedSnapshot().w1, Date.parse("2026-06-20T12:00:00Z"));
+  // An older clear doesn't move it back; a newer one advances it.
+  assert.equal(t.ingest(clearReq("w1", "2026-06-20T11:00:00Z")), false);
+  assert.equal(t.ingest(clearReq("w1", "2026-06-20T13:00:00Z")), true);
+  assert.equal(t.clearedSnapshot().w1, Date.parse("2026-06-20T13:00:00Z"));
+  // Clears live in their own map; they never pollute the status snapshot.
+  assert.deepEqual(t.snapshot(), {});
+});
+
+test("a clear_requested without a --tab target is ignored", () => {
+  const t = new WorkspaceStatusTracker();
+  assert.equal(
+    t.ingest({
+      name: "notification.clear_requested",
+      occurred_at: "2026-06-20T12:00:00Z",
+      payload: { command: "clear_notifications", args: "" },
+    }),
+    false,
+  );
+  assert.deepEqual(t.clearedSnapshot(), {});
+});

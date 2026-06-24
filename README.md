@@ -195,14 +195,18 @@ Status is mapped from `body`, strongest signal first:
 Notes:
 
 - Rows missing `id` or `workspace_id` are dropped (never fatal).
-- `is_read` is not used to drop rows; every listed notification still occupies a
-  key. It is used to defuse urgency, though: cmux leaves a notification in the
-  list after you answer it (only flipping `is_read`), so a read `failed`/`blocked`
-  row is demoted to `waiting`: the key stays but loses the badge and the triage
-  front-pin. Unread `failed`/`blocked` keep their urgency. Notifications are
-  collapsed to one per workspace (newest wins), so each repo occupies a single key
-  showing its current state. Pressing a key marks it read via `open-notification`
-  but leaves it in the list.
+- Read notifications are dropped. cmux leaves a notification in the list after you
+  answer it (only flipping `is_read`, never removing the row), so a `is_read: true`
+  row is one you've already acted on — it is filtered out before normalizing rather
+  than left on the board as a stale key. A genuinely-pending prompt is unread.
+  Pressing a key marks it read via `open-notification`, so it clears on the next
+  poll once you've acted. Notifications are collapsed to one per workspace (newest
+  wins), so each repo occupies a single key showing its current state.
+- An explicit "clear notifications" in cmux is honored live: the `cmux events`
+  stream emits `notification.clear_requested` (carrying `--tab=<workspace>`), and
+  any key that fired at or before that clear is dropped immediately, ahead of the
+  next poll — even one that was still unread. A later prompt (a re-ask) survives,
+  since its timestamp is past the clear.
 - To emit one yourself: `cmux notify --title "Codex CLI" --body "Task failed: ..."`
   (run inside the target workspace, or pass `--workspace`).
 
@@ -238,8 +242,10 @@ and degrades to the next when unavailable.
    `finished`) is mapped from structured fields, never by scraping the free-form
    body (see the table above). cmux keeps a notification in the list after you
    respond and only flips `is_read`, so a permission or failure you have already
-   answered (`is_read: true`) is demoted to `waiting`: the key stays but drops the
-   urgent badge and the front-pin. Unread urgent reasons keep their urgency.
+   answered (`is_read: true`) is dropped entirely rather than left as a stale key;
+   only unread (still-pending) notifications surface. An explicit "clear
+   notifications" in cmux is also honored live via the event stream
+   (`notification.clear_requested`), removing the key at once.
 
 2. Activity (working vs waiting) comes from the `cmux events` stream. Muxboard
    prefers cmux's own computed verdict (`set_status`: `Running`, `Idle`, `Needs`),

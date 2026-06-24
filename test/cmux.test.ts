@@ -4,6 +4,7 @@ import {
   detectAgent,
   detectReason,
   normalizeNotifications,
+  unreadNotifications,
 } from "../src/core/cmux/normalize.js";
 import { parseCodingAgents, toAgentKind } from "../src/core/cmux/agents.js";
 import {
@@ -153,34 +154,28 @@ test("parseWorkspaceCpu reads resources.cpu_percent per workspace", async () => 
   assert.equal(cpu.get("nores"), 0);
 });
 
-test("a read permission/failure is demoted to waiting (already answered)", () => {
-  const base = { id: "n1", workspace_id: "w1" };
-  // Pending (unread) urgent reasons keep their urgency.
-  const pendingPerm = normalizeNotifications([
-    { ...base, body: "Claude needs your permission to run a command", is_read: false },
-  ]);
-  assert.equal(pendingPerm[0].reason, "blocked");
-  const pendingFail = normalizeNotifications([
-    { ...base, body: "Task failed", subtitle: "Error", is_read: false },
-  ]);
-  assert.equal(pendingFail[0].reason, "failed");
+test("read notifications are filtered out before normalizing (already acted on)", () => {
+  // cmux leaves a row in list-notifications after you respond, flipping only
+  // is_read. unreadNotifications drops those so a long-answered prompt doesn't
+  // linger as a stale key; an unread (still-pending) prompt is kept with its
+  // urgency intact.
+  const rows = [
+    { id: "a", workspace_id: "w1", body: "Claude needs your permission to run a command", is_read: false },
+    { id: "b", workspace_id: "w2", body: "Claude needs your permission to run a command", is_read: true },
+    { id: "c", workspace_id: "w3", body: "Claude is waiting for your input", is_read: true },
+    { id: "d", workspace_id: "w4", body: "Task failed", subtitle: "Error", is_read: true },
+  ];
+  const unread = unreadNotifications(rows);
+  assert.equal(unread.length, 1);
 
-  // Once read (you've seen/answered it), they demote to plain waiting: the key
-  // stays but loses the badge + front-pin. cmux leaves the row in the list.
-  const readPerm = normalizeNotifications([
-    { ...base, body: "Claude needs your permission to run a command", is_read: true },
-  ]);
-  assert.equal(readPerm[0].reason, "waiting");
-  const readFail = normalizeNotifications([
-    { ...base, body: "Task failed", subtitle: "Error", is_read: true },
-  ]);
-  assert.equal(readFail[0].reason, "waiting");
+  const items = normalizeNotifications(unread);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, "a");
+  assert.equal(items[0].reason, "blocked"); // the pending one keeps its urgency
 
-  // A read plain-waiting notification is unaffected (still waiting).
-  const readWaiting = normalizeNotifications([
-    { ...base, body: "Claude is waiting for your input", is_read: true },
-  ]);
-  assert.equal(readWaiting[0].reason, "waiting");
+  // A missing is_read counts as unread (surfaced); non-arrays yield nothing.
+  assert.equal(unreadNotifications([{ id: "x", workspace_id: "w" }]).length, 1);
+  assert.equal(unreadNotifications(null).length, 0);
 });
 
 test("normalizeNotifications maps the real fixture and drops malformed rows", () => {

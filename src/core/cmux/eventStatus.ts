@@ -72,6 +72,8 @@ type Tracked = WorkspaceStatus & { source: "status" | "hook" };
  */
 export class WorkspaceStatusTracker {
   private readonly map = new Map<string, Tracked>();
+  /** Epoch ms of the latest user "clear notifications" per workspace id. */
+  private readonly cleared = new Map<string, number>();
   private readonly now: () => number;
 
   constructor(now: () => number = () => Date.now()) {
@@ -86,6 +88,7 @@ export class WorkspaceStatusTracker {
     const name = typeof ev?.name === "string" ? ev.name : "";
     const p = ev.payload && typeof ev.payload === "object" ? (ev.payload as Record<string, unknown>) : {};
     if (name === "sidebar.metadata.updated") return this.ingestStatus(p, ev.occurred_at);
+    if (name === "notification.clear_requested") return this.ingestClear(p, ev.occurred_at);
     if (name.startsWith("agent.hook.")) {
       const hook = typeof p.hook_event_name === "string" ? p.hook_event_name : name.slice("agent.hook.".length);
       return this.apply(typeof p.workspace_id === "string" ? p.workspace_id : "", hookToState(hook), ev.occurred_at, "hook");
@@ -108,6 +111,28 @@ export class WorkspaceStatusTracker {
     return this.apply(tab[1], statusLabelToState(value), occurredAt, "status");
   }
 
+  /**
+   * Record a user "clear notifications" action for a workspace. cmux emits
+   * `notification.clear_requested` the instant you clear a workspace's
+   * notifications in its UI; the top-level `workspace_id` is null and the target
+   * rides in `args` as `--tab=<id>` (same shape as set_status). We keep the
+   * latest clear time per workspace so the store can drop any key that fired at
+   * or before it — clearing the prompt removes its key immediately, ahead of the
+   * next poll, and even when the row was still unread. A re-ask (a newer
+   * notification) survives because its createdAt is past the clear time.
+   */
+  private ingestClear(p: Record<string, unknown>, occurredAt: unknown): boolean {
+    const args = typeof p.args === "string" ? p.args : "";
+    const tab = /--tab=(\S+)/.exec(args);
+    if (!tab) return false;
+    const ms = typeof occurredAt === "string" ? Date.parse(occurredAt) : NaN;
+    const at = Number.isNaN(ms) ? this.now() : ms;
+    const prev = this.cleared.get(tab[1]);
+    if (prev != null && prev >= at) return false; // keep the latest clear only
+    this.cleared.set(tab[1], at);
+    return true;
+  }
+
   /** Apply a resolved (wsId, state) with source precedence + since-on-change. */
   private apply(wsId: string, state: WorkspaceState | null, occurredAt: unknown, source: "status" | "hook"): boolean {
     if (!wsId || !state) return false;
@@ -127,6 +152,13 @@ export class WorkspaceStatusTracker {
   snapshot(): Record<string, WorkspaceStatus> {
     const out: Record<string, WorkspaceStatus> = {};
     for (const [k, v] of this.map) out[k] = { state: v.state, since: v.since };
+    return out;
+  }
+
+  /** Epoch ms of the latest user "clear notifications" per workspace id. */
+  clearedSnapshot(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [k, v] of this.cleared) out[k] = v;
     return out;
   }
 }

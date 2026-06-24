@@ -122,7 +122,10 @@ export class CmuxEventsService {
       }
       if (this.tracker.ingest(ev)) changed = true;
     }
-    if (changed) this.store.setWorkspaceStatus(this.tracker.snapshot());
+    if (changed) {
+      this.store.setWorkspaceStatus(this.tracker.snapshot());
+      this.store.setClearedNotifications(this.tracker.clearedSnapshot());
+    }
   }
 
   /** Kill a silently stalled stream so `close` triggers a resumed reconnect. */

@@ -22,7 +22,9 @@ test("CmuxClient.listAttention parses an injected runner's stdout", async () => 
     },
   });
   const items = await client.listAttention();
-  assert.equal(items.length, 5);
+  // 3 of the 5 fixture rows are read (already acted on) and filtered out; only
+  // the 2 unread rows surface as keys.
+  assert.equal(items.length, 2);
 });
 
 test("CmuxClient.openNotification calls the blessed jump primitive", async () => {
@@ -97,17 +99,17 @@ test("CmuxService keeps last-good items and flags offline after 2 failures", asy
   const service = new CmuxService({ client, store, pollMs: 10_000 });
 
   await service.poll();
-  assert.equal(store.getState().items.length, 5);
+  assert.equal(store.getState().items.length, 2); // 2 unread of 5 fixture rows
   assert.equal(store.getState().cmuxOffline, false);
 
   mode = "fail";
   await service.poll(); // 1st failure: still online, items retained
   assert.equal(store.getState().cmuxOffline, false);
-  assert.equal(store.getState().items.length, 5);
+  assert.equal(store.getState().items.length, 2);
 
   await service.poll(); // 2nd failure: offline
   assert.equal(store.getState().cmuxOffline, true);
-  assert.equal(store.getState().items.length, 5); // last good retained
+  assert.equal(store.getState().items.length, 2); // last good retained
 });
 
 test("isStale flags data older than the threshold", () => {

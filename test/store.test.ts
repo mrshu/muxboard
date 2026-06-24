@@ -108,6 +108,43 @@ test("synthetic running panes are listed while working, dropped when not", () =>
   assert.equal(items.length, 1);
 });
 
+test("clearing a workspace's notifications drops its stale key, keeps a re-ask", () => {
+  const store = new Store(["claude"]);
+  const mk = (id: string, ws: string, createdAt: string) => ({
+    id, source: "cmux" as const, agent: "claude" as const, workspaceId: ws,
+    title: id, reason: "blocked" as const, activity: "waiting" as const,
+    body: "", message: "", createdAt,
+  });
+  // Two pending permission keys on different workspaces.
+  store.setAttention([
+    mk("stale", "wA", "2026-06-20T12:00:00Z"),
+    mk("other", "wB", "2026-06-20T12:00:00Z"),
+  ], false);
+  assert.equal(store.getState().items.length, 2);
+
+  // User clears wA in cmux AFTER that prompt fired → its key vanishes at once.
+  store.setClearedNotifications({ wA: Date.parse("2026-06-20T12:01:00Z") });
+  let items = store.getState().items;
+  assert.ok(!items.some((i) => i.id === "stale"));
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, "other"); // an unrelated workspace is untouched
+
+  // The agent asks again (a newer notification) → it survives the prior clear.
+  store.setAttention([
+    mk("reask", "wA", "2026-06-20T12:05:00Z"),
+    mk("other", "wB", "2026-06-20T12:00:00Z"),
+  ], false);
+  items = store.getState().items;
+  assert.ok(items.some((i) => i.id === "reask"));
+  assert.equal(items.length, 2);
+
+  // An idempotent re-push of the same clear map is a no-op (no extra emit).
+  let emits = 0;
+  store.subscribe(() => emits++);
+  store.setClearedNotifications({ wA: Date.parse("2026-06-20T12:01:00Z") });
+  assert.equal(emits, 0);
+});
+
 test("a busy command makes a pane 'working' even when the agent is idle", () => {
   const store = freshStore();
   const ws = store.getState().items[0].workspaceId;
