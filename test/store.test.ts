@@ -145,6 +145,27 @@ test("clearing a workspace's notifications drops its stale key, keeps a re-ask",
   assert.equal(emits, 0);
 });
 
+test("a clear never drops a synthetic running pane (no flicker for a busy agent)", () => {
+  // A busy agent that clears its own notifications many times a second must not
+  // make its live "working" key flicker on and off. A synthetic running pane is
+  // live activity, not a notification, so the clear filter must skip it even
+  // though its createdAt (the poll time) predates the clear.
+  const store = new Store(["claude"]);
+  const running = {
+    id: "wX", source: "cmux" as const, agent: "claude" as const, workspaceId: "wX",
+    title: "EMNLP", reason: "waiting" as const, activity: "working" as const,
+    body: "", message: "", createdAt: "2026-06-20T12:00:00Z", synthetic: true as const,
+  };
+  store.setAttention([running], false);
+  assert.equal(store.getState().items.length, 1);
+  // Clear fires AFTER the pane's createdAt — a notification would be dropped, but
+  // the working pane stays put.
+  store.setClearedNotifications({ wX: Date.parse("2026-06-20T12:05:00Z") });
+  const items = store.getState().items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, "wX");
+});
+
 test("a busy command makes a pane 'working' even when the agent is idle", () => {
   const store = freshStore();
   const ws = store.getState().items[0].workspaceId;

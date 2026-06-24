@@ -143,11 +143,18 @@ export class Store {
    * True when the user cleared this cmux workspace's notifications at or after
    * the item fired — i.e. they explicitly dismissed exactly this prompt. A
    * re-ask (a newer notification) survives because its createdAt is past the
-   * clear time. Orca items, synthetic "running" panes (createdAt = now), and a
-   * bad/missing createdAt are never dropped.
+   * clear time.
+   *
+   * Only real notification items are eligible. A synthetic "running" pane is a
+   * live "agent working right now" indicator (not a notification), and its
+   * createdAt is the poll time, which races against the clear timestamp — a busy
+   * agent that clears its own notifications many times a second would otherwise
+   * make the pane flicker on and off between polls. A notification-clear must
+   * never hide a working pane. Orca items and bad/missing createdAt are also
+   * never dropped.
    */
   private isCleared(item: AttentionItem): boolean {
-    if (item.source !== "cmux") return false;
+    if (item.source !== "cmux" || item.synthetic) return false;
     const at = this.clearedNotifications[item.workspaceId];
     if (at == null) return false;
     const created = Date.parse(item.createdAt);
