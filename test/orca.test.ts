@@ -81,29 +81,33 @@ const NOW = "2026-06-23T12:00:00Z";
 function wt(over: Record<string, unknown>): Record<string, unknown> {
   return {
     worktreeId: "repo::/p", repo: "myrepo", displayName: "feat", path: "/p",
-    status: "active", unread: false, lastOutputAt: 1782000000000, agents: [], ...over,
+    status: "active", unread: true, lastOutputAt: 1782000000000, agents: [], ...over,
   };
 }
 
-test("orca permission worktree -> blocked + needsInput", () => {
-  const items = normalizeWorktrees([wt({
-    status: "permission",
-    agents: [{ state: "waiting", agentType: "claude", lastAssistantMessage: "May I run tests?", stateStartedAt: 1782000000000 }],
-  })], NOW);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].source, "orca");
-  assert.equal(items[0].reason, "blocked");
-  assert.equal(items[0].needsInput, true);
-  assert.equal(items[0].activity, "waiting");
-  assert.equal(items[0].agent, "claude");
-  assert.equal(items[0].message, "May I run tests?");
-  assert.equal(items[0].workspaceId, "repo::/p");
+test("orca waiting/blocked agent -> blocked + needsInput (worktree status ignored)", () => {
+  // Attention is driven by the agent's `state`, not the worktree `status`
+  // (which Orca leaves at "active" regardless). A waiting or blocked agent is
+  // asking you for input/permission.
+  for (const state of ["waiting", "blocked"]) {
+    const items = normalizeWorktrees([wt({
+      status: "active",
+      agents: [{ state, agentType: "claude", lastAssistantMessage: "May I run tests?", stateStartedAt: 1782000000000 }],
+    })], NOW);
+    assert.equal(items.length, 1, state);
+    assert.equal(items[0].source, "orca");
+    assert.equal(items[0].reason, "blocked", state);
+    assert.equal(items[0].needsInput, true, state);
+    assert.equal(items[0].activity, "waiting", state);
+    assert.equal(items[0].agent, "claude");
+    assert.equal(items[0].message, "May I run tests?");
+    assert.equal(items[0].workspaceId, "repo::/p");
+  }
 });
 
-test("orca active worktree with an AskUserQuestion agent -> blocked + needsInput", () => {
-  // Orca leaves the worktree status at "active" when an agent calls
-  // AskUserQuestion (it does not roll it up to "permission"), so the row would
-  // be dropped unless we detect the blocked question off the agent's toolName.
+test("orca AskUserQuestion agent (state waiting, status active) -> blocked + needsInput", () => {
+  // Regression: an agent that called AskUserQuestion sits in state "waiting"
+  // while Orca keeps the worktree "active". The state-driven model surfaces it.
   const items = normalizeWorktrees([wt({
     status: "active",
     agents: [{ state: "waiting", agentType: "claude", toolName: "AskUserQuestion", stateStartedAt: 1782000000000 }],
@@ -111,18 +115,22 @@ test("orca active worktree with an AskUserQuestion agent -> blocked + needsInput
   assert.equal(items.length, 1);
   assert.equal(items[0].reason, "blocked");
   assert.equal(items[0].needsInput, true);
-  assert.equal(items[0].activity, "waiting");
-  assert.equal(items[0].agent, "claude");
 });
 
-test("orca active worktree with a non-question waiting agent stays unsurfaced", () => {
-  // We key on the AskUserQuestion tool specifically, not on a bare "waiting"
-  // state in an otherwise-active worktree.
-  const items = normalizeWorktrees([wt({
-    status: "active",
-    agents: [{ state: "waiting", agentType: "claude", toolName: "Read" }],
+test("orca done agent with no unread output is dropped (already seen)", () => {
+  // A finished agent only warrants a key while the worktree has unseen output.
+  const seen = normalizeWorktrees([wt({
+    status: "active", unread: false,
+    agents: [{ state: "done", agentType: "claude", interrupted: false }],
   })], NOW);
-  assert.equal(items.length, 0);
+  assert.equal(seen.length, 0);
+  // The same agent with unread output surfaces as finished.
+  const unread = normalizeWorktrees([wt({
+    status: "active", unread: true,
+    agents: [{ state: "done", agentType: "claude", interrupted: false }],
+  })], NOW);
+  assert.equal(unread.length, 1);
+  assert.equal(unread[0].reason, "finished");
 });
 
 test("orca done+interrupted -> failed; clean done -> finished", () => {
@@ -156,8 +164,8 @@ test("orca createdAt falls back to updatedAt then lastOutputAt", () => {
   assert.equal(items[0].createdAt, new Date(1782000050000).toISOString());
 });
 
-test("orca surfaced statuses with no agents are dropped (malformed rows)", () => {
-  for (const status of ["permission", "working", "done"]) {
+test("orca worktree with no live agent is dropped, whatever the status", () => {
+  for (const status of ["permission", "working", "done", "active", "inactive"]) {
     assert.equal(normalizeWorktrees([wt({ status, agents: [] })], NOW).length, 0, `${status} agents:[]`);
     assert.equal(normalizeWorktrees([wt({ status, agents: undefined })], NOW).length, 0, `${status} no agents`);
   }

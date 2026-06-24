@@ -213,11 +213,16 @@ Notes:
 ## Orca support
 
 Muxboard also surfaces [Orca](https://onorca.dev) worktrees alongside cmux
-panes on the same keys. It polls `orca worktree ps --json`: a worktree whose
-agent needs you (`permission`) shows as a needs-input key, a finished agent
-(`done`) as finished (or failed when interrupted), and an actively working
-agent as a working key that sinks to the end. Each key carries a small badge —
-the Orca mark or a cmux monogram — so you can tell the two apart.
+panes on the same keys. It polls `orca worktree ps --json` and derives the key
+from the worktree's primary agent **`state`**, not the worktree `status` — the
+latter is just a terminal-liveness flag (PTY alive → `active`) that does not
+roll up the agent lifecycle, so a finished or question-blocked agent still
+leaves the worktree `active`. By agent state: `waiting`/`blocked` (a permission
+prompt or an AskUserQuestion) shows as a needs-input key; `working` as a working
+key that sinks to the end; `done` as finished (or failed when interrupted), but
+only while the worktree is **unread** so an already-seen result doesn't linger.
+Each key carries a small badge — the Orca mark or a cmux monogram — so you can
+tell the two apart.
 
 Orca is **auto-detected**: the poller starts only when an Orca runtime is
 reachable (`orca status`), so cmux-only users see no change. Set

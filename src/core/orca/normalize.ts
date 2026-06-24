@@ -6,7 +6,6 @@ export interface RawOrcaAgent {
   agentType?: unknown;         // "claude" | "codex" | ... (open set)
   prompt?: unknown;
   lastAssistantMessage?: unknown;
-  toolName?: unknown;          // the tool the agent last invoked, e.g. "AskUserQuestion"
   interrupted?: unknown;
   stateStartedAt?: unknown;    // epoch ms
   updatedAt?: unknown;         // epoch ms
@@ -43,24 +42,13 @@ function recency(a: RawOrcaAgent): number {
 }
 
 /**
- * Pick the agent that best characterizes the worktree's current status: the
- * MOST RECENT agent whose state matches the status (falling back to the most
- * recent of all agents). Selecting by recency rather than array order makes the
- * rendered reason deterministic for a multi-agent worktree — e.g. a `done`
- * worktree with both an interrupted and a clean agent always reflects the latest.
+ * Pick the agent that characterizes the worktree: the MOST RECENT one by state
+ * change. Selecting by recency rather than array order makes the rendered reason
+ * deterministic for a multi-agent worktree — e.g. one with both an interrupted
+ * and a clean agent always reflects the latest.
  */
-function primaryAgent(agents: RawOrcaAgent[], status: string): RawOrcaAgent | undefined {
-  const wantState =
-    status === "permission"
-      ? (s: string) => s === "waiting" || s === "blocked"
-      : status === "working"
-        ? (s: string) => s === "working"
-        : status === "done"
-          ? (s: string) => s === "done"
-          : () => false;
-  const matching = agents.filter((a) => wantState(str(a.state)));
-  const pool = matching.length ? matching : agents;
-  return pool.reduce<RawOrcaAgent | undefined>(
+function primaryAgent(agents: RawOrcaAgent[]): RawOrcaAgent | undefined {
+  return agents.reduce<RawOrcaAgent | undefined>(
     (best, a) => (best && recency(best) >= recency(a) ? best : a),
     undefined,
   );
@@ -77,38 +65,50 @@ function iso(ms: number | undefined, nowIso: string): string {
 
 /**
  * Normalize one `worktree ps` row to an AttentionItem, or null when the
- * worktree does not warrant a key (status active/inactive, i.e. no live agent
- * that finished or needs you).
+ * worktree does not warrant a key.
+ *
+ * Orca's worktree-level `status` is a terminal-liveness flag (PTY alive →
+ * "active", else "inactive"); it does NOT roll up the agent lifecycle — a
+ * finished, working, or question-blocked agent all leave the worktree "active".
+ * So attention is derived from the primary agent's own `state`
+ * (working|blocked|waiting|done), not the worktree status.
  */
 export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): AttentionItem | null {
   const workspaceId = str(raw.worktreeId);
   if (!workspaceId) return null;
   const agents = Array.isArray(raw.agents) ? (raw.agents as RawOrcaAgent[]) : [];
-
-  // An agent that called AskUserQuestion is blocked on your answer, but Orca
-  // leaves the worktree status at "active" rather than rolling it up to
-  // "permission" the way a tool-permission prompt does. Detect that off the
-  // agent's toolName and treat it as a permission-style needs-input row so the
-  // question still surfaces as a key. A blocked question is the highest-priority
-  // state, so it wins over the raw status when both are present.
-  const asking = agents.some(
-    (a) =>
-      str(a.toolName) === "AskUserQuestion" &&
-      (str(a.state) === "waiting" || str(a.state) === "blocked"),
-  );
-  const rawStatus = str(raw.status);
-  const status = asking
-    ? "permission"
-    : rawStatus === "permission" || rawStatus === "working" || rawStatus === "done"
-      ? rawStatus
-      : "";
-  // Only permission/working/done (or an AskUserQuestion-blocked agent) warrant a
-  // key; an active/inactive worktree with no pending question does not.
-  if (!status) return null;
-  const primary = primaryAgent(agents, status);
-  // A surfaced status (permission/working/done) is rolled up from agent states,
-  // so a row with no agents is malformed — drop it rather than invent a key.
+  const primary = primaryAgent(agents);
+  // No live agent → nothing to surface (an idle/empty worktree).
   if (!primary) return null;
+
+  const state = str(primary.state);
+  let reason: AttentionReason;
+  let activity: "working" | "waiting";
+  let needsInput: true | undefined;
+  let synthetic: true | undefined;
+
+  if (state === "waiting" || state === "blocked") {
+    // The agent is asking you for input/permission (a tool-permission prompt or
+    // an AskUserQuestion); Orca reports this on the agent, not the worktree.
+    reason = "blocked";
+    activity = "waiting";
+    needsInput = true;
+  } else if (state === "working") {
+    reason = "waiting"; // overridden by the working activity in render/triage
+    activity = "working";
+    synthetic = true;
+  } else if (state === "done") {
+    // A finished agent warrants a key only while the worktree is unread (has
+    // unseen output) — otherwise it's an old result you've already looked at.
+    // Focusing the worktree clears its unread in Orca, so the key goes away once
+    // you act. This keeps finished agents from lingering as stale keys forever.
+    if (raw.unread !== true) return null;
+    reason = primary.interrupted === true ? "failed" : "finished";
+    activity = "waiting";
+  } else {
+    return null; // unknown/idle agent state: nothing to surface
+  }
+
   const agent = toAgentKind(str(primary.agentType));
   const title = str(raw.displayName) || str(raw.repo) || workspaceId;
   const message = str(primary.lastAssistantMessage) || str(primary.prompt);
@@ -117,25 +117,6 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
     since ?? num(primary.updatedAt) ?? num(raw.lastOutputAt),
     nowIso,
   );
-
-  let reason: AttentionReason;
-  let activity: "working" | "waiting";
-  let needsInput: true | undefined;
-  let synthetic: true | undefined;
-
-  if (status === "permission") {
-    reason = "blocked";
-    activity = "waiting";
-    needsInput = true;
-  } else if (status === "working") {
-    reason = "waiting"; // overridden by the working activity in render/triage
-    activity = "working";
-    synthetic = true;
-  } else {
-    // status === "done"
-    reason = primary.interrupted === true ? "failed" : "finished";
-    activity = "waiting";
-  }
 
   return {
     id: workspaceId, // no notification; the worktree id is the focus key
