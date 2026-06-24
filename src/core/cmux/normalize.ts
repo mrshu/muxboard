@@ -121,7 +121,18 @@ export function normalizeNotification(
   // Prefer the workspace's resolved title; fall back to the tab/body.
   const displayTitle = (ws?.title ?? "").trim() || deriveTitle(tabTitle, body);
 
-  const reason = detectReason(body, str(raw.subtitle));
+  // cmux flips `is_read` when you merely *see* a notification (and muxboard's own
+  // open-notification marks it read), NOT when you resolve it — so a read row can
+  // still need you. We therefore keep read rows on the board rather than drop
+  // them, but defuse their urgency: a read permission/failure demotes to plain
+  // "waiting" (the key stays, losing the urgent badge + front-pin). Live "Needs"
+  // status (from the event stream) re-flags genuine attention; an explicit clear
+  // removes the key entirely (see the store's cleared-notification filter).
+  const rawReason = detectReason(body, str(raw.subtitle));
+  const reason: AttentionReason =
+    raw.is_read === true && (rawReason === "blocked" || rawReason === "failed")
+      ? "waiting"
+      : rawReason;
 
   return {
     id,
@@ -141,24 +152,6 @@ export function normalizeNotification(
     message: (ws?.message ?? "").trim() || body,
     createdAt,
   };
-}
-
-/**
- * Keep only notifications the user hasn't acted on yet.
- *
- * cmux leaves a row in `list-notifications` after you respond, flipping only
- * `is_read` — so a read row is a key you've already seen/answered. Dropping read
- * rows before normalizing stops a long-cleared prompt from lingering as a stale
- * "needs you" key; a genuinely-pending prompt is unread. Pressing a muxboard key
- * opens the notification (which marks it read in cmux), so the key clears on the
- * next poll once you've acted. An explicit "clear all" is handled live, ahead of
- * the poll, via the event stream (see the store's cleared-notification filter).
- */
-export function unreadNotifications(raw: unknown): unknown[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (r) => !(r && typeof r === "object" && (r as RawCmuxNotification).is_read === true),
-  );
 }
 
 /** Normalize a raw notification array, dropping malformed rows. */

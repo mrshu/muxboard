@@ -4,7 +4,6 @@ import {
   detectAgent,
   detectReason,
   normalizeNotifications,
-  unreadNotifications,
 } from "../src/core/cmux/normalize.js";
 import { parseCodingAgents, toAgentKind } from "../src/core/cmux/agents.js";
 import {
@@ -154,28 +153,27 @@ test("parseWorkspaceCpu reads resources.cpu_percent per workspace", async () => 
   assert.equal(cpu.get("nores"), 0);
 });
 
-test("read notifications are filtered out before normalizing (already acted on)", () => {
-  // cmux leaves a row in list-notifications after you respond, flipping only
-  // is_read. unreadNotifications drops those so a long-answered prompt doesn't
-  // linger as a stale key; an unread (still-pending) prompt is kept with its
-  // urgency intact.
-  const rows = [
-    { id: "a", workspace_id: "w1", body: "Claude needs your permission to run a command", is_read: false },
-    { id: "b", workspace_id: "w2", body: "Claude needs your permission to run a command", is_read: true },
-    { id: "c", workspace_id: "w3", body: "Claude is waiting for your input", is_read: true },
-    { id: "d", workspace_id: "w4", body: "Task failed", subtitle: "Error", is_read: true },
-  ];
-  const unread = unreadNotifications(rows);
-  assert.equal(unread.length, 1);
+test("a read permission/failure is demoted to waiting but stays on the board", () => {
+  // cmux flips is_read when you merely SEE a notification (not when you resolve
+  // it), so read rows stay visible — a read urgent reason just loses its badge,
+  // demoting to plain waiting. Unread urgent reasons keep their urgency. (Live
+  // "Needs" status re-flags genuine attention; an explicit clear removes it.)
+  const base = { id: "n1", workspace_id: "w1" };
+  const pendingPerm = normalizeNotifications([
+    { ...base, body: "Claude needs your permission to run a command", is_read: false },
+  ]);
+  assert.equal(pendingPerm[0].reason, "blocked");
 
-  const items = normalizeNotifications(unread);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].id, "a");
-  assert.equal(items[0].reason, "blocked"); // the pending one keeps its urgency
+  const readPerm = normalizeNotifications([
+    { ...base, body: "Claude needs your permission to run a command", is_read: true },
+  ]);
+  assert.equal(readPerm.length, 1); // still surfaced, not dropped
+  assert.equal(readPerm[0].reason, "waiting"); // demoted
 
-  // A missing is_read counts as unread (surfaced); non-arrays yield nothing.
-  assert.equal(unreadNotifications([{ id: "x", workspace_id: "w" }]).length, 1);
-  assert.equal(unreadNotifications(null).length, 0);
+  const readFail = normalizeNotifications([
+    { ...base, body: "Task failed", subtitle: "Error", is_read: true },
+  ]);
+  assert.equal(readFail[0].reason, "waiting");
 });
 
 test("normalizeNotifications maps the real fixture and drops malformed rows", () => {

@@ -195,13 +195,14 @@ Status is mapped from `body`, strongest signal first:
 Notes:
 
 - Rows missing `id` or `workspace_id` are dropped (never fatal).
-- Read notifications are dropped. cmux leaves a notification in the list after you
-  answer it (only flipping `is_read`, never removing the row), so a `is_read: true`
-  row is one you've already acted on — it is filtered out before normalizing rather
-  than left on the board as a stale key. A genuinely-pending prompt is unread.
-  Pressing a key marks it read via `open-notification`, so it clears on the next
-  poll once you've acted. Notifications are collapsed to one per workspace (newest
-  wins), so each repo occupies a single key showing its current state.
+- Read notifications stay on the board, demoted. cmux flips `is_read` when you
+  merely *see* a notification — not when you resolve it — and muxboard's own
+  `open-notification` marks it read too, so a read row can still need you.
+  Dropping read rows would hide genuine attention, so instead a read
+  `failed`/`blocked` is demoted to `waiting`: the key stays but loses the urgent
+  badge and the front-pin. Live `Needs` status re-flags genuine attention.
+  Notifications are collapsed to one per workspace (newest wins), so each repo
+  occupies a single key showing its current state.
 - An explicit "clear notifications" in cmux is honored live: the `cmux events`
   stream emits `notification.clear_requested` (carrying `--tab=<workspace>`), and
   any key that fired at or before that clear is dropped immediately, ahead of the
@@ -245,11 +246,11 @@ and degrades to the next when unavailable.
 1. Queue membership and the reason come from `cmux list-notifications`. A
    notification puts a pane on a key; the reason (`failed`, `blocked`, `waiting`,
    `finished`) is mapped from structured fields, never by scraping the free-form
-   body (see the table above). cmux keeps a notification in the list after you
-   respond and only flips `is_read`, so a permission or failure you have already
-   answered (`is_read: true`) is dropped entirely rather than left as a stale key;
-   only unread (still-pending) notifications surface. An explicit "clear
-   notifications" in cmux is also honored live via the event stream
+   body (see the table above). cmux flips `is_read` when you see a notification,
+   not when you resolve it, so a read (`is_read: true`) permission/failure is
+   demoted to `waiting` — the key stays visible but loses its urgent badge —
+   rather than dropped, which would hide things that still need you. An explicit
+   "clear notifications" in cmux is honored live via the event stream
    (`notification.clear_requested`), removing the key at once.
 
 2. Activity (working vs waiting) comes from the `cmux events` stream. Muxboard
