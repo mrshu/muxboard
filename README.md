@@ -14,8 +14,8 @@
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
 [cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi, or any
 other) have finished, failed, gotten blocked, or are waiting for your input. The
-LCD touch strip shows CodexBar usage: session and weekly quota, limits, and spend
-per provider.
+LCD touch strip shows CodexBar usage: session and weekly quota with pace, plus
+spend and tokens per provider.
 
 The newest attention item is key 1 (top-left); the queue fills left-to-right,
 top-to-bottom:
@@ -51,8 +51,8 @@ profile. To build from source instead, see [Quick start](#quick-start).
 | Surface | Shows | Source |
 | --- | --- | --- |
 | 8 keys | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` |
-| LCD strip (4×200×100) | One CodexBar provider per segment: session + weekly quota, spend | `codexbar serve` HTTP |
-| 4 dials | Scroll, filter, refresh | local state |
+| LCD strip (4×200×100) | One CodexBar provider per segment: session + weekly quota with pace, spend + tokens | `codexbar serve` HTTP |
+| 4 dials | Scroll, filter, quota view, refresh | local state |
 
 > Required cmux setting. cmux's control socket rejects processes outside a
 > cmux session by default (`socketControlMode: cmuxOnly`), and the Stream Deck
@@ -73,8 +73,15 @@ profile. To build from source instead, see [Quick start](#quick-start).
   more. The key clears on the next poll.
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
   rather than a hardcoded list. Each segment carries the provider name in
-  CodexBar's brand color, today's spend, session and weekly gauges with percent
-  remaining, and both reset times, so all your providers are visible at once.
+  CodexBar's brand color, the session and weekly gauges with their reset times,
+  and a footer with today's spend and tokens, so all your providers are visible
+  at once.
+- Each gauge also carries a calm **pace** marker, comparing how much quota you've
+  used against how far through the window the clock is: a faded same-hue
+  extension toward where you "should" be when you're under the clock (in reserve,
+  banking headroom), or a coral cap past it when you're over (in deficit). By
+  default the row number is percent remaining; rotating dial 3 flips it to the
+  signed pace delta (`+12%` green = reserve, `−8%` coral = deficit).
 
 ### Dials (Stream Deck+)
 
@@ -82,8 +89,8 @@ profile. To build from source instead, see [Quick start](#quick-start).
 | --- | --- | --- |
 | 1 | Scroll the queue (when > 8 items) | Jump to newest item |
 | 2 | Cycle filter: all → claude → codex → pi | Reset filter to all |
-| 3 | Rotate the LCD provider window (when > 4 providers) | Open CodexBar `/usage` |
-| 4 | — | Force refresh both polls |
+| 3 | Toggle the quota number: remaining% ↔ pace (reserve/deficit) | Open CodexBar `/usage` |
+| 4 | Rotate the LCD provider window (when > 4 providers) | Force refresh both polls |
 
 ## Requirements
 
@@ -296,9 +303,12 @@ both payload shapes CodexBar emits:
 
 Each window provides `usedPercent`, `resetsAt`, `windowMinutes`, and a
 `resetDescription`; `primary` is the session (5h) and `secondary` the weekly (7d)
-window. Today's spend comes from `/cost?provider=<p>`. A provider that returns an
-`{ error }` object (e.g. an expired token) is shown as unavailable. Data older
-than 2× the poll interval is flagged `STALE`.
+window. The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
+(elapsed-vs-used); windows with no time bounds (e.g. an "Unlimited" weekly) show
+no pace. Today's spend and token count come from `/cost?provider=<p>` (a daily
+series; amounts are treated as USD since CodexBar emits no currency code). A
+provider that returns an `{ error }` object (e.g. an expired token) is shown as
+unavailable. Data older than 2× the poll interval is flagged `STALE`.
 
 ## Configuration
 
