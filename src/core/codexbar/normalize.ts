@@ -114,29 +114,41 @@ export function normalizeUsageResponse(raw: unknown, providerHint?: string): Pro
   };
 }
 
-/**
- * Extract today's total spend (USD) from a `/cost?provider=X` response.
- *
- * The cost payload is `[{ daily: [{ date, totalCost }, ...] }]`. We pick the
- * most recent day's totalCost. Returns undefined when unavailable.
- */
-export function extractCostToday(raw: unknown): number | undefined {
-  if (!Array.isArray(raw) || raw.length === 0) return undefined;
-  const first = raw[0] as { daily?: unknown };
-  const daily = first?.daily;
-  if (!Array.isArray(daily) || daily.length === 0) return undefined;
+/** One day of the `/cost` series. */
+interface DailyEntry {
+  date: string;
+  totalCost?: number;
+  totalTokens?: number;
+}
 
-  let bestDate = "";
-  let bestCost: number | undefined;
+/**
+ * Parse the `/cost?provider=X` daily series, newest day first.
+ *
+ * The payload is `[{ daily: [{ date, totalCost, totalTokens }, ...] }]`. Returns
+ * [] when unavailable.
+ */
+function dailyEntries(raw: unknown): DailyEntry[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const daily = (raw[0] as { daily?: unknown })?.daily;
+  if (!Array.isArray(daily)) return [];
+  const entries: DailyEntry[] = [];
   for (const day of daily) {
     if (!day || typeof day !== "object") continue;
-    const date = str((day as { date?: unknown }).date) ?? "";
-    const cost = num((day as { totalCost?: unknown }).totalCost);
-    if (cost === undefined) continue;
-    if (date >= bestDate) {
-      bestDate = date;
-      bestCost = cost;
-    }
+    entries.push({
+      date: str((day as { date?: unknown }).date) ?? "",
+      totalCost: num((day as { totalCost?: unknown }).totalCost),
+      totalTokens: num((day as { totalTokens?: unknown }).totalTokens),
+    });
   }
-  return bestCost;
+  return entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+/** Today's total spend (USD) — the most recent day's totalCost. */
+export function extractCostToday(raw: unknown): number | undefined {
+  return dailyEntries(raw)[0]?.totalCost;
+}
+
+/** Today's token count — the most recent day's totalTokens. */
+export function extractTokensToday(raw: unknown): number | undefined {
+  return dailyEntries(raw)[0]?.totalTokens;
 }

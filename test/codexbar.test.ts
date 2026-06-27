@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   extractCostToday,
+  extractTokensToday,
   normalizeUsageResponse,
 } from "../src/core/codexbar/normalize.js";
 import { CodexbarClient } from "../src/core/codexbar/client.js";
@@ -45,6 +46,12 @@ test("extractCostToday picks the most recent day", () => {
   const raw = loadFixture("codexbar-cost-codex.json");
   assert.equal(extractCostToday(raw), 4.2);
   assert.equal(extractCostToday([]), undefined);
+});
+
+test("extractTokensToday is the newest day's token count", () => {
+  const raw = loadFixture("codexbar-cost-codex.json");
+  assert.equal(extractTokensToday(raw), 500); // most recent day (2026-06-20)
+  assert.equal(extractTokensToday([]), undefined);
 });
 
 test("CodexbarClient.getUsage merges usage + cost via injected fetcher", async () => {

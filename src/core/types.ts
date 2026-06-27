@@ -105,6 +105,8 @@ export interface ProviderUsage {
   /** Today's spend in USD, from /cost (optional). CodexBar reports no currency
    * code; provider billing is USD, so amounts are treated as dollars. */
   costTodayUsd?: number;
+  /** Today's token count, from the most recent /cost daily entry (optional). */
+  tokensToday?: number;
   /** ISO-8601 of when CodexBar last refreshed this payload. */
   updatedAt?: string;
   /** True when the payload was usable; false on error/unreachable. */

@@ -1,10 +1,20 @@
 import type { ProviderUsage } from "../types.js";
 import {
   extractCostToday,
+  extractTokensToday,
   normalizeUsage,
   normalizeUsageResponse,
   type RawCodexbarUsage,
 } from "./normalize.js";
+
+/** Merge the /cost-derived spend + token fields onto a usage object. */
+function withCost(usage: ProviderUsage, cost: unknown): ProviderUsage {
+  return {
+    ...usage,
+    costTodayUsd: extractCostToday(cost),
+    tokensToday: extractTokensToday(cost),
+  };
+}
 
 /** Pluggable fetch-like fn so the client is testable without a server. */
 export type FetchJson = (url: string) => Promise<unknown>;
@@ -73,7 +83,7 @@ export class CodexbarClient {
         const cost = await this.fetchJson(
           `${this.baseUrl}/cost?provider=${encodeURIComponent(provider)}`,
         );
-        usage = { ...usage, costTodayUsd: extractCostToday(cost) };
+        usage = withCost(usage, cost);
       } catch {
         // Cost is optional; ignore failures.
       }
@@ -114,7 +124,7 @@ export class CodexbarClient {
           const cost = await this.fetchJson(
             `${this.baseUrl}/cost?provider=${encodeURIComponent(u.provider)}`,
           );
-          usages[i] = { ...u, costTodayUsd: extractCostToday(cost) };
+          usages[i] = withCost(u, cost);
         } catch {
           // Cost is optional.
         }
