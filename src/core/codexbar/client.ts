@@ -73,7 +73,7 @@ export class CodexbarClient {
         const cost = await this.fetchJson(
           `${this.baseUrl}/cost?provider=${encodeURIComponent(provider)}`,
         );
-        usage = { ...usage, costTodayEur: extractCostToday(cost) };
+        usage = { ...usage, costTodayUsd: extractCostToday(cost) };
       } catch {
         // Cost is optional; ignore failures.
       }
@@ -114,7 +114,7 @@ export class CodexbarClient {
           const cost = await this.fetchJson(
             `${this.baseUrl}/cost?provider=${encodeURIComponent(u.provider)}`,
           );
-          usages[i] = { ...u, costTodayEur: extractCostToday(cost) };
+          usages[i] = { ...u, costTodayUsd: extractCostToday(cost) };
         } catch {
           // Cost is optional.
         }

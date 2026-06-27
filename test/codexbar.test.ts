@@ -55,7 +55,7 @@ test("CodexbarClient.getUsage merges usage + cost via injected fetcher", async (
   });
   const u = await client.getUsage("codex");
   assert.equal(u.ok, true);
-  assert.equal(u.costTodayEur, 4.2);
+  assert.equal(u.costTodayUsd, 4.2);
 });
 
 test("getAllUsage discovers providers from /usage (no hardcoded list)", async () => {
@@ -72,7 +72,7 @@ test("getAllUsage discovers providers from /usage (no hardcoded list)", async ()
   });
   const usages = await client.getAllUsage();
   assert.deepEqual(usages.map((u) => u.provider), ["codex", "claude", "minimax"]);
-  assert.equal(usages[0].costTodayEur, 4.2);
+  assert.equal(usages[0].costTodayUsd, 4.2);
 });
 
 test("getAllUsage returns [] when the server is unreachable", async () => {

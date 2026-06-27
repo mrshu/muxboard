@@ -77,7 +77,7 @@ function main(): void {
   // --- LCD -----------------------------------------------------------------
   const codexRaw = loadFixture("codexbar-usage-codex.json");
   const codex = normalizeUsageResponse(codexRaw, "codex");
-  codex.costTodayEur = extractCostToday(loadFixture("codexbar-cost-codex.json"));
+  codex.costTodayUsd = extractCostToday(loadFixture("codexbar-cost-codex.json"));
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   const minimax = normalizeUsageResponse(loadFixture("codexbar-usage-minimax.json"), "minimax");
   // Providers are discovered from CodexBar; here three are enabled, 4th blank.

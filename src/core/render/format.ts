@@ -46,11 +46,11 @@ export function formatPercent(percent: number): string {
   return `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
 }
 
-/** Money like "€4.20"; integers drop the cents ("€0"). */
-export function formatEur(amount: number | undefined): string {
+/** Money like "$4.20"; integers drop the cents ("$0"). */
+export function formatUsd(amount: number | undefined): string {
   if (amount === undefined || Number.isNaN(amount)) return "—";
-  if (amount === 0) return "€0";
-  return `€${amount.toFixed(2)}`;
+  if (amount === 0) return "$0";
+  return `$${amount.toFixed(2)}`;
 }
 
 /**

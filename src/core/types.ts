@@ -102,8 +102,9 @@ export interface ProviderUsage {
   session?: UsageWindow;
   /** secondary window. */
   weekly?: UsageWindow;
-  /** Today's spend in EUR, from /cost (optional). */
-  costTodayEur?: number;
+  /** Today's spend in USD, from /cost (optional). CodexBar reports no currency
+   * code; provider billing is USD, so amounts are treated as dollars. */
+  costTodayUsd?: number;
   /** ISO-8601 of when CodexBar last refreshed this payload. */
   updatedAt?: string;
   /** True when the payload was usable; false on error/unreachable. */

@@ -115,7 +115,7 @@ export function normalizeUsageResponse(raw: unknown, providerHint?: string): Pro
 }
 
 /**
- * Extract today's total spend (EUR) from a `/cost?provider=X` response.
+ * Extract today's total spend (USD) from a `/cost?provider=X` response.
  *
  * The cost payload is `[{ daily: [{ date, totalCost }, ...] }]`. We pick the
  * most recent day's totalCost. Returns undefined when unavailable.

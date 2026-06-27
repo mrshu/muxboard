@@ -5,7 +5,7 @@ import {
   renderLcdSegments,
   routeStatus,
 } from "../src/core/render/lcdRender.js";
-import { formatAge, formatCountdown, formatEur, shortName } from "../src/core/render/format.js";
+import { formatAge, formatCountdown, formatUsd, shortName } from "../src/core/render/format.js";
 import { normalizeUsageResponse } from "../src/core/codexbar/normalize.js";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { loadFixture, NOW_MS } from "./helpers.js";
@@ -15,8 +15,8 @@ test("format helpers are compact and deterministic", () => {
   assert.equal(formatAge("2026-06-20T11:10:00Z", NOW_MS), "1h");
   assert.equal(formatCountdown("2026-06-20T14:10:00Z", NOW_MS), "2h");
   assert.equal(formatCountdown(undefined, NOW_MS), "—");
-  assert.equal(formatEur(4.2), "€4.20");
-  assert.equal(formatEur(undefined), "—");
+  assert.equal(formatUsd(4.2), "$4.20");
+  assert.equal(formatUsd(undefined), "—");
   assert.equal(shortName("~/w/d/r/codex-playground", 13), "codex-playgr…");
 });
 
@@ -82,7 +82,7 @@ test("renderEmptyKey and renderSourceOffline produce valid muted SVGs", () => {
 
 test("renderLcdSegments shows one provider per segment, all at a glance", () => {
   const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
-  codex.costTodayEur = 4.2;
+  codex.costTodayUsd = 4.2;
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
 
@@ -95,7 +95,7 @@ test("renderLcdSegments shows one provider per segment, all at a glance", () => 
   assert.match(s0, /#49A3B0/i); // codex brand color from CodexBar
   assert.match(s0, /99%/);
   assert.match(s0, /75%/);
-  assert.match(s0, /€4\.20/);
+  assert.match(s0, /\$4\.20/);
   // claude visible in its own segment
   assert.match(s1, /CLAUDE/);
   assert.match(s1, /97%/);

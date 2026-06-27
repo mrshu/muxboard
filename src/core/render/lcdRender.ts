@@ -1,6 +1,6 @@
 import type { ProviderUsage, UsageWindow } from "../types.js";
 import { providerColor, usageColor } from "./palette.js";
-import { escapeXml, formatCountdown, formatEur, formatPercent } from "./format.js";
+import { escapeXml, formatCountdown, formatUsd, formatPercent } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
 
 /** Touch-strip segment size: one of the four 200×100 LCD regions. */
@@ -68,7 +68,7 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
     );
   }
 
-  const cost = usage.costTodayEur !== undefined ? formatEur(usage.costTodayEur) : "";
+  const cost = usage.costTodayUsd !== undefined ? formatUsd(usage.costTodayUsd) : "";
   const footer = [cost ? `${cost} today` : "", ctx.stale ? "stale" : ""].filter(Boolean).join(" · ");
   return segFrame(
     `${icon}<text x="${nameX}" y="25" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>

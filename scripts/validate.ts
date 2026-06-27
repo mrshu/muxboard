@@ -64,13 +64,13 @@ console.log();
 
 // --- CodexBar LCD ----------------------------------------------------------
 const codex = normalizeUsageResponse(load("codexbar-usage-codex.json"), "codex");
-codex.costTodayEur = extractCostToday(load("codexbar-cost-codex.json"));
+codex.costTodayUsd = extractCostToday(load("codexbar-cost-codex.json"));
 const claude = normalizeUsageResponse(load("codexbar-usage-claude.json"), "claude");
 const kimi = normalizeUsageResponse(load("codexbar-usage-kimi.json"), "kimi");
 
 console.log("CodexBar (codex):");
 console.log(
-  `  SESSION ${codex.session?.remainingPercent}% left · WEEKLY ${codex.weekly?.remainingPercent}% left · ROUTE ${routeStatus(codex, false)} · €${codex.costTodayEur?.toFixed(2)} today`,
+  `  SESSION ${codex.session?.remainingPercent}% left · WEEKLY ${codex.weekly?.remainingPercent}% left · ROUTE ${routeStatus(codex, false)} · $${codex.costTodayUsd?.toFixed(2)} today`,
 );
 console.log();
 
@@ -79,7 +79,7 @@ check("codex session+weekly parsed (top-level shape)", codex.session?.usedPercen
 check("claude parsed (nested usage shape)", claude.ok && claude.session?.usedPercent === 3);
 check("kimi error surfaces as unavailable", !kimi.ok && !!kimi.error);
 check("offline provider yields OFF route", routeStatus(undefined, false) === "OFF");
-check("cost today extracted", codex.costTodayEur === 4.2);
+check("cost today extracted", codex.costTodayUsd === 4.2);
 console.log();
 
 console.log(failures === 0 ? "ALL CHECKS PASSED ✅" : `${failures} CHECK(S) FAILED ❌`);
