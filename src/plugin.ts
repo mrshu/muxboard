@@ -38,13 +38,18 @@ async function resolveConfigAfterConnect(): Promise<MuxboardConfig> {
   }
 }
 
-async function main(): Promise<void> {
-  // Build the runtime with defaults synchronously so actions can register
-  // BEFORE connect (avoids missing the initial willAppear). Critically, no
-  // awaited websocket calls happen before connect() — doing so would leave the
-  // event loop with no open handles and exit the process cleanly.
-  const config: MuxboardConfig = { ...DEFAULT_CONFIG };
-  const store = new Store(config.codexbarProviders);
+/**
+ * Build the config-derived clients, services, and focus/dismiss backends around
+ * a (stable) store. Pure construction — no I/O and no timers until a service is
+ * .start()ed — so it is cheap to build once with defaults and rebuild once the
+ * real global settings arrive after connect.
+ */
+function buildServices(
+  config: MuxboardConfig,
+  store: Store,
+  logger: Logger,
+  markOpened: (id: string) => void,
+) {
   // Talk to cmux directly. This requires cmux's automation mode
   // (socketControlMode: "automation") so the plugin's process is accepted.
   const cmux = new CmuxClient({
@@ -54,34 +59,58 @@ async function main(): Promise<void> {
   });
   const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
   const orca = new OrcaClient({ bin: config.orcaBin });
-  const orcaService = new OrcaService({ client: orca, store, pollMs: config.orcaPollMs, logger });
-  const cmuxService = new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger });
-  const cmuxEventsService = new CmuxEventsService({ bin: config.cmuxBin, store, logger });
-  const codexbarService = new CodexbarService({
-    client: codexbar,
-    store,
-    providers: config.codexbarProviders,
-    pollMs: config.codexbarPollMs,
-    logger,
-  });
+  return {
+    cmux,
+    orca,
+    orcaService: new OrcaService({ client: orca, store, pollMs: config.orcaPollMs, logger }),
+    cmuxService: new CmuxService({ client: cmux, store, pollMs: config.cmuxPollMs, logger }),
+    cmuxEventsService: new CmuxEventsService({ bin: config.cmuxBin, store, logger }),
+    codexbarService: new CodexbarService({
+      client: codexbar,
+      store,
+      providers: config.codexbarProviders,
+      pollMs: config.codexbarPollMs,
+      logger,
+    }),
+    backends: {
+      cmux: makeCmuxBackend(cmux, logger, markOpened),
+      orca: makeOrcaBackend(orca, logger),
+    },
+  };
+}
+
+async function main(): Promise<void> {
+  // Build the runtime synchronously so actions can register BEFORE connect
+  // (avoids missing the initial willAppear). Critically, no awaited websocket
+  // calls happen before connect() — doing so would leave the event loop with no
+  // open handles and exit the process cleanly. The store is built once here and
+  // never replaced: the actions subscribe to it in their constructors, so its
+  // identity must stay stable across the post-connect config reload.
+  const config: MuxboardConfig = { ...DEFAULT_CONFIG };
+  const store = new Store(config.codexbarProviders);
+  const lastOpened = new Map<string, number>();
+  const markOpened = (id: string): void => {
+    lastOpened.set(id, Date.now());
+  };
+
+  // Placeholder services from defaults, so the runtime is fully valid for any
+  // willAppear that lands in the brief window before global settings load. They
+  // hold no resources (nothing polls until .start()) and are replaced below once
+  // the real config is known.
+  let services = buildServices(config, store, logger, markOpened);
 
   const runtime: Runtime = {
     config,
     store,
-    cmux,
-    cmuxService,
-    cmuxEventsService,
-    codexbarService,
-    orcaService,
+    cmux: services.cmux,
+    cmuxService: services.cmuxService,
+    cmuxEventsService: services.cmuxEventsService,
+    codexbarService: services.codexbarService,
+    orcaService: services.orcaService,
     logger,
-    lastOpened: new Map<string, number>(),
-    markOpened(id: string) {
-      this.lastOpened.set(id, Date.now());
-    },
-    backends: {
-      cmux: makeCmuxBackend(cmux, logger, (id) => runtime.markOpened(id)),
-      orca: makeOrcaBackend(orca, logger),
-    },
+    lastOpened,
+    markOpened,
+    backends: services.backends,
   };
 
   streamDeck.actions.registerAction(new AttentionKeyAction(runtime));
@@ -90,12 +119,24 @@ async function main(): Promise<void> {
   await streamDeck.connect();
   logger.info("Muxboard connected.");
 
-  // Now the websocket exists: settings round-trips are safe.
+  // Now the websocket exists: settings round-trips are safe. Apply the resolved
+  // config and rebuild the config-derived clients/services, then swap them into
+  // the runtime — otherwise tunables like cmuxBin, the poll intervals,
+  // busyCpuPercent, and the codexbar URL/providers would never take effect,
+  // having been captured by value into the default-built placeholders above.
   Object.assign(config, await resolveConfigAfterConnect());
+  services = buildServices(config, store, logger, markOpened);
+  runtime.cmux = services.cmux;
+  runtime.cmuxService = services.cmuxService;
+  runtime.cmuxEventsService = services.cmuxEventsService;
+  runtime.codexbarService = services.codexbarService;
+  runtime.orcaService = services.orcaService;
+  runtime.backends = services.backends;
   logger.info(
     `Muxboard config: cmux="${config.cmuxBin}" codexbar="${config.codexbarBaseUrl}" providers=${config.codexbarProviders.join(",")}`,
   );
 
+  const { cmuxService, cmuxEventsService, codexbarService, orcaService, orca } = services;
   cmuxService.start();
   cmuxEventsService.start();
   codexbarService.start();
