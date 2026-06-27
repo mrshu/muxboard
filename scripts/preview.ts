@@ -14,7 +14,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { normalizeWorktrees } from "../src/core/orca/normalize.js";
-import { normalizeUsageResponse, extractCostToday } from "../src/core/codexbar/normalize.js";
+import {
+  normalizeUsageResponse,
+  extractCostToday,
+  extractTokensToday,
+} from "../src/core/codexbar/normalize.js";
 import { sortNewestFirst, triageOrder, assignSlots, KEY_COUNT } from "../src/core/cmux/sort.js";
 import type { AttentionItem } from "../src/core/types.js";
 import { renderKey, renderEmptyKey, renderSourceOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
@@ -77,13 +81,19 @@ function main(): void {
   // --- LCD -----------------------------------------------------------------
   const codexRaw = loadFixture("codexbar-usage-codex.json");
   const codex = normalizeUsageResponse(codexRaw, "codex");
-  codex.costTodayUsd = extractCostToday(loadFixture("codexbar-cost-codex.json"));
+  const codexCost = loadFixture("codexbar-cost-codex.json");
+  codex.costTodayUsd = extractCostToday(codexCost);
+  codex.tokensToday = extractTokensToday(codexCost);
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   const minimax = normalizeUsageResponse(loadFixture("codexbar-usage-minimax.json"), "minimax");
   // Providers are discovered from CodexBar; here three are enabled, 4th blank.
   const usages = [codex, claude, minimax];
-  const segs = renderLcdSegments(usages, { nowMs, stale: false });
+  const segs = renderLcdSegments(usages, { nowMs, stale: false, numberMode: "remaining" });
   segs.forEach((svg, i) => writeFileSync(join(outDir, `lcd-${i + 1}.png`), svgToPng(svg, SEG_W)));
+  // Pace-mode variant (the rightmost-dial toggle), for visual review.
+  renderLcdSegments(usages, { nowMs, stale: false, numberMode: "pace" }).forEach((svg, i) =>
+    writeFileSync(join(outDir, `lcd-${i + 1}-pace.png`), svgToPng(svg, SEG_W)),
+  );
 
   // --- Composite dashboard -------------------------------------------------
   writeFileSync(join(outDir, "dashboard.svg"), composite(keySvgs, segs));
@@ -91,7 +101,7 @@ function main(): void {
 
   // --- Offline scenario (acceptance #6) ------------------------------------
   const offlineKeys = [renderSourceOffline("cmux"), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
-  const offlineSegs = renderLcdSegments([], { nowMs, stale: true });
+  const offlineSegs = renderLcdSegments([], { nowMs, stale: true, numberMode: "remaining" });
   writeFileSync(join(outDir, "dashboard-offline.png"), svgToPng(composite(offlineKeys, offlineSegs), 880));
 
   console.log(`Rendered ${KEY_COUNT} keys + 4 LCD segments to ${outDir}`);

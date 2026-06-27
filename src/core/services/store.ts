@@ -58,6 +58,7 @@ export class Store {
       allItems: [],
       offset: 0,
       filter: "all",
+      lcdNumberMode: "remaining",
       cmuxOffline: false,
       orcaOffline: false,
       orcaActive: false,
@@ -263,6 +264,18 @@ export class Store {
     if (this.state.filter === "all") return;
     this.state = { ...this.state, filter: "all", offset: 0 };
     this.recompute();
+    this.emit();
+  }
+
+  // ---- rightmost dial: toggle the LCD quota number mode ---------------------
+  /**
+   * Flip the LCD quota rows between showing absolute remaining% and the signed
+   * pace delta (reserve/deficit). One toggle per rotate gesture; with two modes
+   * the direction doesn't matter.
+   */
+  cycleNumberMode(): void {
+    const next = this.state.lcdNumberMode === "remaining" ? "pace" : "remaining";
+    this.state = { ...this.state, lcdNumberMode: next };
     this.emit();
   }
 

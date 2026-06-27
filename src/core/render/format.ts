@@ -53,6 +53,15 @@ export function formatUsd(amount: number | undefined): string {
   return `$${amount.toFixed(2)}`;
 }
 
+/** Compact token count like "500", "3.5k", "12k", "1.2M". */
+export function formatTokens(n: number | undefined): string {
+  if (n === undefined || Number.isNaN(n)) return "—";
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e4) return `${Math.round(n / 1e3)}k`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return `${Math.round(n)}`;
+}
+
 /**
  * Shorten a repo/workspace label to fit a key.
  *

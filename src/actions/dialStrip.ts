@@ -24,8 +24,8 @@ const toDataUri = (svg: string): string =>
  * dial's behavior:
  *   col 0  rotate=scroll attention      press=jump to newest
  *   col 1  rotate=cycle agent filter    press=reset filter
- *   col 2  rotate=rotate providers      press=open CodexBar /usage
- *   col 3  (rotate unused)              press=force refresh
+ *   col 2  rotate=toggle number mode    press=open CodexBar /usage
+ *   col 3  rotate=rotate providers       press=force refresh
  */
 @action({ UUID: "com.mrshu.muxboard.dial" })
 export class DialStripAction extends SingletonAction {
@@ -64,11 +64,15 @@ export class DialStripAction extends SingletonAction {
         this.runtime.store.cycleFilter(dir);
         break;
       case 2:
+        // Toggle the quota rows between remaining% and the pace delta. One flip
+        // per gesture (magnitude ignored) so a flick switches the view.
+        this.runtime.store.cycleNumberMode();
+        break;
+      case 3:
         // Rotate the LCD provider window when there are more providers than
         // segments (a no-op otherwise). Multi-tick spins move proportionally.
         this.runtime.store.rotateProviders(ticks);
         break;
-      // col 3: rotation unused
     }
   }
 
@@ -133,7 +137,11 @@ export class DialStripAction extends SingletonAction {
     const usages = this.runtime.store
       .visibleProviderWindow()
       .map((p) => (p ? state.usage[p] : undefined));
-    const segments = renderLcdSegments(usages, { nowMs: Date.now(), stale });
+    const segments = renderLcdSegments(usages, {
+      nowMs: Date.now(),
+      stale,
+      numberMode: state.lcdNumberMode,
+    });
     const svg = segments[col] ?? segments[0];
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce

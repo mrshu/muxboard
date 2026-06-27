@@ -117,6 +117,12 @@ export interface ProviderUsage {
 /** Agent filter applied to the attention queue (dial 2). */
 export type AgentFilter = "all" | AgentKind;
 
+/**
+ * Which number the LCD quota rows show (toggled by the third dial's rotation):
+ * absolute remaining%, or the signed pace delta (reserve/deficit).
+ */
+export type LcdNumberMode = "remaining" | "pace";
+
 /** Whole-plugin runtime state held by the store. */
 export interface AppState {
   /** Newest-first attention items (already filtered+sorted). */
@@ -127,6 +133,8 @@ export interface AppState {
   offset: number;
   /** Active agent filter (dial 2). */
   filter: AgentFilter;
+  /** Which number the LCD quota rows show (toggled by the third dial). */
+  lcdNumberMode: LcdNumberMode;
   /** True when the cmux feed is currently unavailable. */
   cmuxOffline: boolean;
   /** True when the Orca feed is currently unavailable. */

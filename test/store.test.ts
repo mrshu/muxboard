@@ -31,6 +31,15 @@ test("agent filter narrows items and resets offset", () => {
   assert.equal(store.getState().filter, "all");
 });
 
+test("the LCD number mode toggles between remaining and pace", () => {
+  const store = freshStore();
+  assert.equal(store.getState().lcdNumberMode, "remaining"); // default
+  store.cycleNumberMode();
+  assert.equal(store.getState().lcdNumberMode, "pace");
+  store.cycleNumberMode();
+  assert.equal(store.getState().lcdNumberMode, "remaining");
+});
+
 test("providers are kept in display order for the LCD segments", () => {
   const store = new Store(["codex", "claude", "minimax", "kimi"]);
   assert.deepEqual(store.getState().providers, ["codex", "claude", "minimax", "kimi"]);

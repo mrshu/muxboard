@@ -4,7 +4,10 @@ import { renderKey, renderEmptyKey, renderSourceOffline } from "../src/core/rend
 import {
   renderLcdSegments,
   routeStatus,
+  reservePercent,
+  elapsedPercent,
 } from "../src/core/render/lcdRender.js";
+import type { UsageWindow } from "../src/core/types.js";
 import { formatAge, formatCountdown, formatUsd, shortName } from "../src/core/render/format.js";
 import { normalizeUsageResponse } from "../src/core/codexbar/normalize.js";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
@@ -18,6 +21,24 @@ test("format helpers are compact and deterministic", () => {
   assert.equal(formatUsd(4.2), "$4.20");
   assert.equal(formatUsd(undefined), "—");
   assert.equal(shortName("~/w/d/r/codex-playground", 13), "codex-playgr…");
+});
+
+test("reservePercent: reserve, on-par, deficit, and unbounded windows", () => {
+  // A 300-minute window with 150 minutes left → exactly 50% elapsed.
+  const at = (minLeft: number) => new Date(NOW_MS + minLeft * 60_000).toISOString();
+  const win = (used: number, minLeft: number): UsageWindow => ({
+    usedPercent: used,
+    remainingPercent: 100 - used,
+    resetsAt: at(minLeft),
+    windowMinutes: 300,
+  });
+  assert.equal(elapsedPercent(win(0, 150), NOW_MS), 50);
+  assert.equal(reservePercent(win(20, 150), NOW_MS), 30); // used 20 < elapsed 50 → +30 reserve
+  assert.equal(reservePercent(win(48, 150), NOW_MS), 2); // within dead-band → ~on par
+  assert.equal(reservePercent(win(70, 150), NOW_MS), -20); // used 70 > elapsed 50 → deficit
+  // No reset time / window length (e.g. an "Unlimited" window) → undefined.
+  assert.equal(elapsedPercent({ usedPercent: 10, remainingPercent: 90 }, NOW_MS), undefined);
+  assert.equal(reservePercent({ usedPercent: 10, remainingPercent: 90 }, NOW_MS), undefined);
 });
 
 test("renderKey embeds agent glyph, reason, repo, and age", () => {
@@ -83,19 +104,25 @@ test("renderEmptyKey and renderSourceOffline produce valid muted SVGs", () => {
 test("renderLcdSegments shows one provider per segment, all at a glance", () => {
   const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
   codex.costTodayUsd = 4.2;
+  codex.tokensToday = 1_200_000;
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
 
   const [s0, s1, s2, s3] = renderLcdSegments([codex, claude, kimi, undefined], {
     nowMs: NOW_MS,
     stale: false,
+    numberMode: "remaining",
   });
-  // codex: name (CodexBar brand color) + session 99% + weekly 75% + cost
+  // codex: brand-color name; the default row number is absolute remaining%
   assert.match(s0, /CODEX/);
   assert.match(s0, /#49A3B0/i); // codex brand color from CodexBar
-  assert.match(s0, /99%/);
-  assert.match(s0, /75%/);
+  assert.match(s0, /99%/); // session remaining
+  assert.match(s0, /75%/); // weekly remaining
+  // the pace marker (ghost) shows even in remaining mode: weekly is in reserve
+  assert.match(s0, /fill-opacity="0.3"/);
+  // footer: today's spend + tokens
   assert.match(s0, /\$4\.20/);
+  assert.match(s0, /1\.2M tok/);
   // claude visible in its own segment
   assert.match(s1, /CLAUDE/);
   assert.match(s1, /97%/);
@@ -106,9 +133,20 @@ test("renderLcdSegments shows one provider per segment, all at a glance", () => 
   assert.match(s3, /—/);
 });
 
+test("the rightmost dial toggles the quota number to the pace delta", () => {
+  const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
+  const [s0] = renderLcdSegments([codex], { nowMs: NOW_MS, stale: false, numberMode: "pace" });
+  // session ~on-par ("+0%"), weekly ~12% under the clock ("+12%") in reserve green
+  assert.match(s0, /\+0%/);
+  assert.match(s0, /\+12%/);
+  assert.match(s0, /#46e07a/i);
+  // remaining% is not shown in pace mode
+  assert.doesNotMatch(s0, /75%/);
+});
+
 test("provider segment marks stale data", () => {
   const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
-  const [seg] = renderLcdSegments([codex], { nowMs: NOW_MS, stale: true });
+  const [seg] = renderLcdSegments([codex], { nowMs: NOW_MS, stale: true, numberMode: "remaining" });
   assert.match(seg, /stale/);
   assert.equal(routeStatus(codex, true), "STALE");
 });
