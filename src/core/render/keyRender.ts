@@ -111,7 +111,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   <rect width="${S}" height="${S}" rx="18" fill="url(#bg)"/>
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
-    <text x="6" y="17" font-size="12" font-weight="800" fill="#5b5f67">${opts.slotNumber}</text>
+    <text x="49" y="32" font-size="15" font-weight="800" fill="#8a92a0">${opts.slotNumber}</text>
     ${
       opts.viewBadge
         ? `<g><rect x="${S / 2 - 23}" y="8" width="46" height="17" rx="8" fill="#1f6feb"/><text x="${S / 2}" y="20" font-size="11" font-weight="800" text-anchor="middle" fill="#fff" letter-spacing="0.5">${escapeXml(opts.viewBadge)}</text></g>`
