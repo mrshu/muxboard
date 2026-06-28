@@ -10,8 +10,8 @@ export const KEY_SIZE = 144;
 export interface KeyRenderOptions {
   /** Epoch ms used to compute age. */
   nowMs: number;
-  /** 1-based slot number shown as a faint corner index. */
-  slotNumber: number;
+  /** Absolute 1-based queue position, shown beside the icon only while scrolled. Omit to hide it. */
+  slotNumber?: number;
   /** Optional active-view tag (e.g. "DEC") drawn top-center so a non-default board is never a hidden mode. */
   viewBadge?: string;
 }
@@ -111,7 +111,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   <rect width="${S}" height="${S}" rx="18" fill="url(#bg)"/>
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
-    <text x="49" y="32" font-size="15" font-weight="800" fill="#8a92a0">${opts.slotNumber}</text>
+    ${opts.slotNumber != null ? `<text x="49" y="32" font-size="15" font-weight="800" fill="#8a92a0">${opts.slotNumber}</text>` : ""}
     ${
       opts.viewBadge
         ? `<g><rect x="${S / 2 - 23}" y="8" width="46" height="17" rx="8" fill="#1f6feb"/><text x="${S / 2}" y="20" font-size="11" font-weight="800" text-anchor="middle" fill="#fff" letter-spacing="0.5">${escapeXml(opts.viewBadge)}</text></g>`

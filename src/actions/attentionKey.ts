@@ -144,19 +144,20 @@ export class AttentionKeyAction extends SingletonAction {
     const decisions = state.view === "decisions";
     // The index shows the item's ABSOLUTE position in the queue, not the
     // physical key — so scrolling (col-0 dial) reveals 9, 10, 11… and you can
-    // see how deep into a long queue this key is.
-    const queuePos = state.offset + slot + 1;
+    // see how deep into a long queue this key is. Hidden until you actually
+    // scroll (offset 0 → no number), so the resting board stays uncluttered.
+    const queuePos = state.offset > 0 ? state.offset + slot + 1 : undefined;
     if (allDown && slot === 0 && state.items.length === 0) {
       const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
       svg = renderSourceOffline(labels.join(" + "));
     } else if (decisions && state.items.length === 0 && !allDown) {
       // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
-      svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(queuePos);
+      svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item
         ? renderKey(item, { nowMs: Date.now(), slotNumber: queuePos, viewBadge: decisions ? "DEC" : undefined })
-        : renderEmptyKey(queuePos);
+        : renderEmptyKey(slot + 1);
     }
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce: no change
