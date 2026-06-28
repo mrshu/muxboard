@@ -1,4 +1,5 @@
 import type { AgentKind } from "../types.js";
+import { type Activity, hasSpinnerGlyph } from "./workspaces.js";
 
 /**
  * Map a cmux coding-agent id to our AgentKind. cmux reports canonical ids
@@ -79,6 +80,55 @@ export function parseCodingAgents(topRaw: unknown): Map<string, AgentKind> {
     }
   };
   visit(top);
+  return out;
+}
+
+/**
+ * Build a workspaceId → "working" map from the per-surface titles in `cmux top`.
+ *
+ * cmux strips the spinner glyph from a workspace's *own* JSON title once it has
+ * a custom title, so the workspace-title heuristic (detectActivity) is blind to
+ * every custom-titled pane. But the live braille spinner survives on the pane's
+ * *surface* title (`panes[].surfaces[].title`), so a custom-titled agent that
+ * emits no event-stream hooks (e.g. a `claude` launched by hand outside cmux's
+ * hook-injecting wrapper) is still visibly working here. A workspace counts as
+ * working if ANY of its surface titles carries the spinner. We scan every
+ * descendant title under a workspace, so the exact pane/surface nesting doesn't
+ * matter; non-spinner titles (and the ✳ idle marker) never match.
+ */
+export function parseSurfaceActivity(topRaw: unknown): Map<string, Activity> {
+  const out = new Map<string, Activity>();
+
+  const collectTitles = (node: unknown, acc: string[]): void => {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+    if (typeof n.title === "string") acc.push(n.title);
+    for (const key of Object.keys(n)) {
+      const v = n[key];
+      if (v && typeof v === "object") collectTitles(v, acc);
+    }
+  };
+
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+    if (Array.isArray(n.workspaces)) {
+      for (const w of n.workspaces) {
+        if (!w || typeof w !== "object") continue;
+        const id = (w as { id?: unknown }).id;
+        if (typeof id !== "string") continue;
+        const titles: string[] = [];
+        collectTitles(w, titles);
+        if (titles.some(hasSpinnerGlyph)) out.set(id, "working");
+      }
+    }
+    for (const key of Object.keys(n)) {
+      const v = n[key];
+      if (v && typeof v === "object") visit(v);
+    }
+  };
+
+  visit(topRaw);
   return out;
 }
 

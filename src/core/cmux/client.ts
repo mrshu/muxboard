@@ -4,8 +4,8 @@ import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentKind, AttentionItem, WorkspaceStatus } from "../types.js";
 import { type AgentAliases, buildRunningItems, normalizeNotifications } from "./normalize.js";
-import { parseCodingAgents, parseWorkspaceCpu } from "./agents.js";
-import { parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
+import { parseCodingAgents, parseSurfaceActivity, parseWorkspaceCpu } from "./agents.js";
+import { type Activity, parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,6 +111,8 @@ export class CmuxClient {
   private agentCacheAt = 0;
   /** Cached workspace→CPU% map (from the same `top` call). */
   private cpuCache: Map<string, number> = new Map();
+  /** Cached workspace→"working" map from per-surface spinner glyphs (same `top`). */
+  private surfaceCache: Map<string, Activity> = new Map();
   private readonly busyCpuPercent: number;
   /** workspaceId → epoch ms it last exceeded the busy threshold (hysteresis). */
   private readonly lastBusyAt: Map<string, number> = new Map();
@@ -148,22 +150,51 @@ export class CmuxClient {
       this.workspaceInfo(),
     ]);
     const parsed = JSON.parse(stdout) as unknown;
+    const enriched = this.applySurfaceActivity(workspaces, agents);
     const items = normalizeNotifications(parsed, this.aliases, {
       agents,
-      workspaces,
+      workspaces: enriched,
       busyWorkspaces: this.busyWorkspaces(),
     });
     // Append actively-working agent panes that have no notification, so they're
     // listed (at the end, via triage). Skip workspaces already on a key.
     const covered = new Set(items.map((i) => i.workspaceId));
     const running = buildRunningItems(
-      workspaces,
+      enriched,
       agents,
       covered,
       new Date(this.now()).toISOString(),
       status,
     );
     return [...items, ...running];
+  }
+
+  /**
+   * Overlay the per-surface spinner signal onto the workspace-list info.
+   *
+   * `cmux workspace list` only carries the (glyph-stripped) workspace title, so a
+   * custom-titled agent that is actively working but emits no event-stream hooks
+   * reads as "waiting". The live braille spinner survives on that pane's surface
+   * title (from `cmux top`), so we upgrade such a workspace's activity to
+   * "working". Scoped to workspaces cmux identifies as coding agents, so a plain
+   * command pane with a spinner-style CLI doesn't get mislabelled an agent. The
+   * event-stream verdict still wins downstream (store.applyStatus forces
+   * working=false on a live needs/idle state). Returns the same map untouched
+   * when nothing changes, copying only the entries it upgrades.
+   */
+  private applySurfaceActivity(
+    workspaces: Map<string, WorkspaceInfo>,
+    agents: Map<string, AgentKind>,
+  ): Map<string, WorkspaceInfo> {
+    if (this.surfaceCache.size === 0) return workspaces;
+    let out: Map<string, WorkspaceInfo> | null = null;
+    for (const [id, ws] of workspaces) {
+      if (ws.activity !== "working" && agents.has(id) && this.surfaceCache.get(id) === "working") {
+        out ??= new Map(workspaces);
+        out.set(id, { ...ws, activity: "working" });
+      }
+    }
+    return out ?? workspaces;
   }
 
   /**
@@ -241,6 +272,7 @@ export class CmuxClient {
       const top = JSON.parse(stdout);
       this.agentCache = parseCodingAgents(top);
       this.cpuCache = parseWorkspaceCpu(top);
+      this.surfaceCache = parseSurfaceActivity(top);
       this.agentCacheAt = this.now();
     } catch {
       // Keep the last cache; the title/alias heuristic covers the gap.

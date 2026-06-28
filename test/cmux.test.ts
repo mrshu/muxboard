@@ -5,7 +5,8 @@ import {
   detectReason,
   normalizeNotifications,
 } from "../src/core/cmux/normalize.js";
-import { parseCodingAgents, toAgentKind } from "../src/core/cmux/agents.js";
+import { parseCodingAgents, parseSurfaceActivity, toAgentKind } from "../src/core/cmux/agents.js";
+import { hasSpinnerGlyph } from "../src/core/cmux/workspaces.js";
 import {
   assignSlots,
   clampOffset,
@@ -88,6 +89,42 @@ test("parseCodingAgents maps workspace → agent from running processes", () => 
   assert.equal(map.get("WS-CODEX"), "codex");
   assert.equal(map.get("WS-PLAIN"), undefined); // no coding-agent process
   assert.equal(toAgentKind("gemini"), "unknown");
+});
+
+test("hasSpinnerGlyph matches the braille working spinner, not the ✳ idle marker", () => {
+  // cmux prepends an animated braille spinner (U+2800–U+28FF) ONLY while the
+  // agent is actively working; a leading ✳ (U+2733) is the idle/waiting marker
+  // and must NOT read as working.
+  assert.equal(hasSpinnerGlyph("⠂ Fix the reporting status"), true);
+  assert.equal(hasSpinnerGlyph("⠴ fieldtheory-cli"), true);
+  assert.equal(hasSpinnerGlyph("✳ Claude Code"), false); // idle marker
+  assert.equal(hasSpinnerGlyph("✳ View for refs to see assigned matches"), false);
+  assert.equal(hasSpinnerGlyph("RCJ Scoreboard"), false);
+  assert.equal(hasSpinnerGlyph(""), false);
+});
+
+test("parseSurfaceActivity marks a workspace working from a surface-title spinner", () => {
+  // The braille spinner survives on the per-surface title even when a custom
+  // workspace title has had its glyph stripped — the only "working" signal for a
+  // custom-titled agent pane that emits no event-stream hooks.
+  const top = {
+    windows: [
+      {
+        workspaces: [
+          // Custom (glyph-less) workspace title, but the surface is spinning.
+          { id: "WS-WORK", title: "RCJ Scoreboard", panes: [{ surfaces: [{ kind: "surface", title: "⠂ View for refs" }] }] },
+          // ✳ on the surface is the idle marker → not working.
+          { id: "WS-IDLE", title: "Other", panes: [{ surfaces: [{ kind: "surface", title: "✳ Claude Code" }] }] },
+          // No glyph anywhere → not working.
+          { id: "WS-PLAIN", title: "Plain", panes: [{ surfaces: [{ kind: "surface", title: "~/w/d/x" }] }] },
+        ],
+      },
+    ],
+  };
+  const m = parseSurfaceActivity(top);
+  assert.equal(m.get("WS-WORK"), "working");
+  assert.equal(m.get("WS-IDLE"), undefined);
+  assert.equal(m.get("WS-PLAIN"), undefined);
 });
 
 test("process-detected agent overrides the title (e.g. codex named 'fieldtheory-cli')", () => {

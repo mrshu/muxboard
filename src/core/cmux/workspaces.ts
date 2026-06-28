@@ -14,12 +14,23 @@ export interface WorkspaceInfo {
 }
 
 /**
+ * True iff a title leads with cmux's animated braille spinner (U+2800–U+28FF),
+ * which cmux shows ONLY while the agent is actively working. A leading ✳
+ * (U+2733) is cmux's idle/waiting marker and deliberately does NOT match — it
+ * would otherwise flag every idle Claude pane as working. Shared by the
+ * workspace-title heuristic and the per-surface-title check in agents.ts.
+ */
+export function hasSpinnerGlyph(title: string): boolean {
+  return /^\s*[⠀-⣿]/.test(title);
+}
+
+/**
  * Infer activity from a raw title's leading status glyph: cmux prepends an
  * animated braille spinner (U+2800–U+28FF) while the agent is actively working,
  * and a ✳ (or nothing) when it's idle/waiting for you.
  */
 export function detectActivity(rawTitle: string): Activity {
-  return /^\s*[⠀-⣿]/.test(rawTitle) ? "working" : "waiting";
+  return hasSpinnerGlyph(rawTitle) ? "working" : "waiting";
 }
 
 /** Strip cmux's leading spinner/✳ status glyphs and collapse whitespace. */

@@ -85,6 +85,47 @@ test("CmuxService surfaces a running, custom-titled, notification-less pane from
   assert.equal(items[0].synthetic, true);
 });
 
+test("CmuxService surfaces a custom-titled agent working from its surface spinner, with no hooks", async () => {
+  const store = new Store();
+  // No event-stream status at all (the hand-launched-claude / GC'd-shim case),
+  // and the workspace-list title is custom so it carries no spinner glyph. The
+  // braille spinner survives on the pane's surface title in `cmux top`, which is
+  // the only "working" signal left — muxboard must still surface the pane.
+  const top = JSON.stringify({
+    coding_agents: [{ id: "claude", resources: { pids: [100] } }],
+    windows: [
+      {
+        workspaces: [
+          { id: "w-surf", panes: [{ surfaces: [{ kind: "surface", root_pids: [100], title: "⠂ View for refs" }] }] },
+        ],
+      },
+    ],
+  });
+  const client = new CmuxClient({
+    runner: async (_bin, args) => {
+      if (args[0] === "list-notifications") return { stdout: "[]", stderr: "" };
+      if (args.includes("top")) return { stdout: top, stderr: "" };
+      if (args.includes("workspace"))
+        return {
+          stdout: JSON.stringify({
+            workspaces: [{ ref: "w-surf", title: "RCJ Scoreboard", has_custom_title: true, custom_title: "RCJ Scoreboard" }],
+          }),
+          stderr: "",
+        };
+      return { stdout: "", stderr: "" };
+    },
+  });
+  const service = new CmuxService({ client, store, pollMs: 10_000 });
+
+  await service.poll();
+  const items = store.getState().items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].workspaceId, "w-surf");
+  assert.equal(items[0].agent, "claude");
+  assert.equal(items[0].activity, "working");
+  assert.equal(items[0].synthetic, true);
+});
+
 test("CmuxService keeps last-good items and flags offline after 2 failures", async () => {
   const store = new Store(["codex"]);
   let mode: "ok" | "fail" = "ok";
