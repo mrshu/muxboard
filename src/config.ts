@@ -24,8 +24,6 @@ export interface MuxboardConfig {
   cmuxPollMs: number;
   /** CodexBar poll interval (ms). */
   codexbarPollMs: number;
-  /** Agents allowed onto the attention queue. */
-  enabledAgents: AgentKind[];
   /**
    * Map a notification name substring → agent, for custom-named agents cmux
    * doesn't tag (e.g. a codex CLI shown as "fieldtheory-cli"). Case-insensitive.
@@ -56,7 +54,6 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   codexbarProviders: [],
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
-  enabledAgents: ["claude", "codex", "pi", "unknown"],
   // Agents are detected from the running process; this is only a manual override
   // fallback (name substring → agent) for cases that can't be detected.
   agentAliases: {},
@@ -80,7 +77,6 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
     codexbarProviders: cleanStrings(p.codexbarProviders) ?? DEFAULT_CONFIG.codexbarProviders,
     cmuxPollMs: clampInt(p.cmuxPollMs, 500, 10_000, DEFAULT_CONFIG.cmuxPollMs),
     codexbarPollMs: clampInt(p.codexbarPollMs, 5_000, 600_000, DEFAULT_CONFIG.codexbarPollMs),
-    enabledAgents: cleanAgents(p.enabledAgents) ?? DEFAULT_CONFIG.enabledAgents,
     agentAliases: cleanAliases(p.agentAliases) ?? DEFAULT_CONFIG.agentAliases,
     busyCpuPercent: clampInt(p.busyCpuPercent, 1, 100_000, DEFAULT_CONFIG.busyCpuPercent),
     orcaBin: nonEmpty(p.orcaBin) ?? DEFAULT_CONFIG.orcaBin,
@@ -116,12 +112,6 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
 function cleanStrings(v: unknown): string[] | undefined {
   if (!Array.isArray(v)) return undefined;
   const out = v.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim());
-  return out.length > 0 ? out : undefined;
-}
-
-function cleanAgents(v: unknown): AgentKind[] | undefined {
-  if (!Array.isArray(v)) return undefined;
-  const out = v.filter((x): x is AgentKind => ALL_AGENTS.includes(x as AgentKind));
   return out.length > 0 ? out : undefined;
 }
 

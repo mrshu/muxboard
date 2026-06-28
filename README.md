@@ -322,7 +322,6 @@ Stored in the plugin's global settings; all fields have safe defaults
 | `codexbarProviders` | `[]` | Optional allow-list/order; empty = auto-discover all |
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
-| `enabledAgents` | all | Agents allowed onto the queue |
 | `agentAliases` | `{}` | Manual override (name substring → agent); process detection is primary |
 | `busyCpuPercent` | `40` | Workspace CPU% (from `cmux top`) at/above which a running command counts as "working" |
 
