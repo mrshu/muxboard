@@ -142,17 +142,21 @@ export class AttentionKeyAction extends SingletonAction {
     // never started, doesn't keep the board blank when cmux is down).
     const allDown = cmuxDown && orcaDown;
     const decisions = state.view === "decisions";
+    // The index shows the item's ABSOLUTE position in the queue, not the
+    // physical key — so scrolling (col-0 dial) reveals 9, 10, 11… and you can
+    // see how deep into a long queue this key is.
+    const queuePos = state.offset + slot + 1;
     if (allDown && slot === 0 && state.items.length === 0) {
       const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
       svg = renderSourceOffline(labels.join(" + "));
     } else if (decisions && state.items.length === 0 && !allDown) {
       // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
-      svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
+      svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(queuePos);
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item
-        ? renderKey(item, { nowMs: Date.now(), slotNumber: slot + 1, viewBadge: decisions ? "DEC" : undefined })
-        : renderEmptyKey(slot + 1);
+        ? renderKey(item, { nowMs: Date.now(), slotNumber: queuePos, viewBadge: decisions ? "DEC" : undefined })
+        : renderEmptyKey(queuePos);
     }
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce: no change
