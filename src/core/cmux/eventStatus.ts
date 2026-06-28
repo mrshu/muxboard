@@ -66,7 +66,10 @@ type Tracked = WorkspaceStatus & { source: "status" | "hook" };
  *     a status for, mapped to running/needs/idle ourselves.
  *
  * Once a workspace has a `set_status`, hook events for it are ignored so the two
- * sources can't fight. `since` only advances when the state actually *changes*,
+ * sources can't fight — except a terminal `Stop`/`SessionEnd` hook may still
+ * close out a stale `running` verdict, since cmux often emits the Running
+ * set_status without ever publishing the matching Idle one. `since` only
+ * advances when the state actually *changes*,
  * so a burst of events while working keeps the original "working since" time and
  * the displayed duration reflects the whole burst, not the last event.
  */
@@ -137,12 +140,21 @@ export class WorkspaceStatusTracker {
   private apply(wsId: string, state: WorkspaceState | null, occurredAt: unknown, source: "status" | "hook"): boolean {
     if (!wsId || !state) return false;
     const prev = this.map.get(wsId);
-    if (prev && source === "hook" && prev.source === "status") return false; // cmux's verdict wins
+    const occurredMs = typeof occurredAt === "string" ? Date.parse(occurredAt) : NaN;
+    if (prev && source === "hook" && prev.source === "status") {
+      // cmux's set_status verdict normally wins over noisy hooks. One exception:
+      // a terminal idle hook (Stop/SessionEnd) superseding a stale "running"
+      // verdict. cmux reliably emits the Running set_status but routinely omits
+      // the matching Idle one, so without this a finished agent stays "working"
+      // forever. Require the hook to be newer than the running burst's start so
+      // a replayed/out-of-order Stop can't clear a genuinely live run.
+      const closesStaleRun = state === "idle" && prev.state === "running" && !Number.isNaN(occurredMs) && occurredMs >= prev.since;
+      if (!closesStaleRun) return false;
+    }
     if (prev && prev.state === state) {
       if (prev.source !== source) prev.source = source; // upgrade hook→status authority
       return false; // same state: keep `since`
     }
-    const occurredMs = typeof occurredAt === "string" ? Date.parse(occurredAt) : NaN;
     const since = Number.isNaN(occurredMs) ? this.now() : occurredMs;
     this.map.set(wsId, { state, since, source });
     return true;

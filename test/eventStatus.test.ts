@@ -98,6 +98,39 @@ test("set_status is authoritative: hook events can't override it", () => {
   assert.equal(t.snapshot().w1.state, "idle");
 });
 
+test("a terminal Stop hook clears a stale 'Running' verdict cmux never closed", () => {
+  // cmux reliably emits the Running set_status but often omits the matching
+  // Idle one, so a finished agent would otherwise stay "working" forever.
+  const t = new WorkspaceStatusTracker();
+  t.ingest(setStatus("Running", "w1", "2026-06-20T12:00:00Z"));
+  assert.equal(
+    t.ingest({
+      name: "agent.hook.Stop",
+      occurred_at: "2026-06-20T12:30:00Z",
+      payload: { hook_event_name: "Stop", workspace_id: "w1" },
+    }),
+    true,
+  );
+  const s = t.snapshot();
+  assert.equal(s.w1.state, "idle");
+  assert.equal(s.w1.since, Date.parse("2026-06-20T12:30:00Z"));
+});
+
+test("a Stop hook older than the running burst can't clear a live verdict", () => {
+  // Guards against a replayed/out-of-order Stop predating the run.
+  const t = new WorkspaceStatusTracker();
+  t.ingest(setStatus("Running", "w1", "2026-06-20T12:00:00Z"));
+  assert.equal(
+    t.ingest({
+      name: "agent.hook.Stop",
+      occurred_at: "2026-06-20T11:59:00Z",
+      payload: { hook_event_name: "Stop", workspace_id: "w1" },
+    }),
+    false,
+  );
+  assert.equal(t.snapshot().w1.state, "running");
+});
+
 test("hooks still drive workspaces cmux publishes no set_status for", () => {
   const t = new WorkspaceStatusTracker();
   t.ingest({
