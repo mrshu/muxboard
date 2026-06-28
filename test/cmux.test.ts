@@ -316,3 +316,12 @@ test("isDecision flags failed/blocked/needs-input, not plain waiting or working"
   assert.equal(isDecision({ ...base, reason: "waiting" }), false); // plain waiting
   assert.equal(isDecision({ ...base, reason: "failed", activity: "working" }), false); // working sinks
 });
+
+test("triageOrder surfaces a stalled pane above plain waiting and working", () => {
+  const ordered = triageOrder([
+    { ...item("work", "2026-06-20T12:00:00Z"), activity: "working" },
+    { ...item("stall", "2026-06-20T12:00:00Z"), activity: "working", stalled: true },
+    item("wait", "2026-06-20T12:00:00Z"),
+  ]).map((i) => i.id);
+  assert.deepEqual(ordered, ["stall", "wait", "work"]); // stalled(3) < waiting(4) < working(5)
+});

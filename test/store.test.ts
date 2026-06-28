@@ -11,6 +11,49 @@ function freshStore(): Store {
   return store;
 }
 
+const mkItem = (over: Partial<AttentionItem> & { id: string }): AttentionItem => ({
+  source: "cmux", agent: "claude", workspaceId: over.id, title: over.id,
+  reason: "waiting", activity: "waiting", body: "", message: "",
+  createdAt: "2026-06-20T12:00:00Z", ...over,
+});
+
+test("a running pane gone silent past the threshold is marked stalled", () => {
+  let now = 1_000_000;
+  const store = new Store([], () => now);
+  store.setWorkspaceStatus({ w1: { state: "running", since: 0, lastSeen: now - 200_000 } }); // >180s ago
+  store.setAttention([mkItem({ id: "a", workspaceId: "w1" })], false);
+  const it = store.getState().items.find((i) => i.workspaceId === "w1");
+  assert.equal(it?.activity, "working"); // still running, just silent
+  assert.equal(it?.stalled, true);
+});
+
+test("a fresh running pane (recent lastSeen) or a busy one is NOT stalled", () => {
+  let now = 1_000_000;
+  const fresh = new Store([], () => now);
+  fresh.setWorkspaceStatus({ w1: { state: "running", since: 0, lastSeen: now - 5_000 } });
+  fresh.setAttention([mkItem({ id: "a", workspaceId: "w1" })], false);
+  assert.equal(fresh.getState().items[0]?.stalled, undefined);
+  // A CPU-busy pane is genuine work even if its hooks went quiet.
+  const busy = new Store([], () => now);
+  busy.setWorkspaceStatus({ w1: { state: "running", since: 0, lastSeen: now - 200_000 } });
+  busy.setAttention([mkItem({ id: "a", workspaceId: "w1", busy: true, busySince: now })], false);
+  assert.equal(busy.getState().items[0]?.stalled, undefined);
+});
+
+test("long-press snooze hides a workspace, then it auto-reverts when the window passes", () => {
+  let now = 1_000_000;
+  const store = new Store([], () => now);
+  const load = () => store.setAttention([mkItem({ id: "a", workspaceId: "w1" }), mkItem({ id: "b", workspaceId: "w2" })], false);
+  load();
+  assert.equal(store.getState().items.length, 2);
+  store.snooze("w1", 5000);
+  assert.equal(store.getState().items.length, 1);
+  assert.ok(!store.getState().items.some((i) => i.workspaceId === "w1"));
+  now += 6000; // past the snooze window
+  load(); // a poll recomputes -> the snooze has expired and w1 returns
+  assert.equal(store.getState().items.length, 2);
+});
+
 test("store sorts items newest-first into items", () => {
   const store = freshStore();
   const { items } = store.getState();

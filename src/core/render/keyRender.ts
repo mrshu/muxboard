@@ -44,6 +44,9 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const S = KEY_SIZE;
 
   const working = item.activity === "working";
+  // A working pane that went silent (probably hung): overrides the plain
+  // "working" look with a distinct stalled treatment.
+  const stalled = item.stalled === true;
   // A failed/blocked notification lingers in cmux after you respond — but once
   // the agent resumes (working), it no longer needs you, so "working" wins.
   const isFailed = !working && item.reason === "failed";
@@ -54,7 +57,9 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
 
   // Status line (bottom): what the pane is doing. "working" (building/changing)
   // means it's busy again; failed/permission/needs-input are the ones that want you.
-  const status = working
+  const status = stalled
+    ? { text: "◷ STALLED", color: "#e0852b" }
+    : working
     ? { text: "● working", color: "#4ec9b0" }
     : isFailed
       ? { text: "✕ FAILED", color: "#ff4d4f" }
@@ -66,17 +71,19 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
 
   // Border = the workspace's own cmux color; failed/blocked/needs override
   // (critical) only while still waiting; a working pane keeps its workspace color.
-  const borderColor = isFailed
-    ? "#ff4d4f"
-    : isBlocked
-      ? "#ffb02e"
-      : needsInput
-        ? "#38bdf8" // cyan: clearly distinct from blocked's amber at a glance
-        : (item.color ?? null);
+  const borderColor = stalled
+    ? "#e0852b" // amber-orange: a working pane gone silent
+    : isFailed
+      ? "#ff4d4f"
+      : isBlocked
+        ? "#ffb02e"
+        : needsInput
+          ? "#38bdf8" // cyan: clearly distinct from blocked's amber at a glance
+          : (item.color ?? null);
   // Non-linear width ramp so border thickness tracks triage rank: the single
   // most dangerous (failed) tile visibly out-shouts blocked/needs, which in
   // turn out-shout a plain colored key.
-  const borderW = isFailed ? 10 : isBlocked ? 7 : needsInput ? 6 : item.color ? 4 : 0;
+  const borderW = stalled ? 7 : isFailed ? 10 : isBlocked ? 7 : needsInput ? 6 : item.color ? 4 : 0;
   const border = borderW
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`
     : "";
@@ -143,6 +150,23 @@ export function renderAllClear(label: string): string {
   <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">
     <text x="${S / 2}" y="${S / 2 - 2}" font-size="44" fill="#3fae7a">✓</text>
     <text x="${S / 2}" y="${S / 2 + 34}" font-size="15" font-weight="700" fill="#5b6b62">${escapeXml(label)}</text>
+  </g>
+</svg>`;
+}
+
+/**
+ * Render the overflow tile shown on the last key when the queue has more items
+ * than fit: a "+N more" count tinted by the most-severe hidden item's color, so
+ * the board never silently lies about how much is hidden below the fold.
+ */
+export function renderOverflow(hiddenCount: number, accent: string): string {
+  const S = KEY_SIZE;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
+  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="${accent}" stroke-width="4"/>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <text x="${S / 2}" y="${S / 2 + 4}" font-size="40" font-weight="800" fill="${accent}">+${hiddenCount}</text>
+    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700" fill="#7d8794">more</text>
   </g>
 </svg>`;
 }

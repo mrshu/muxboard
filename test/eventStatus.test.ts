@@ -35,6 +35,15 @@ test("since stays put while the state is unchanged (working burst start)", () =>
   assert.equal(t.snapshot().w1.since, Date.parse("2026-06-20T12:00:00Z"));
 });
 
+test("lastSeen advances on every event even when the state (and since) hold", () => {
+  const t = new WorkspaceStatusTracker();
+  t.ingest(ev("UserPromptSubmit", "w1", "2026-06-20T12:00:00Z"));
+  t.ingest(ev("PreToolUse", "w1", "2026-06-20T12:01:30Z")); // same running state
+  const s = t.snapshot();
+  assert.equal(s.w1.since, Date.parse("2026-06-20T12:00:00Z")); // burst keeps the start
+  assert.equal(s.w1.lastSeen, Date.parse("2026-06-20T12:01:30Z")); // but last-sign-of-life moves
+});
+
 test("since advances on a real transition (working -> idle)", () => {
   const t = new WorkspaceStatusTracker();
   t.ingest(ev("PreToolUse", "w1", "2026-06-20T12:00:00Z"));

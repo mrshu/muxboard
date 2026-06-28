@@ -8,8 +8,8 @@ import streamDeck, {
   type KeyAction,
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
-import { assignSlots, coordinatesToSlot } from "../core/cmux/sort.js";
-import { renderKey, renderEmptyKey, renderAllClear, renderSourceOffline } from "../core/render/keyRender.js";
+import { assignSlots, coordinatesToSlot, KEY_COUNT } from "../core/cmux/sort.js";
+import { renderKey, renderEmptyKey, renderAllClear, renderOverflow, renderSourceOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
 
 const toDataUri = (svg: string): string =>
@@ -34,8 +34,10 @@ export class AttentionKeyAction extends SingletonAction {
   private readonly longPress = new Map<string, ReturnType<typeof setTimeout>>();
   /** Keys whose long-press already fired, so the release does nothing more. */
   private readonly consumed = new Set<string>();
-  /** Hold this long to dismiss the notification instead of focusing it. */
+  /** Hold this long to snooze the notification instead of focusing it. */
   private static readonly LONG_PRESS_MS = 600;
+  /** How long a long-press snoozes a workspace before it auto-reverts. */
+  private static readonly SNOOZE_MS = 5 * 60 * 1000;
 
   constructor(runtime: Runtime) {
     super();
@@ -64,7 +66,7 @@ export class AttentionKeyAction extends SingletonAction {
     const id = ev.action.id;
     this.consumed.delete(id);
     const item = this.itemForAction(ev.action);
-    // Arm a long-press dismiss for real notifications: it fires while the key is
+    // Arm a long-press snooze for real notifications: it fires while the key is
     // still held (instant ✓), and the eventual release becomes a no-op. A tap
     // (release before the threshold) cancels it and focuses instead.
     if (item && !item.synthetic && ev.action.isKey()) {
@@ -72,7 +74,7 @@ export class AttentionKeyAction extends SingletonAction {
       const timer = setTimeout(() => {
         this.longPress.delete(id);
         this.consumed.add(id);
-        void this.dismiss(item, action);
+        void this.snooze(item, action);
       }, AttentionKeyAction.LONG_PRESS_MS);
       this.longPress.set(id, timer);
     }
@@ -91,15 +93,16 @@ export class AttentionKeyAction extends SingletonAction {
     if (item) await this.focus(item, ev.action);
   }
 
-  /** Long-press: cmux removes the notification; Orca re-focuses the worktree. */
-  private async dismiss(item: AttentionItem, action: KeyAction): Promise<void> {
-    try {
-      await this.runtime.backends[item.source].dismiss(item);
-      await action.showOk();
-    } catch (err) {
-      this.runtime.logger.warn(`dismiss failed: ${message(err)}`);
-      await action.showAlert();
-    }
+  /**
+   * Long-press: snooze the workspace locally for a bounded window, then it
+   * auto-reverts into the queue ("not now, but don't let me forget"). We do NOT
+   * tell the backend to dismiss — a true clear happens when the agent resolves
+   * or the user clears it in cmux (honored via the cleared-notification path),
+   * so nothing can be permanently lost by a press.
+   */
+  private async snooze(item: AttentionItem, action: KeyAction): Promise<void> {
+    this.runtime.store.snooze(item.workspaceId, AttentionKeyAction.SNOOZE_MS);
+    await action.showOk();
   }
 
   /** Bring the source app forward and jump to the pane (tap behavior). */
@@ -153,6 +156,11 @@ export class AttentionKeyAction extends SingletonAction {
     } else if (decisions && state.items.length === 0 && !allDown) {
       // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
       svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
+    } else if (slot === KEY_COUNT - 1 && state.items.length > state.offset + KEY_COUNT) {
+      // More items than fit below the fold: the last key becomes a "+N more"
+      // count tinted by the worst hidden item, so nothing is silently dropped.
+      const hidden = state.items.slice(state.offset + KEY_COUNT);
+      svg = renderOverflow(hidden.length, overflowAccent(hidden));
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item
@@ -170,4 +178,25 @@ export class AttentionKeyAction extends SingletonAction {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** Border tint for the "+N more" tile = the most-severe hidden item's color. */
+function overflowAccent(items: AttentionItem[]): string {
+  const color: Record<number, string> = { 0: "#ff4d4f", 1: "#ffb02e", 2: "#38bdf8", 3: "#e0852b" };
+  let best = 99;
+  for (const it of items) {
+    const rank = it.stalled
+      ? 3
+      : it.activity === "working"
+        ? 99
+        : it.reason === "failed"
+          ? 0
+          : it.reason === "blocked"
+            ? 1
+            : it.needsInput
+              ? 2
+              : 50; // plain waiting
+    if (rank < best) best = rank;
+  }
+  return color[best] ?? "#7d8794";
 }

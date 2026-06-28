@@ -17,6 +17,8 @@ export type WorkspaceState = "running" | "needs" | "idle";
 export interface WorkspaceStatus {
   state: WorkspaceState;
   since: number;
+  /** Epoch ms of the last event of any kind (last sign of life), for stall detection. */
+  lastSeen?: number;
 }
 
 export type AttentionReason =
@@ -52,6 +54,12 @@ export interface AttentionItem {
   busy?: boolean;
   /** Epoch ms the current busy window started (drives the age when busy). */
   busySince?: number;
+  /**
+   * True when a "working" pane has gone silent past the stall threshold (no
+   * events for a while AND not CPU-busy) — probably hung. Surfaced above plain
+   * working so it doesn't masquerade as healthy.
+   */
+  stalled?: true;
   /**
    * True when cmux's live status for the workspace is "Needs" (the agent is
    * waiting on you for input/a choice). Shown more prominently than plain

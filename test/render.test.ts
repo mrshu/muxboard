@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderKey, renderEmptyKey, renderSourceOffline } from "../src/core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderOverflow, renderSourceOffline } from "../src/core/render/keyRender.js";
 import {
   renderLcdSegments,
   routeStatus,
@@ -51,6 +51,18 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.match(svg, /FAILED/); // reason chip
   assert.match(svg, /codex/); // title (auto-fit, may wrap)
   assert.match(svg, /stroke-width="10"/); // failed -> strongest border (rank-tracking ramp)
+});
+
+test("renderKey marks a stalled pane distinctly from plain working", () => {
+  const base = { id: "x", agent: "claude" as const, workspaceId: "w", title: "t", reason: "waiting" as const, activity: "working" as const, body: "", message: "", createdAt: "2026-06-20T12:00:00Z" };
+  assert.match(renderKey(base, { nowMs: Date.parse("2026-06-20T12:01:00Z") }), /working/);
+  assert.match(renderKey({ ...base, stalled: true }, { nowMs: Date.parse("2026-06-20T12:01:00Z") }), /STALLED/);
+});
+
+test("renderOverflow shows the hidden count", () => {
+  const svg = renderOverflow(5, "#ff4d4f");
+  assert.match(svg, /\+5/);
+  assert.match(svg, /more/);
 });
 
 test("renderKey shows the slot index and an un-capped age-warmth size", () => {

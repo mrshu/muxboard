@@ -75,6 +75,13 @@ type Tracked = WorkspaceStatus & { source: "status" | "hook" };
  */
 export class WorkspaceStatusTracker {
   private readonly map = new Map<string, Tracked>();
+  /**
+   * Epoch ms of the latest event of ANY kind per workspace — i.e. the last sign
+   * of life. Unlike `since` (which only advances on a state CHANGE), this moves
+   * on every event in a working burst, so a working agent that has gone silent
+   * (no hooks for a while) can be told apart from a healthy long-running one.
+   */
+  private readonly lastSeen = new Map<string, number>();
   /** Epoch ms of the latest user "clear notifications" per workspace id. */
   private readonly cleared = new Map<string, number>();
   private readonly now: () => number;
@@ -141,6 +148,11 @@ export class WorkspaceStatusTracker {
     if (!wsId || !state) return false;
     const prev = this.map.get(wsId);
     const occurredMs = typeof occurredAt === "string" ? Date.parse(occurredAt) : NaN;
+    // Record last-sign-of-life on EVERY event (even same-state bursts and
+    // precedence-ignored hooks): the agent is clearly alive if it's emitting.
+    const seenMs = Number.isNaN(occurredMs) ? this.now() : occurredMs;
+    const prevSeen = this.lastSeen.get(wsId);
+    if (prevSeen == null || seenMs > prevSeen) this.lastSeen.set(wsId, seenMs);
     if (prev && source === "hook" && prev.source === "status") {
       // cmux's set_status verdict normally wins over noisy hooks. One exception:
       // a terminal idle hook (Stop/SessionEnd) superseding a stale "running"
@@ -163,7 +175,7 @@ export class WorkspaceStatusTracker {
   /** Immutable snapshot keyed by workspace id (source is internal). */
   snapshot(): Record<string, WorkspaceStatus> {
     const out: Record<string, WorkspaceStatus> = {};
-    for (const [k, v] of this.map) out[k] = { state: v.state, since: v.since };
+    for (const [k, v] of this.map) out[k] = { state: v.state, since: v.since, lastSeen: this.lastSeen.get(k) };
     return out;
   }
 

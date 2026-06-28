@@ -23,6 +23,9 @@ const FILTER_CYCLE: AgentFilter[] = ["all", "claude", "codex", "pi"];
 /** Number of LCD touch-strip segments (one per dial). */
 const LCD_SEGMENTS = 4;
 
+/** A "working" pane with no events for this long (and not CPU-busy) reads as stalled. */
+const STALLED_MS = 180_000;
+
 /** Wrap `n` into `[0, len)`; returns 0 when there is nothing to wrap into. */
 function wrap(n: number, len: number): number {
   if (len <= 0) return 0;
@@ -52,8 +55,12 @@ export class Store {
   private itemsBySource: Record<AttentionSource, AttentionItem[]> = { cmux: [], orca: [] };
   /** Epoch ms per workspace of the user's latest cmux "clear notifications". */
   private clearedNotifications: Record<string, number> = {};
+  /** workspaceId → epoch ms until which the user has snoozed it (long-press). */
+  private readonly snoozed = new Map<string, number>();
+  private readonly now: () => number;
 
-  constructor(providers: string[] = []) {
+  constructor(providers: string[] = [], now: () => number = () => Date.now()) {
+    this.now = now;
     this.state = {
       items: [],
       allItems: [],
@@ -100,6 +107,9 @@ export class Store {
     // (failed/permission) to the front for triage. Enrichment happens BEFORE
     // triageOrder so an event-driven "working" sinks the pane correctly.
     const enriched = dedupeNewestPerWorkspace(applyFilter(allItems, this.state.filter))
+      // Drop snoozed workspaces (long-press) until their window passes; an
+      // expired snooze auto-reverts here so the item silently returns.
+      .filter((it) => !this.isSnoozed(it))
       .map((it) => this.applyStatus(it))
       // A synthetic "running" pane is only listed while it's actually working;
       // once the live status says otherwise, drop it (a real notification will
@@ -137,11 +147,20 @@ export class Store {
     if (st) sinces.push(st.since);
     if (item.busy && item.busySince != null) sinces.push(item.busySince);
     const activitySince = sinces.length ? Math.max(...sinces) : item.activitySince;
+    // Stalled = a running pane that has gone silent past the threshold and isn't
+    // CPU-busy (a busy command is genuine work, not a hang). lastSeen advances on
+    // every event, so a healthy long turn stays fresh while a hung one goes stale.
+    const lastSeen = st?.lastSeen;
+    const stalled =
+      working && item.busy !== true && lastSeen != null && this.now() - lastSeen > STALLED_MS
+        ? (true as const)
+        : undefined;
     return {
       ...item,
       activity: working ? "working" : "waiting",
       activitySince,
       needsInput: st?.state === "needs" || undefined,
+      stalled,
     };
   }
 
@@ -165,6 +184,26 @@ export class Store {
     if (at == null) return false;
     const created = Date.parse(item.createdAt);
     return !Number.isNaN(created) && created <= at;
+  }
+
+  /**
+   * True while the user has snoozed this workspace (long-press) and the window
+   * hasn't elapsed. An expired snooze is pruned here so the item auto-reverts
+   * into the queue on the next recompute (poll/event), "not now but don't forget".
+   */
+  private isSnoozed(item: AttentionItem): boolean {
+    const until = this.snoozed.get(item.workspaceId);
+    if (until == null) return false;
+    if (this.now() < until) return true;
+    this.snoozed.delete(item.workspaceId);
+    return false;
+  }
+
+  /** Snooze a workspace's keys for `ms`; it returns automatically when elapsed. */
+  snooze(workspaceId: string, ms: number): void {
+    this.snoozed.set(workspaceId, this.now() + ms);
+    this.recompute();
+    this.emit();
   }
 
   /**
