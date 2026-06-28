@@ -59,7 +59,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
       : isBlocked
         ? { text: "PERMISSION", color: "#ffb02e" }
         : needsInput
-          ? { text: "◆ NEEDS YOU", color: "#ffd24a" }
+          ? { text: "◆ NEEDS YOU", color: "#38bdf8" }
           : { text: "waiting", color: "#9aa0aa" };
 
   // Border = the workspace's own cmux color; failed/blocked/needs override
@@ -69,9 +69,12 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     : isBlocked
       ? "#ffb02e"
       : needsInput
-        ? "#ffd24a"
+        ? "#38bdf8" // cyan: clearly distinct from blocked's amber at a glance
         : (item.color ?? null);
-  const borderW = isFailed ? 8 : isBlocked ? 6 : needsInput ? 6 : item.color ? 6 : 0;
+  // Non-linear width ramp so border thickness tracks triage rank: the single
+  // most dangerous (failed) tile visibly out-shouts blocked/needs, which in
+  // turn out-shout a plain colored key.
+  const borderW = isFailed ? 10 : isBlocked ? 7 : needsInput ? 6 : item.color ? 4 : 0;
   const border = borderW
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`
     : "";
@@ -106,12 +109,13 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   <rect width="${S}" height="${S}" rx="18" fill="url(#bg)"/>
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
+    <text x="6" y="17" font-size="12" font-weight="800" fill="#5b5f67">${opts.slotNumber}</text>
     <rect x="13" y="11" width="30" height="30" rx="8" fill="${a.accent}"/>
     ${
       providerIconSvg(item.agent, 17, 15, 22, "#10100f") ||
       `<text x="28" y="33" font-size="21" font-weight="700" text-anchor="middle" fill="#10100f">${escapeXml(a.glyph)}</text>`
     }
-    <text x="${S - 12}" y="34" font-size="${Math.min(ageS.size, 24)}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
+    <text x="${S - 12}" y="34" font-size="${ageS.size}" font-weight="800" text-anchor="end" fill="${ageS.color}">${escapeXml(age)}</text>
     ${title}
     <text x="12" y="${S - 11}" font-size="15" font-weight="800" fill="${status.color}" letter-spacing="0.5">${escapeXml(status.text)}</text>
     ${badge}

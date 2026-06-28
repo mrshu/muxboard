@@ -50,7 +50,25 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.match(svg, /<g transform="translate[^"]+scale/); // codex brand icon, inlined
   assert.match(svg, /FAILED/); // reason chip
   assert.match(svg, /codex/); // title (auto-fit, may wrap)
-  assert.match(svg, /stroke-width="8"/); // failed -> strongest border
+  assert.match(svg, /stroke-width="10"/); // failed -> strongest border (rank-tracking ramp)
+});
+
+test("renderKey shows the slot index and an un-capped age-warmth size", () => {
+  const base = {
+    id: "x",
+    agent: "claude" as const,
+    workspaceId: "w",
+    title: "RCJ Scoreboard",
+    reason: "waiting" as const,
+    activity: "waiting" as const,
+    body: "",
+    message: "",
+    createdAt: "2026-06-20T12:00:00Z",
+  };
+  // >2h old → ageStyle size 30, which the old Math.min(..,24) clamp made impossible.
+  const old = renderKey(base, { nowMs: Date.parse("2026-06-20T15:00:00Z"), slotNumber: 7 });
+  assert.match(old, /font-size="30"/); // the hottest age size now actually renders
+  assert.match(old, />7</); // the 1-based slot index is drawn on a live key
 });
 
 test("a working pane overrides a lingering permission/failed notification", () => {
