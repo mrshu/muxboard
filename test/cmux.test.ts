@@ -12,6 +12,7 @@ import {
   clampOffset,
   coordinatesToSlot,
   dedupeNewestPerWorkspace,
+  isDecision,
   sortNewestFirst,
   triageOrder,
 } from "../src/core/cmux/sort.js";
@@ -305,4 +306,13 @@ test("assignSlots respects a scroll offset for >8 items", () => {
   const slots = assignSlots(sorted, 2);
   assert.equal(slots[0]?.id, sorted[2].id);
   assert.equal(slots[7]?.id, sorted[9].id);
+});
+
+test("isDecision flags failed/blocked/needs-input, not plain waiting or working", () => {
+  const base = item("d", "2026-06-20T12:00:00Z");
+  assert.equal(isDecision({ ...base, reason: "failed" }), true);
+  assert.equal(isDecision({ ...base, reason: "blocked" }), true);
+  assert.equal(isDecision({ ...base, needsInput: true }), true);
+  assert.equal(isDecision({ ...base, reason: "waiting" }), false); // plain waiting
+  assert.equal(isDecision({ ...base, reason: "failed", activity: "working" }), false); // working sinks
 });

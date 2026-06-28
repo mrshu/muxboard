@@ -9,7 +9,7 @@ import streamDeck, {
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
 import { assignSlots, coordinatesToSlot } from "../core/cmux/sort.js";
-import { renderKey, renderEmptyKey, renderSourceOffline } from "../core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderAllClear, renderSourceOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
 
 const toDataUri = (svg: string): string =>
@@ -141,13 +141,17 @@ export class AttentionKeyAction extends SingletonAction {
     // Tile only when every ACTIVE source is offline (an inactive Orca, which
     // never started, doesn't keep the board blank when cmux is down).
     const allDown = cmuxDown && orcaDown;
+    const decisions = state.view === "decisions";
     if (allDown && slot === 0 && state.items.length === 0) {
       const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
       svg = renderSourceOffline(labels.join(" + "));
+    } else if (decisions && state.items.length === 0 && !allDown) {
+      // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
+      svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item
-        ? renderKey(item, { nowMs: Date.now(), slotNumber: slot + 1 })
+        ? renderKey(item, { nowMs: Date.now(), slotNumber: slot + 1, viewBadge: decisions ? "DEC" : undefined })
         : renderEmptyKey(slot + 1);
     }
 

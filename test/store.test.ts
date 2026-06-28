@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Store } from "../src/core/services/store.js";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
+import type { AttentionItem } from "../src/core/types.js";
 import { loadFixture } from "./helpers.js";
 
 function freshStore(): Store {
@@ -29,6 +30,36 @@ test("agent filter narrows items and resets offset", () => {
 
   store.resetFilter();
   assert.equal(store.getState().filter, "all");
+});
+
+test("the Decisions view (col-2 push) shows only the panes that want a human", () => {
+  const mk = (over: Partial<AttentionItem> & { id: string }): AttentionItem => ({
+    source: "cmux", agent: "claude", workspaceId: over.id, title: over.id,
+    reason: "waiting", activity: "waiting", body: "", message: "",
+    createdAt: "2026-06-20T12:00:00Z", ...over,
+  });
+  const items: AttentionItem[] = [
+    mk({ id: "f", reason: "failed" }),
+    mk({ id: "b", reason: "blocked" }),
+    mk({ id: "n", needsInput: true }),
+    mk({ id: "w" }), // plain waiting -> not a decision
+    mk({ id: "k", activity: "working" }), // working -> not a decision
+  ];
+  const store = new Store();
+  store.setAttention(items, false);
+  assert.equal(store.getState().view, "queue");
+  assert.equal(store.getState().items.length, 5);
+
+  store.cycleView();
+  const s = store.getState();
+  assert.equal(s.view, "decisions");
+  assert.equal(s.items.length, 3); // failed + blocked + needs-input only
+  assert.ok(s.items.every((i) => i.reason === "failed" || i.reason === "blocked" || i.needsInput === true));
+  assert.ok(!s.items.some((i) => i.activity === "working"));
+
+  store.cycleView(); // back to the full queue
+  assert.equal(store.getState().view, "queue");
+  assert.equal(store.getState().items.length, 5);
 });
 
 test("the LCD number mode toggles between remaining and pace", () => {

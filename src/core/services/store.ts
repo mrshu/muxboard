@@ -10,6 +10,7 @@ import {
   applyFilter,
   clampOffset,
   dedupeNewestPerWorkspace,
+  isDecision,
   sortNewestFirst,
   triageOrder,
 } from "../cmux/sort.js";
@@ -58,6 +59,7 @@ export class Store {
       allItems: [],
       offset: 0,
       filter: "all",
+      view: "queue",
       lcdNumberMode: "remaining",
       cmuxOffline: false,
       orcaOffline: false,
@@ -103,7 +105,10 @@ export class Store {
       // once the live status says otherwise, drop it (a real notification will
       // cover it if it then needs you).
       .filter((it) => !it.synthetic || it.activity === "working");
-    const items = triageOrder(enriched);
+    const triaged = triageOrder(enriched);
+    // The Decisions view (col-2 push) shows only the panes that want a human
+    // now (failed/permission/needs-input), dropping working/waiting tiles.
+    const items = this.state.view === "decisions" ? triaged.filter(isDecision) : triaged;
     const offset = clampOffset(this.state.offset, items.length);
     this.state = { ...this.state, allItems, items, offset };
   }
@@ -263,6 +268,20 @@ export class Store {
   resetFilter(): void {
     if (this.state.filter === "all") return;
     this.state = { ...this.state, filter: "all", offset: 0 };
+    this.recompute();
+    this.emit();
+  }
+
+  // ---- col-2 push: toggle the board view (queue <-> decisions) --------------
+  /**
+   * Flip the 8-key board between the full triage queue and the Decisions view
+   * (only failed/permission/needs-input). Resets the scroll offset and
+   * recomputes since the visible set changes. With two views every push is its
+   * own undo; it is seeded "queue" and not persisted across reloads.
+   */
+  cycleView(): void {
+    const next = this.state.view === "queue" ? "decisions" : "queue";
+    this.state = { ...this.state, view: next, offset: 0 };
     this.recompute();
     this.emit();
   }

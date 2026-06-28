@@ -118,6 +118,13 @@ export interface ProviderUsage {
 export type AgentFilter = "all" | AgentKind;
 
 /**
+ * Which board the 8 keys show (toggled by the col-2 dial push):
+ * "queue" = the full triage queue (default); "decisions" = only the panes that
+ * want a human now (failed/permission/needs-input), hiding working/waiting.
+ */
+export type AppView = "queue" | "decisions";
+
+/**
  * Which number the LCD quota rows show (toggled by the third dial's rotation):
  * absolute remaining%, or the signed pace delta (reserve/deficit).
  */
@@ -133,6 +140,8 @@ export interface AppState {
   offset: number;
   /** Active agent filter (dial 2). */
   filter: AgentFilter;
+  /** Which board the 8 keys show (toggled by the col-2 dial push). */
+  view: AppView;
   /** Which number the LCD quota rows show (toggled by the third dial). */
   lcdNumberMode: LcdNumberMode;
   /** True when the cmux feed is currently unavailable. */

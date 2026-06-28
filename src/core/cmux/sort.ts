@@ -52,6 +52,16 @@ export function triageOrder(items: AttentionItem[]): AttentionItem[] {
 }
 
 /**
+ * True when an item is a DECISION that wants the human right now — failed,
+ * blocked (permission), or cmux "needs input" — as opposed to a plain waiting
+ * or an actively-working pane. This is the subset the Decisions view shows
+ * (the same top triage bands, ranks 0–2).
+ */
+export function isDecision(item: AttentionItem): boolean {
+  return itemRank(item) <= 2;
+}
+
+/**
  * Collapse to one item per workspace, keeping the newest.
  *
  * cmux accumulates a notification per agent turn, so a single workspace can have

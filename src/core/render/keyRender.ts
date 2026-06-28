@@ -12,6 +12,8 @@ export interface KeyRenderOptions {
   nowMs: number;
   /** 1-based slot number shown as a faint corner index. */
   slotNumber: number;
+  /** Optional active-view tag (e.g. "DEC") drawn top-center so a non-default board is never a hidden mode. */
+  viewBadge?: string;
 }
 
 /** Age → {fontSize, color}: older waits read bigger and warmer (urgency). */
@@ -110,6 +112,11 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
     <text x="6" y="17" font-size="12" font-weight="800" fill="#5b5f67">${opts.slotNumber}</text>
+    ${
+      opts.viewBadge
+        ? `<g><rect x="${S / 2 - 23}" y="8" width="46" height="17" rx="8" fill="#1f6feb"/><text x="${S / 2}" y="20" font-size="11" font-weight="800" text-anchor="middle" fill="#fff" letter-spacing="0.5">${escapeXml(opts.viewBadge)}</text></g>`
+        : ""
+    }
     <rect x="13" y="11" width="30" height="30" rx="8" fill="${a.accent}"/>
     ${
       providerIconSvg(item.agent, 17, 15, 22, "#10100f") ||
@@ -119,6 +126,23 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     ${title}
     <text x="12" y="${S - 11}" font-size="15" font-weight="800" fill="${status.color}" letter-spacing="0.5">${escapeXml(status.text)}</text>
     ${badge}
+  </g>
+</svg>`;
+}
+
+/**
+ * Render the "all clear" tile shown on slot 0 when a view has no items (e.g.
+ * the Decisions view with no decisions pending) — a calm, deliberate at-rest
+ * state so an empty board doesn't read like a glitch of blank dots.
+ */
+export function renderAllClear(label: string): string {
+  const S = KEY_SIZE;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
+  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="#1f3a2e" stroke-width="2"/>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <text x="${S / 2}" y="${S / 2 - 2}" font-size="44" fill="#3fae7a">✓</text>
+    <text x="${S / 2}" y="${S / 2 + 34}" font-size="15" font-weight="700" fill="#5b6b62">${escapeXml(label)}</text>
   </g>
 </svg>`;
 }

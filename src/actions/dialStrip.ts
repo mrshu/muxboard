@@ -5,6 +5,7 @@ import streamDeck, {
   type WillDisappearEvent,
   type DialRotateEvent,
   type DialDownEvent,
+  type DialUpEvent,
   type TouchTapEvent,
   type DialAction,
 } from "@elgato/streamdeck";
@@ -24,7 +25,7 @@ const toDataUri = (svg: string): string =>
  * dial's behavior:
  *   col 0  rotate=scroll attention      press=jump to newest
  *   col 1  rotate=cycle agent filter    press=reset filter
- *   col 2  rotate=toggle number mode    press=open CodexBar /usage
+ *   col 2  rotate=toggle number mode    press=switch view (hold=CodexBar /usage)
  *   col 3  rotate=rotate providers       press=force refresh
  */
 @action({ UUID: "com.mrshu.muxboard.dial" })
@@ -32,6 +33,12 @@ export class DialStripAction extends SingletonAction {
   private readonly runtime: Runtime;
   private readonly dials = new Map<string, DialAction>();
   private readonly lastSvg = new Map<string, string>();
+  /** Pending col-2 hold timers (fire /usage while still pressed). */
+  private readonly hold = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Dials whose hold already fired, so the release does nothing more. */
+  private readonly consumed = new Set<string>();
+  /** Hold this long on the col-2 dial to open /usage instead of switching view. */
+  private static readonly HOLD_MS = 600;
 
   constructor(runtime: Runtime) {
     super();
@@ -48,8 +55,13 @@ export class DialStripAction extends SingletonAction {
   }
 
   override onWillDisappear(ev: WillDisappearEvent): void {
-    this.dials.delete(ev.action.id);
-    this.lastSvg.delete(ev.action.id);
+    const id = ev.action.id;
+    this.dials.delete(id);
+    this.lastSvg.delete(id);
+    const timer = this.hold.get(id);
+    if (timer) clearTimeout(timer);
+    this.hold.delete(id);
+    this.consumed.delete(id);
   }
 
   override onDialRotate(ev: DialRotateEvent): void {
@@ -77,11 +89,46 @@ export class DialStripAction extends SingletonAction {
   }
 
   override async onDialDown(ev: DialDownEvent): Promise<void> {
-    await this.handlePress(ev.action.coordinates?.column ?? 0, ev.action);
+    const col = ev.action.coordinates?.column ?? 0;
+    if (col === 2) {
+      // col-2 push = switch board view (on release); hold 600ms = open /usage.
+      // Mirrors the key long-press: a tap toggles, a hold does the heavier action.
+      const id = ev.action.id;
+      this.consumed.delete(id);
+      const timer = setTimeout(() => {
+        this.hold.delete(id);
+        this.consumed.add(id);
+        openUrl(
+          `${this.runtime.config.codexbarBaseUrl.replace(/\/+$/, "")}/usage`,
+          this.runtime.logger,
+        );
+      }, DialStripAction.HOLD_MS);
+      this.hold.set(id, timer);
+      return;
+    }
+    await this.handlePress(col, ev.action);
+  }
+
+  override onDialUp(ev: DialUpEvent): void {
+    const id = ev.action.id;
+    const timer = this.hold.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.hold.delete(id);
+    }
+    // The hold already opened /usage; the release does nothing more.
+    if (this.consumed.delete(id)) return;
+    if ((ev.action.coordinates?.column ?? 0) === 2) this.runtime.store.cycleView();
   }
 
   override async onTouchTap(ev: TouchTapEvent): Promise<void> {
-    await this.handlePress(ev.action.coordinates?.column ?? 0, ev.action);
+    const col = ev.action.coordinates?.column ?? 0;
+    // A touch on the col-2 segment is the quick "switch view" gesture too.
+    if (col === 2) {
+      this.runtime.store.cycleView();
+      return;
+    }
+    await this.handlePress(col, ev.action);
   }
 
   private async handlePress(col: number, a: DialAction): Promise<void> {
@@ -101,14 +148,8 @@ export class DialStripAction extends SingletonAction {
       case 1:
         this.runtime.store.resetFilter();
         break;
-      case 2:
-        // Open CodexBar's /usage endpoint (the base URL root serves nothing);
-        // GET /usage returns one entry per enabled provider.
-        openUrl(
-          `${this.runtime.config.codexbarBaseUrl.replace(/\/+$/, "")}/usage`,
-          this.runtime.logger,
-        );
-        break;
+      // col 2 (switch view / hold = /usage) is handled in onDialDown/onDialUp +
+      // onTouchTap, so it never reaches handlePress.
       case 3: {
         // Force-refresh every active source. Only poll Orca when it's running
         // (auto-detected), so a cmux-only user doesn't trigger a failing CLI call.
