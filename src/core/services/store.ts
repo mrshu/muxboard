@@ -11,6 +11,7 @@ import {
   clampOffset,
   dedupeNewestPerWorkspace,
   isDecision,
+  KEY_COUNT,
   sortNewestFirst,
   triageOrder,
 } from "../cmux/sort.js";
@@ -287,6 +288,17 @@ export class Store {
   resetOffset(): void {
     if (this.state.offset === 0) return;
     this.state = { ...this.state, offset: 0 };
+    this.emit();
+  }
+
+  /**
+   * Advance one screen, for the "+N more" pager tile. The pager occupies the
+   * last key when the queue overflows, so a page is KEY_COUNT-1 real items.
+   */
+  pageForward(): void {
+    const offset = clampOffset(this.state.offset + (KEY_COUNT - 1), this.state.items.length);
+    if (offset === this.state.offset) return;
+    this.state = { ...this.state, offset };
     this.emit();
   }
 

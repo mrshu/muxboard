@@ -172,6 +172,22 @@ export function renderOverflow(hiddenCount: number, accent: string): string {
 }
 
 /**
+ * Render the pager's "back to top" face, shown in place of "+N more" on the
+ * last page — tap to return to the top of the queue.
+ */
+export function renderPagerHome(): string {
+  const S = KEY_SIZE;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
+  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="#3a3f48" stroke-width="3"/>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" fill="#9aa0aa">
+    <text x="${S / 2}" y="${S / 2 + 2}" font-size="40" font-weight="800">↑</text>
+    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700">top</text>
+  </g>
+</svg>`;
+}
+
+/**
  * Render an empty slot: a muted, blank tile so unused keys read as "nothing
  * here" rather than stale data.
  */

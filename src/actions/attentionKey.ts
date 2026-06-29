@@ -9,7 +9,7 @@ import streamDeck, {
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
 import { assignSlots, coordinatesToSlot, KEY_COUNT } from "../core/cmux/sort.js";
-import { renderKey, renderEmptyKey, renderAllClear, renderOverflow, renderSourceOffline } from "../core/render/keyRender.js";
+import { renderKey, renderEmptyKey, renderAllClear, renderOverflow, renderPagerHome, renderSourceOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
 
 const toDataUri = (svg: string): string =>
@@ -65,6 +65,8 @@ export class AttentionKeyAction extends SingletonAction {
   override onKeyDown(ev: KeyDownEvent): void {
     const id = ev.action.id;
     this.consumed.delete(id);
+    const slot = ev.action.isKey() ? this.slotOf(ev.action) : null;
+    if (slot !== null && this.isPager(slot)) return; // pager: paged on release, no snooze
     const item = this.itemForAction(ev.action);
     // Arm a long-press snooze for real notifications: it fires while the key is
     // still held (instant ✓), and the eventual release becomes a no-op. A tap
@@ -87,8 +89,17 @@ export class AttentionKeyAction extends SingletonAction {
       clearTimeout(timer);
       this.longPress.delete(id);
     }
-    // The long-press already dismissed on hold; the release does nothing more.
+    // The long-press already snoozed on hold; the release does nothing more.
     if (this.consumed.delete(id)) return;
+    const slot = this.slotOf(ev.action);
+    const state = this.runtime.store.getState();
+    if (slot !== null && this.isPager(slot, state)) {
+      // Pager tap: reveal the next screen, or return to the top on the last page.
+      const hiddenBelow = state.items.length - (state.offset + (KEY_COUNT - 1));
+      if (hiddenBelow > 0) this.runtime.store.pageForward();
+      else this.runtime.store.resetOffset();
+      return;
+    }
     const item = this.itemForAction(ev.action);
     if (item) await this.focus(item, ev.action);
   }
@@ -126,6 +137,11 @@ export class AttentionKeyAction extends SingletonAction {
     return coordinatesToSlot(c.column, c.row);
   }
 
+  /** True when this slot is the overflow pager: the last key while the queue overflows. */
+  private isPager(slot: number, state = this.runtime.store.getState()): boolean {
+    return state.items.length > KEY_COUNT && slot === KEY_COUNT - 1;
+  }
+
   private itemForAction(a: KeyAction): AttentionItem | null {
     const slot = this.slotOf(a);
     if (slot === null) return null;
@@ -156,11 +172,12 @@ export class AttentionKeyAction extends SingletonAction {
     } else if (decisions && state.items.length === 0 && !allDown) {
       // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
       svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
-    } else if (slot === KEY_COUNT - 1 && state.items.length > state.offset + KEY_COUNT) {
-      // More items than fit below the fold: the last key becomes a "+N more"
-      // count tinted by the worst hidden item, so nothing is silently dropped.
-      const hidden = state.items.slice(state.offset + KEY_COUNT);
-      svg = renderOverflow(hidden.length, overflowAccent(hidden));
+    } else if (this.isPager(slot, state)) {
+      // The last key is the pager whenever the queue overflows (so 7 agents show
+      // per page). It shows "+N more" tinted by the worst hidden item, or "↑ top"
+      // on the last page — tap to page forward / return to the top.
+      const hidden = state.items.slice(state.offset + KEY_COUNT - 1);
+      svg = hidden.length > 0 ? renderOverflow(hidden.length, overflowAccent(hidden)) : renderPagerHome();
     } else {
       const item = assignSlots(state.items, state.offset)[slot];
       svg = item

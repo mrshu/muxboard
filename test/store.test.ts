@@ -105,6 +105,16 @@ test("the Decisions view (col-2 push) shows only the panes that want a human", (
   assert.equal(store.getState().items.length, 5);
 });
 
+test("pageForward advances one screen (KEY_COUNT-1) and resetOffset returns to top", () => {
+  const store = new Store();
+  store.setAttention(Array.from({ length: 11 }, (_, i) => mkItem({ id: `w${i}` })), false);
+  assert.equal(store.getState().offset, 0);
+  store.pageForward();
+  assert.equal(store.getState().offset, 7); // the pager holds the 8th slot
+  store.resetOffset();
+  assert.equal(store.getState().offset, 0);
+});
+
 test("the LCD number mode toggles between remaining and pace", () => {
   const store = freshStore();
   assert.equal(store.getState().lcdNumberMode, "remaining"); // default
