@@ -118,7 +118,7 @@ export function wrapText(text: string, maxChars: number, maxLines: number): stri
 }
 
 /** Rough SVG text width (no DOM): ~0.6em/char for a bold sans title. */
-function estTextWidth(s: string, fontSize: number): number {
+export function estTextWidth(s: string, fontSize: number): number {
   return s.trim().length * fontSize * 0.6;
 }
 

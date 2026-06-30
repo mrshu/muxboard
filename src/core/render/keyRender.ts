@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../types.js";
 import { agentTheme } from "./palette.js";
-import { escapeXml, fitText, formatAgeFromSeconds } from "./format.js";
+import { escapeXml, estTextWidth, fitText, formatAgeFromSeconds } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
 import { sourceGlyphSvg, sourceTint } from "./sourceIcons.js";
 
@@ -42,6 +42,23 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const age = formatAgeFromSeconds(ageSeconds);
   const ageS = ageStyle(ageSeconds);
   const S = KEY_SIZE;
+
+  // Top row: the slot index (left, just after the icon chip) and the age (right,
+  // right-anchored at S-12) share the same band and grow toward each other. Shrink
+  // the index font until it clears the age's estimated left edge by an 8px gap; if
+  // a pathological "#128" beside a wide "23h" still won't fit, drop the index
+  // rather than let the two numbers collide.
+  const slotIndex = (() => {
+    if (opts.slotNumber == null) return "";
+    const text = `#${opts.slotNumber}`;
+    const x = 49;
+    const gap = 8;
+    const ageLeft = S - 12 - estTextWidth(age, ageS.size);
+    let size = 14;
+    while (size > 9 && x + estTextWidth(text, size) > ageLeft - gap) size--;
+    if (x + estTextWidth(text, size) > ageLeft - gap) return ""; // no room left
+    return `<text x="${x}" y="32" font-size="${size}" font-weight="800" fill="#7b86c4" letter-spacing="0.3">${text}</text>`;
+  })();
 
   const working = item.activity === "working";
   // A working pane that went silent (probably hung): overrides the plain
@@ -118,7 +135,7 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   <rect width="${S}" height="${S}" rx="18" fill="url(#bg)"/>
   ${border}
   <g font-family="-apple-system, Helvetica, Arial, sans-serif">
-    ${opts.slotNumber != null ? `<text x="49" y="32" font-size="15" font-weight="800" fill="#8a92a0">${opts.slotNumber}</text>` : ""}
+    ${slotIndex}
     ${
       opts.viewBadge
         ? `<g><rect x="${S / 2 - 23}" y="8" width="46" height="17" rx="8" fill="#1f6feb"/><text x="${S / 2}" y="20" font-size="11" font-weight="800" text-anchor="middle" fill="#fff" letter-spacing="0.5">${escapeXml(opts.viewBadge)}</text></g>`

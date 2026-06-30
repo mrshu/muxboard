@@ -80,7 +80,37 @@ test("renderKey shows the slot index and an un-capped age-warmth size", () => {
   // >2h old → ageStyle size 30, which the old Math.min(..,24) clamp made impossible.
   const old = renderKey(base, { nowMs: Date.parse("2026-06-20T15:00:00Z"), slotNumber: 7 });
   assert.match(old, /font-size="30"/); // the hottest age size now actually renders
-  assert.match(old, />7</); // the 1-based slot index is drawn on a live key
+  assert.match(old, />#7</); // the 1-based slot index is drawn (hash-prefixed) on a live key
+});
+
+test("the slot index never overlaps the age, shrinking or dropping as needed", () => {
+  const base = {
+    id: "x",
+    agent: "claude" as const,
+    workspaceId: "w",
+    title: "RCJ Scoreboard",
+    reason: "waiting" as const,
+    activity: "waiting" as const,
+    body: "",
+    message: "",
+    createdAt: "2026-06-19T12:00:00Z", // 23h before nowMs below → hot age, size 30
+  };
+  const nowMs = Date.parse("2026-06-20T11:00:00Z");
+  const estW = (s: string, fs: number) => s.length * fs * 0.6; // mirrors estTextWidth
+  // For a given index, the rendered index (if any) must clear the age's left edge.
+  const assertClears = (slotNumber: number) => {
+    const svg = renderKey(base, { nowMs, slotNumber });
+    const ageM = svg.match(/x="132" y="34" font-size="(\d+)"[^>]*text-anchor="end"[^>]*>([^<]+)</);
+    assert.ok(ageM, "age text should render");
+    const ageLeft = 132 - estW(ageM![2], Number(ageM![1]));
+    const idxM = svg.match(/<text x="(\d+)" y="32" font-size="(\d+)"[^>]*fill="#7b86c4"[^>]*>(#\d+)</);
+    if (idxM) {
+      const idxRight = Number(idxM[1]) + estW(idxM![3], Number(idxM![2]));
+      assert.ok(idxRight <= ageLeft, `#${slotNumber}: index right ${idxRight} must clear age left ${ageLeft}`);
+    }
+  };
+  assert.match(renderKey(base, { nowMs, slotNumber: 42 }), />#42</); // mid index shrinks, still shown
+  for (const n of [1, 42, 128, 9999]) assertClears(n);
 });
 
 test("a working pane overrides a lingering permission/failed notification", () => {
