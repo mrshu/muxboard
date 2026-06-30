@@ -73,8 +73,10 @@ function main(): void {
     ...orcaItems,
   ]);
   const slots = assignSlots(items, 0);
+  // Render the resting board (offset 0): the queue-position index only appears
+  // once you scroll (col-0 dial), so omit slotNumber here to match the device.
   const keySvgs = slots.map((item, i) =>
-    item ? renderKey(item, { nowMs, slotNumber: i + 1 }) : renderEmptyKey(i + 1),
+    item ? renderKey(item, { nowMs }) : renderEmptyKey(i + 1),
   );
   keySvgs.forEach((svg, i) => writeFileSync(join(outDir, `key-${i + 1}.png`), svgToPng(svg, KEY_SIZE)));
 
