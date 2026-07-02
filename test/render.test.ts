@@ -53,6 +53,21 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.match(svg, /stroke-width="10"/); // failed -> strongest border (rank-tracking ramp)
 });
 
+test("omp gets its own magenta theme, not the grey unknown fallback", async () => {
+  const { agentTheme } = await import("../src/core/render/palette.js");
+  const theme = agentTheme("omp");
+  assert.equal(theme.label, "OMP");
+  assert.equal(theme.accent, "#e070bd");
+  assert.equal(theme.glyph, "Ω"); // text fallback if the icon ever goes missing
+});
+
+test("renderKey draws the vendored oh-my-pi icon for omp items", () => {
+  const base = { id: "o", agent: "omp" as const, workspaceId: "w", title: "omp", reason: "waiting" as const, activity: "waiting" as const, body: "", message: "", createdAt: "2026-06-20T12:00:00Z" };
+  const svg = renderKey(base, { nowMs: NOW_MS, slotNumber: 1 });
+  assert.match(svg, /<g transform="translate[^"]+scale/); // vendored icon, inlined
+  assert.doesNotMatch(svg, />Ω</); // icon wins over the text-glyph fallback
+});
+
 test("renderKey marks a stalled pane distinctly from plain working", () => {
   const base = { id: "x", agent: "claude" as const, workspaceId: "w", title: "t", reason: "waiting" as const, activity: "working" as const, body: "", message: "", createdAt: "2026-06-20T12:00:00Z" };
   assert.match(renderKey(base, { nowMs: Date.parse("2026-06-20T12:01:00Z") }), /working/);

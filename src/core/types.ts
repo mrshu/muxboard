@@ -5,7 +5,7 @@
  * built-ins) so it can be unit-tested and rendered headlessly with tsx.
  */
 
-export type AgentKind = "claude" | "codex" | "pi" | "unknown";
+export type AgentKind = "claude" | "codex" | "pi" | "omp" | "unknown";
 
 /** Which backend an attention item originates from. */
 export type AttentionSource = "cmux" | "orca";

@@ -33,6 +33,7 @@ export function toAgentKind(agentType: string): AgentKind {
   if (t === "claude") return "claude";
   if (t === "codex") return "codex";
   if (t === "pi") return "pi";
+  if (t === "omp") return "omp";
   return "unknown";
 }
 

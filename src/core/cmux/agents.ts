@@ -11,6 +11,7 @@ export function toAgentKind(id: string): AgentKind {
   if (k === "claude") return "claude";
   if (k === "codex") return "codex";
   if (k === "pi") return "pi";
+  if (k === "omp") return "omp";
   return "unknown";
 }
 

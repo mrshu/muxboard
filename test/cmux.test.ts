@@ -84,12 +84,26 @@ test("detectAgent maps titles to agent kinds, with alias override", () => {
   assert.equal(detectAgent("⠴ fieldtheory-cli", { fieldtheory: "codex" }), "codex");
 });
 
+test("detectAgent recognises omp (oh-my-pi) and never confuses it with pi", () => {
+  assert.equal(detectAgent("omp"), "omp");
+  assert.equal(detectAgent("omp-agent"), "omp");
+  assert.equal(detectAgent("⠴ omp session"), "omp");
+  // "oh-my-pi" ends in "-pi", which the pi word-boundary rule would match:
+  // the omp checks must win.
+  assert.equal(detectAgent("oh-my-pi"), "omp");
+  assert.equal(detectAgent("oh my pi"), "omp");
+  // no substring false-positives
+  assert.equal(detectAgent("stomp"), "unknown");
+  assert.equal(detectAgent("compare-tool"), "unknown");
+});
+
 test("parseCodingAgents maps workspace → agent from running processes", () => {
   const map = parseCodingAgents(loadFixture("cmux-top.json"));
   assert.equal(map.get("WS-CLAUDE"), "claude");
   assert.equal(map.get("WS-CODEX"), "codex");
   assert.equal(map.get("WS-PLAIN"), undefined); // no coding-agent process
   assert.equal(toAgentKind("gemini"), "unknown");
+  assert.equal(toAgentKind("omp"), "omp");
 });
 
 test("hasSpinnerGlyph matches the braille working spinner, not the ✳ idle marker", () => {

@@ -42,6 +42,9 @@ export function detectAgent(name: string, aliases: AgentAliases = {}): AgentKind
   }
   if (t.includes("claude")) return "claude";
   if (t.includes("codex")) return "codex";
+  // OMP (oh-my-pi) BEFORE the pi rule: "oh-my-pi" ends in "-pi", which the
+  // pi word-boundary regex would otherwise claim.
+  if (t === "omp" || /(^|[\s\-_/])omp([\s\-_/]|$)/.test(t) || t.includes("oh-my-pi") || t.includes("oh my pi")) return "omp";
   // Pi: exact "pi"/"π", or a clear word boundary ("pi-agent", "pi cli").
   if (t === "pi" || t === "π" || /(^|[\s\-_/])pi([\s\-_/]|$)/.test(t)) return "pi";
   return "unknown";

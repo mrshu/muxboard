@@ -1,6 +1,6 @@
 # Muxboard: a Stream Deck+ dashboard for cmux AI coding agents
 
-> Monitor your [cmux](https://cmux.io) AI coding agents (Claude Code, Codex, Pi)
+> Monitor your [cmux](https://cmux.io) AI coding agents (Claude Code, Codex, Pi, OMP)
 > from an Elgato Stream Deck+: which agents need attention show on the keys, and
 > your CodexBar usage limits show on the LCD.
 
@@ -12,8 +12,10 @@
 ![Muxboard dashboard](docs/images/dashboard.png)
 
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
-[cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi, or any
-other) have finished, failed, gotten blocked, or are waiting for your input. The
+[cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi,
+[OMP](https://github.com/can1357/oh-my-pi), or any other) have finished, failed,
+gotten blocked, or are waiting for your input. For cmux to see OMP sessions at
+all, install its hook bridge once with `cmux hooks omp install` (cmux ≥ 0.64.17). The
 LCD touch strip shows CodexBar usage: session and weekly quota with pace, plus
 spend and tokens per provider.
 

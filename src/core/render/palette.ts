@@ -21,6 +21,8 @@ const AGENT_THEMES: Record<AgentKind, AgentTheme> = {
   codex: { bg: ["#0f2a2b", "#06181b"], accent: "#3fb6a8", fg: "#e0f5f3", glyph: "X", label: "CODEX" },
   // Pi: purple.
   pi: { bg: ["#241433", "#140a1f"], accent: "#a779e0", fg: "#efe6f7", glyph: "π", label: "PI" },
+  // OMP (oh-my-pi): magenta — pi-adjacent but unmistakable next to pi's purple.
+  omp: { bg: ["#33142a", "#1f0a19"], accent: "#e070bd", fg: "#f7e6f1", glyph: "Ω", label: "OMP" },
   // Unknown: neutral grey.
   unknown: { bg: ["#222428", "#141518"], accent: "#7d828c", fg: "#e6e8ec", glyph: "?", label: "AGENT" },
 };

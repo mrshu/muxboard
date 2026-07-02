@@ -6,10 +6,15 @@ import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
 import { OrcaService } from "../src/core/services/orcaService.js";
 import { OrcaClient } from "../src/core/orca/client.js";
-import { normalizeWorktrees } from "../src/core/orca/normalize.js";
+import { normalizeWorktrees, toAgentKind as orcaToAgentKind } from "../src/core/orca/normalize.js";
 import { makeOrcaBackend } from "../src/runtime.js";
 import { sourceGlyphSvg, sourceTint } from "../src/core/render/sourceIcons.js";
 import { renderKey } from "../src/core/render/keyRender.js";
+
+test("orca toAgentKind maps omp to its own kind", () => {
+  assert.equal(orcaToAgentKind("omp"), "omp");
+  assert.equal(orcaToAgentKind("OMP"), "omp");
+});
 
 test("cmux notifications are stamped with source 'cmux'", () => {
   const items = normalizeNotifications([
@@ -309,4 +314,9 @@ test("resolveConfig defaults and coerces Orca knobs", () => {
   assert.equal(r.orcaBin, "/usr/local/bin/orca");
   assert.equal(r.orcaPollMs, 500); // clamped to the 500 floor
   assert.equal(resolveConfig({ enableOrca: "nonsense" as unknown as "auto" }).enableOrca, "auto");
+});
+
+test("resolveConfig accepts omp as an alias target", () => {
+  const r = resolveConfig({ agentAliases: { "my-fork": "omp" } });
+  assert.deepEqual(r.agentAliases, { "my-fork": "omp" });
 });
