@@ -19,7 +19,7 @@ import {
 type Listener = (state: AppState) => void;
 
 /** Cycle order for the agent filter (dial 2). */
-const FILTER_CYCLE: AgentFilter[] = ["all", "claude", "codex", "pi", "omp"];
+const FILTER_CYCLE: AgentFilter[] = ["all", "claude", "codex", "omp", "pi"];
 
 /** Number of LCD touch-strip segments (one per dial). */
 const LCD_SEGMENTS = 4;

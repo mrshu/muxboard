@@ -75,14 +75,14 @@ test("agent filter narrows items and resets offset", () => {
   assert.equal(store.getState().filter, "all");
 });
 
-test("the filter cycle includes omp after pi, then wraps to all", () => {
+test("the filter cycle includes omp before pi, then wraps to all", () => {
   const store = freshStore();
   const seen: string[] = [];
   for (let i = 0; i < 6; i++) {
     store.cycleFilter(1);
     seen.push(store.getState().filter);
   }
-  assert.deepEqual(seen, ["claude", "codex", "pi", "omp", "all", "claude"]);
+  assert.deepEqual(seen, ["claude", "codex", "omp", "pi", "all", "claude"]);
 });
 
 test("the Decisions view (col-2 push) shows only the panes that want a human", () => {

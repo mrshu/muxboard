@@ -90,7 +90,7 @@ profile. To build from source instead, see [Quick start](#quick-start).
 | Dial | Rotate | Press |
 | --- | --- | --- |
 | 1 | Scroll the queue (when > 8 items) | Jump to newest item |
-| 2 | Cycle filter: all → claude → codex → pi → omp | Reset filter to all |
+| 2 | Cycle filter: all → claude → codex → omp → pi | Reset filter to all |
 | 3 | Toggle the quota number: remaining% ↔ pace (reserve/deficit) | Open CodexBar `/usage` |
 | 4 | Rotate the LCD provider window (when > 4 providers) | Force refresh both polls |
 
@@ -173,7 +173,7 @@ rows returned by `cmux list-notifications --json`:
 ```json
 {
   "id": "015D0B50-...",           // uuid; used as the focus/open key
-  "title": "Claude Code",         // agent → claude | codex | pi | omp | unknown
+  "title": "Claude Code",         // agent → claude | codex | omp | pi | unknown
   "subtitle": "",
   "body": "Claude is waiting for your input",   // status (see mapping)
   "is_read": true,
@@ -188,7 +188,7 @@ Agent is detected from the running process: Muxboard reads cmux's
 `top --processes` `coding_agents` (matched to the workspace by PID), so a codex
 CLI in a pane named `fieldtheory-cli` is still identified as codex. If the
 process can't be resolved, it falls back to matching the title/tab name
-(`claude`/`codex`/`pi`/`omp`), then the optional `agentAliases` override, else
+(`claude`/`codex`/`omp`/`pi`), then the optional `agentAliases` override, else
 `unknown`.
 
 Status is mapped from `body`, strongest signal first:

@@ -63,7 +63,7 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   enableOrca: "auto",
 };
 
-const ALL_AGENTS: AgentKind[] = ["claude", "codex", "pi", "omp", "unknown"];
+const ALL_AGENTS: AgentKind[] = ["claude", "codex", "omp", "pi", "unknown"];
 
 /**
  * Merge partial (possibly user-supplied) settings over the defaults, coercing
