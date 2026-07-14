@@ -30,6 +30,31 @@ test("normalizes the claude nested-usage window shape", () => {
   assert.equal(u.account, "anthropic@example.com");
 });
 
+test("normalizes nested usage when primary is null but secondary is live", () => {
+  // Real Codex shape from newer CodexBar builds: windows nest under `usage`,
+  // the 5h `primary` is null, and only the weekly `secondary` is present. The
+  // shape detector must still pick the nested object, not fall back to the
+  // empty top level and drop the weekly gauge.
+  const raw = [
+    {
+      provider: "codex",
+      usage: {
+        primary: null,
+        secondary: { usedPercent: 13, windowMinutes: 10080, resetsAt: "2026-07-19T19:16:40Z" },
+        identity: { accountEmail: "openai@example.com" },
+        updatedAt: "2026-07-14T10:06:34Z",
+      },
+    },
+  ];
+  const u = normalizeUsageResponse(raw, "codex");
+  assert.equal(u.ok, true);
+  assert.equal(u.session, undefined);
+  assert.equal(u.weekly?.usedPercent, 13);
+  assert.equal(u.weekly?.remainingPercent, 87);
+  assert.equal(u.weekly?.windowMinutes, 10080);
+  assert.equal(u.account, "openai@example.com");
+});
+
 test("surfaces provider errors as unavailable", () => {
   const raw = loadFixture("codexbar-usage-kimi.json");
   const u = normalizeUsageResponse(raw, "kimi");

@@ -50,7 +50,11 @@ function normalizeWindow(raw: RawWindow | undefined): UsageWindow | undefined {
  * Pick the object that actually holds the primary/secondary windows.
  *
  * Codex puts them at the top level; Claude/MiniMax nest them under `usage`.
- * We prefer whichever location has a `primary.usedPercent`.
+ * We prefer whichever location actually carries a window. Keying off
+ * `primary.usedPercent` alone is not enough: some providers (e.g. Codex on
+ * newer CodexBar builds) nest under `usage` with a null `primary` but a live
+ * `secondary` (weekly) window — checking only `primary` there wrongly falls
+ * back to the empty top level and drops the weekly gauge entirely.
  */
 function windowSource(raw: RawCodexbarUsage): {
   primary?: RawWindow;
@@ -59,7 +63,11 @@ function windowSource(raw: RawCodexbarUsage): {
   updatedAt?: unknown;
 } {
   const nested = raw.usage;
-  if (nested && typeof nested === "object" && nested.primary?.usedPercent !== undefined) {
+  if (
+    nested &&
+    typeof nested === "object" &&
+    (nested.primary?.usedPercent !== undefined || nested.secondary?.usedPercent !== undefined)
+  ) {
     return nested;
   }
   return {
