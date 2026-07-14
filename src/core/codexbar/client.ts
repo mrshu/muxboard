@@ -75,7 +75,7 @@ export class CodexbarClient {
       );
       usage = normalizeUsageResponse(raw, provider);
     } catch (err) {
-      return { provider, ok: false, error: errMessage(err) };
+      return { provider, ok: false, error: errMessage(err), transient: true };
     }
 
     if (usage.ok) {

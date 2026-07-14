@@ -45,6 +45,36 @@ test("CodexbarService recovers providers individually when aggregate /usage goes
   assert.equal(store.getState().usage["codex"].ok, true);
 });
 
+test("CodexbarService retains a provider's last-good on a transient fetch failure", async () => {
+  // Mirrors CodexBar's serve crashing on codex activity: codex was live, then
+  // its per-provider fetch starts throwing. It must keep showing last-good, not
+  // be blanked, while other providers stay live.
+  const store = new Store([]);
+  let phase = 1;
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) {
+        return phase === 1 ? [codexUsage[0], claudeUsage[0]] : [claudeUsage[0]];
+      }
+      if (url.includes("/usage?provider=codex")) throw new Error("ECONNREFUSED");
+      if (url.includes("/usage?provider=claude")) return claudeUsage;
+      return [];
+    },
+  });
+  const service = new CodexbarService({ client, store, pollMs: 10_000 });
+
+  await service.poll(); // phase 1: aggregate carries codex + claude
+  assert.equal(store.getState().usage["codex"].ok, true);
+  const codexWeekly = store.getState().usage["codex"].weekly?.usedPercent;
+
+  phase = 2; // aggregate drops codex; codex's per-provider fetch throws (transient)
+  await service.poll();
+  assert.equal(store.getState().codexbarOffline, false);
+  assert.equal(store.getState().usage["codex"].ok, true); // last-good retained
+  assert.equal(store.getState().usage["codex"].weekly?.usedPercent, codexWeekly);
+  assert.ok(store.getState().providers.includes("codex")); // stays on the strip
+});
+
 test("CmuxClient.listAttention parses an injected runner's stdout", async () => {
   const client = new CmuxClient({
     runner: async (_bin, args) => {

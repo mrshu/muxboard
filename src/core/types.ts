@@ -120,6 +120,13 @@ export interface ProviderUsage {
   /** True when the payload was usable; false on error/unreachable. */
   ok: boolean;
   error?: string;
+  /**
+   * True when `ok` is false due to a transport failure (server down/unreachable)
+   * rather than a semantic provider error (e.g. an expired token). Lets the store
+   * retain this provider's last-good data through a flapping server instead of
+   * blanking it, while still surfacing real provider errors as offline.
+   */
+  transient?: boolean;
 }
 
 /** Agent filter applied to the attention queue (dial 2). */

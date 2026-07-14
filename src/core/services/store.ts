@@ -260,7 +260,13 @@ export class Store {
    */
   setUsage(usages: ProviderUsage[], updatedAtMs: number, offline: boolean): void {
     const usage: Record<string, ProviderUsage> = { ...this.state.usage };
-    for (const u of usages) usage[u.provider] = u;
+    for (const u of usages) {
+      // A transient failure (server flapping) must not blank a provider that had
+      // good data: keep its last-good payload while leaving it in the provider
+      // order below, so the segment keeps showing instead of vanishing.
+      if (!u.ok && u.transient && usage[u.provider]?.ok) continue;
+      usage[u.provider] = u;
+    }
     const providers =
       offline || usages.length === 0 ? this.state.providers : usages.map((u) => u.provider);
     this.state = {
