@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CmuxClient } from "../src/core/cmux/client.js";
 import { CmuxService } from "../src/core/services/cmuxService.js";
-import { isStale } from "../src/core/services/codexbarService.js";
+import { CodexbarClient } from "../src/core/codexbar/client.js";
+import { CodexbarService, isStale } from "../src/core/services/codexbarService.js";
 import { Store } from "../src/core/services/store.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,36 @@ const notificationsJson = readFileSync(
   join(here, "fixtures", "cmux-notifications.json"),
   "utf8",
 );
+const codexUsage = JSON.parse(
+  readFileSync(join(here, "fixtures", "codexbar-usage-codex.json"), "utf8"),
+) as unknown[];
+const claudeUsage = JSON.parse(
+  readFileSync(join(here, "fixtures", "codexbar-usage-claude.json"), "utf8"),
+) as unknown[];
+
+test("CodexbarService recovers providers individually when aggregate /usage goes empty", async () => {
+  const store = new Store([]);
+  let aggregateEmpty = false;
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) return aggregateEmpty ? [] : [codexUsage[0], claudeUsage[0]];
+      if (url.includes("/usage?provider=codex")) return codexUsage;
+      if (url.includes("/usage?provider=claude")) return claudeUsage;
+      return [];
+    },
+  });
+  const service = new CodexbarService({ client, store, pollMs: 10_000 });
+
+  await service.poll(); // aggregate healthy
+  assert.deepEqual(store.getState().providers, ["codex", "claude"]);
+  assert.equal(store.getState().codexbarOffline, false);
+
+  aggregateEmpty = true;
+  await service.poll(); // aggregate empty, per-provider still live
+  assert.equal(store.getState().codexbarOffline, false);
+  assert.deepEqual(store.getState().providers, ["codex", "claude"]);
+  assert.equal(store.getState().usage["codex"].ok, true);
+});
 
 test("CmuxClient.listAttention parses an injected runner's stdout", async () => {
   const client = new CmuxClient({

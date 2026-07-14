@@ -107,6 +107,43 @@ test("getAllUsage discovers providers from /usage (no hardcoded list)", async ()
   assert.equal(usages[0].costTodayUsd, 4.2);
 });
 
+test("getAllUsage falls back to per-provider fetch when aggregate /usage is empty", async () => {
+  // Some CodexBar builds return an empty aggregate; the per-provider endpoint
+  // still works. Passing known providers must recover them individually.
+  const codex = loadFixture("codexbar-usage-codex.json");
+  const cost = loadFixture("codexbar-cost-codex.json");
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) return [];
+      if (url.includes("/usage?provider=codex")) return codex;
+      if (url.includes("/cost")) return cost;
+      return [];
+    },
+  });
+  const usages = await client.getAllUsage(["codex"]);
+  assert.deepEqual(usages.map((u) => u.provider), ["codex"]);
+  assert.equal(usages[0].ok, true);
+  assert.equal(usages[0].costTodayUsd, 4.2);
+});
+
+test("getAllUsage fills a known provider the aggregate omitted", async () => {
+  // Aggregate returns claude but drops codex (e.g. after codex changed shape);
+  // codex must be fetched individually and merged in, not lost.
+  const codex = loadFixture("codexbar-usage-codex.json");
+  const claude = (loadFixture("codexbar-usage-claude.json") as unknown[])[0];
+  const cost = loadFixture("codexbar-cost-codex.json");
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) return [claude];
+      if (url.includes("/usage?provider=codex")) return codex;
+      if (url.includes("/cost")) return cost;
+      return [];
+    },
+  });
+  const usages = await client.getAllUsage(["claude", "codex"]);
+  assert.deepEqual([...usages.map((u) => u.provider)].sort(), ["claude", "codex"]);
+});
+
 test("getAllUsage returns [] when the server is unreachable", async () => {
   const client = new CodexbarClient({
     fetchJson: async () => {

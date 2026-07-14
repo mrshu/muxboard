@@ -33,6 +33,12 @@ export class CodexbarService {
   private readonly log: Logger;
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
+  /**
+   * Provider ids seen in the last poll that returned at least one live provider.
+   * Fed back into discovery so a flaky aggregate `/usage` (empty or omitting a
+   * provider) re-fetches known providers individually instead of blanking them.
+   */
+  private lastGood: string[] = [];
 
   constructor(opts: CodexbarServiceOptions) {
     this.client = opts.client;
@@ -63,21 +69,30 @@ export class CodexbarService {
     if (this.inFlight) return;
     this.inFlight = true;
     try {
-      let usages = await this.client.getAllUsage();
+      const known = this.allow.length > 0 ? this.allow : this.lastGood;
+      let usages = await this.client.getAllUsage(known);
       if (this.allow.length > 0) {
         const order = new Map(this.allow.map((p, i) => [p, i]));
         usages = usages
           .filter((u) => order.has(u.provider))
           .sort((a, b) => (order.get(a.provider) ?? 0) - (order.get(b.provider) ?? 0));
       }
-      // Empty result = server unreachable; keep last good data and flag offline.
-      const offline = usages.length === 0;
+      // Offline when nothing came back, or every provider errored — a live
+      // per-provider fetch (from the discovery fallback) is what proves the
+      // server is actually up. On offline, push [] so the store keeps last-good.
+      const offline = usages.length === 0 || usages.every((u) => !u.ok);
       if (offline) {
         this.log.warn("codexbar poll: no providers (server unavailable?)");
+        this.store.setUsage([], this.now(), true);
       } else {
-        this.log.info(`codexbar poll ok: ${usages.map((u) => u.provider).join(",")}`);
+        // Push every provider we saw so the display order keeps them all; the
+        // store retains last-good for any that failed transiently (server
+        // flapping) instead of blanking them. Real provider errors still show.
+        this.lastGood = usages.map((u) => u.provider);
+        const live = usages.filter((u) => u.ok).map((u) => u.provider);
+        this.log.info(`codexbar poll ok: ${live.join(",")}`);
+        this.store.setUsage(usages, this.now(), false);
       }
-      this.store.setUsage(usages, this.now(), offline);
     } catch (err) {
       this.log.warn(`codexbar poll failed: ${message(err)}`);
       this.store.setUsage([], this.now(), true);

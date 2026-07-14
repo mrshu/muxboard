@@ -101,20 +101,28 @@ export class CodexbarClient {
    *
    * `GET /usage` (no provider param) returns one entry per enabled provider, in
    * CodexBar's own order — so the provider list is never hardcoded. Today's cost
-   * is fetched per provider and attached. Returns [] if the request fails.
+   * is fetched per provider and attached.
+   *
+   * That aggregate endpoint is unreliable on some CodexBar builds: it can return
+   * empty, or silently omit a provider whose shape changed (e.g. Codex after it
+   * dropped its 5h session window). The per-provider endpoint stays stable, so
+   * any `knownProviders` the aggregate did not cover are fetched individually and
+   * merged in. This keeps the LCD from blanking a provider — or the whole strip —
+   * on a flaky discovery call. Pass previously-seen provider ids for `knownProviders`.
    */
-  async getAllUsage(): Promise<ProviderUsage[]> {
+  async getAllUsage(knownProviders: string[] = []): Promise<ProviderUsage[]> {
     let raw: unknown;
     try {
       raw = await this.fetchJson(`${this.baseUrl}/usage`);
     } catch {
-      return [];
+      raw = undefined;
     }
-    if (!Array.isArray(raw)) return [];
 
-    const usages = raw
-      .filter((r): r is RawCodexbarUsage => !!r && typeof r === "object")
-      .map((r) => normalizeUsage(r));
+    const usages = Array.isArray(raw)
+      ? raw
+          .filter((r): r is RawCodexbarUsage => !!r && typeof r === "object")
+          .map((r) => normalizeUsage(r))
+      : [];
 
     // Attach today's cost per provider (best-effort, concurrent).
     await Promise.all(
@@ -130,6 +138,15 @@ export class CodexbarClient {
         }
       }),
     );
+
+    // Fill any known provider the aggregate omitted via the stable per-provider
+    // endpoint (getUsage already merges cost). Preserves aggregate order, then
+    // appends the recovered ones.
+    const covered = new Set(usages.map((u) => u.provider));
+    const missing = knownProviders.filter((p) => !covered.has(p));
+    if (missing.length > 0) {
+      usages.push(...(await this.getUsageAll(missing)));
+    }
     return usages;
   }
 }
