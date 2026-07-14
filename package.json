@@ -1,7 +1,7 @@
 {
   "name": "muxboard",
   "version": "0.1.0",
-  "description": "Stream Deck+ plugin surfacing cmux panes whose coding agents need attention, with CodexBar quota on the LCD strip.",
+  "description": "Stream Deck+ plugin surfacing cmux panes and Orca worktrees whose coding agents need attention, with CodexBar quota on the LCD strip.",
   "type": "module",
   "license": "MIT",
   "author": "mrshu",

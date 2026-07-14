@@ -1,8 +1,8 @@
 # Muxboard: a Stream Deck+ dashboard for cmux AI coding agents
 
-> Monitor your [cmux](https://cmux.io) AI coding agents (Claude Code, Codex, Pi, OMP)
-> from an Elgato Stream Deck+: which agents need attention show on the keys, and
-> your CodexBar usage limits show on the LCD.
+> Monitor your [cmux](https://cmux.io) and [Orca](https://onorca.dev) AI coding
+> agents (Claude Code, Codex, Pi, OMP) from an Elgato Stream Deck+: which agents
+> need attention show on the keys, and your CodexBar usage limits show on the LCD.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
@@ -14,10 +14,12 @@
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
 [cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi,
 [OMP](https://github.com/can1357/oh-my-pi), or any other) have finished, failed,
-gotten blocked, or are waiting for your input. For cmux to see OMP sessions at
-all, install its hook bridge once with `cmux hooks omp install` (cmux ≥ 0.64.17). The
-LCD touch strip shows CodexBar usage: session and weekly quota with pace, plus
-spend and tokens per provider.
+gotten blocked, or are waiting for your input. [Orca](https://onorca.dev)
+worktrees appear on the same keys when Orca is running (auto-detected; see
+[Orca support](#orca-support)). For cmux to see OMP sessions at all, install its
+hook bridge once with `cmux hooks omp install` (cmux ≥ 0.64.17). The LCD touch
+strip shows CodexBar usage: session and weekly quota with pace, plus spend and
+tokens per provider.
 
 The newest attention item is key 1 (top-left); the queue fills left-to-right,
 top-to-bottom:
@@ -52,7 +54,7 @@ profile. To build from source instead, see [Quick start](#quick-start).
 
 | Surface | Shows | Source |
 | --- | --- | --- |
-| 8 keys | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` |
+| 8 keys | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` + `orca worktree ps --json` (Orca, auto-detected) |
 | LCD strip (4×200×100) | One CodexBar provider per segment: session + weekly quota with pace, spend + tokens | `codexbar serve` HTTP |
 | 4 dials | Scroll, filter, quota view, refresh | local state |
 
