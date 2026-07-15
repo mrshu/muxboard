@@ -115,9 +115,18 @@ profile. To build from source instead, see [Quick start](#quick-start).
   Check the feed is live: `cmux events --limit 5` should show recent
   `agent.hook.*` rows while an agent works. See
   [How a pane's state is derived](#how-a-panes-state-is-derived).
-- CodexBar for the LCD: run `codexbar serve --port 17777`. Muxboard defaults to
-  17777 (keeping CodexBar's own default 8080 free). Optional; the keys work
-  without it.
+- CodexBar for the LCD: Muxboard reads usage from `codexbar serve` over HTTP,
+  defaulting to port 17777 (keeping CodexBar's own default 8080 free). Optional —
+  the keys work without it. Don't run a bare `codexbar serve`, though: it can exit
+  unexpectedly (on some builds it crashes when Codex's remote-control status
+  changes), and a dead server leaves the LCD on the muted "stale"/offline state
+  until you restart it. Install the keep-alive agent so launchd respawns it within
+  seconds of any crash and at login:
+  ```bash
+  bash scripts/install-codexbar-agent.sh       # CODEXBAR_PORT=8099 to override
+  ```
+  The one-command installer offers this step for you. Remove it later with
+  `bash scripts/install-codexbar-agent.sh --uninstall`.
 - Stream Deck+ hardware and the free
   [Elgato Stream Deck desktop app](https://www.elgato.com/stream-deck) to run the
   plugin on the device. The app is what launches the plugin process.
@@ -411,8 +420,13 @@ npm run typecheck
 - Changed the manifest? Re-link. A plugin restart does not re-read the manifest.
   Run `npx streamdeck link com.mrshu.muxboard.sdPlugin` again (or restart the
   Stream Deck app) after editing it.
-- LCD shows "CodexBar off". Ensure `codexbar serve --port 17777` is running and
-  that `codexbarBaseUrl` matches the port.
+- LCD shows "CodexBar off", or every segment reads "stale". `codexbar serve`
+  isn't answering: it's not running, has crashed, or `codexbarBaseUrl` doesn't
+  match its port. "stale" specifically means the last good data is older than 2×
+  the poll interval — the server stopped responding. Check with
+  `curl -s http://127.0.0.1:17777/health`; if it's dead, install the keep-alive so
+  it can't stay down: `bash scripts/install-codexbar-agent.sh`
+  (status: `launchctl list | grep codexbar-serve`, logs: `/tmp/codexbar-serve.log`).
 - Keys are blank or show "cmux offline". cmux is rejecting the plugin. Confirm
   `cmux capabilities | grep access_mode` reads `"automation"` (not `cmuxOnly`).
   If it still says `cmuxOnly`, the setting hasn't taken; set Socket Control Mode

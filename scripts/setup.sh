@@ -67,4 +67,25 @@ else
   warn "cmux not found on PATH. Install cmux and enable automation mode."
 fi
 
+# CodexBar LCD: keep `codexbar serve` alive. It can crash (e.g. on Codex
+# remote-control status changes), and a bare server stays dead until restarted
+# by hand, leaving the LCD on the muted "stale"/offline state. A launchd agent
+# respawns it within seconds so the LCD stays live.
+if command -v codexbar >/dev/null 2>&1; then
+  printf '  Keep CodexBar'"'"'s LCD server running via a launchd agent (recommended)? [Y/n] '
+  read -r ans </dev/tty 2>/dev/null || ans="n"
+  case "${ans:-Y}" in
+    [Nn]*)
+      say "Skipped. Start it yourself with 'codexbar serve --port 17777', or later:"
+      say "  curl -fsSL https://raw.githubusercontent.com/$REPO/main/scripts/install-codexbar-agent.sh | bash"
+      ;;
+    *)
+      curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/install-codexbar-agent.sh" | bash \
+        || warn "Keep-alive install failed; run scripts/install-codexbar-agent.sh manually."
+      ;;
+  esac
+else
+  warn "codexbar not found — the LCD stays blank until you install CodexBar and keep 'codexbar serve --port 17777' running."
+fi
+
 say "Done. Open Stream Deck and select the 'Muxboard' profile."
