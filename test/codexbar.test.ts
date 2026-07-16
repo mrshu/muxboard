@@ -141,7 +141,11 @@ test("getAllUsage fills a known provider the aggregate omitted", async () => {
     },
   });
   const usages = await client.getAllUsage(["claude", "codex"]);
-  assert.deepEqual([...usages.map((u) => u.provider)].sort(), ["claude", "codex"]);
+  // Documented contract: aggregate order first, then recovered providers appended.
+  assert.deepEqual(
+    usages.map((u) => u.provider),
+    ["claude", "codex"],
+  );
 });
 
 test("getAllUsage returns [] when the server is unreachable", async () => {

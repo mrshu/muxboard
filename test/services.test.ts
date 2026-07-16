@@ -75,6 +75,53 @@ test("CodexbarService retains a provider's last-good on a transient fetch failur
   assert.ok(store.getState().providers.includes("codex")); // stays on the strip
 });
 
+test("CodexbarService surfaces semantic provider errors rather than masking them as offline", async () => {
+  // Every provider returns a real error (server up, e.g. tokens expired). This
+  // is NOT an outage: each segment must show its own error, not stale numbers
+  // under a generic offline banner.
+  const errEntry = (p: string) => ({ provider: p, error: { message: "invalid or expired token" } });
+  const store = new Store([]);
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) return [errEntry("codex"), errEntry("claude")];
+      return [];
+    },
+  });
+  await new CodexbarService({ client, store, pollMs: 10_000 }).poll();
+  const s = store.getState();
+  assert.equal(s.codexbarOffline, false); // server answered; not an outage
+  assert.deepEqual(s.providers, ["codex", "claude"]);
+  assert.equal(s.usage["codex"].ok, false);
+  assert.match(s.usage["codex"].error ?? "", /expired/);
+});
+
+test("CodexbarService ages a removed provider out of discovery (no phantom segment)", async () => {
+  // Provider present at first, then gone from the aggregate and returning a real
+  // error individually (disabled in CodexBar). It must not linger forever.
+  const store = new Store([]);
+  let phase = 1;
+  const client = new CodexbarClient({
+    fetchJson: async (url) => {
+      if (url.endsWith("/usage")) {
+        return phase === 1 ? [codexUsage[0], claudeUsage[0]] : [claudeUsage[0]];
+      }
+      if (url.includes("/usage?provider=claude")) return claudeUsage;
+      // codex is gone: individual fetch returns a real (semantic) error.
+      if (url.includes("/usage?provider=codex"))
+        return [{ provider: "codex", error: { message: "provider disabled" } }];
+      return [];
+    },
+  });
+  const svc = new CodexbarService({ client, store, pollMs: 10_000 });
+  await svc.poll(); // phase 1: codex discovered
+  assert.ok(store.getState().providers.includes("codex"));
+  phase = 2; // codex dropped from aggregate + errors individually
+  await svc.poll(); // still re-fetched once (was in lastGood), shown as error, aged out
+  await svc.poll(); // no longer in lastGood or aggregate → gone from the strip
+  assert.equal(store.getState().providers.includes("codex"), false);
+  assert.deepEqual(store.getState().providers, ["claude"]);
+});
+
 test("CmuxClient.listAttention parses an injected runner's stdout", async () => {
   const client = new CmuxClient({
     runner: async (_bin, args) => {

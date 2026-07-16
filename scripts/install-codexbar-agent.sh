@@ -38,6 +38,17 @@ fi
 BIN="$(command -v codexbar || true)"
 [ -n "$BIN" ] || die "codexbar not found on PATH — install CodexBar's CLI first."
 
+# Refuse to install a crash-looping agent if the port is held by something other
+# than codexbar: KeepAlive would restart-storm every ThrottleInterval forever.
+holder="$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+if [ -n "$holder" ]; then
+  hname="$(ps -p "$holder" -o comm= 2>/dev/null || true)"
+  case "$hname" in
+    *codexbar*) : ;; # our own (hand-started) server — we take it over below
+    *) die "Port $PORT is already in use by PID $holder ($hname). Free it, or set CODEXBAR_PORT to a free port, then re-run." ;;
+  esac
+fi
+
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -65,7 +76,9 @@ EOF
 pkill -f "codexbar serve --port $PORT" 2>/dev/null || true
 sleep 1
 launchctl unload "$PLIST" 2>/dev/null || true
-launchctl load -w "$PLIST"
+if ! launchctl load -w "$PLIST"; then
+  die "launchctl load failed for $PLIST. On an SSH/non-GUI session, log in locally and re-run (or: launchctl bootstrap gui/\$(id -u) \"$PLIST\")."
+fi
 
 say "Installed $LABEL: $BIN serve --port $PORT (auto-restarts, logs to $LOG)."
 say "Verify with: curl -s http://127.0.0.1:$PORT/health"

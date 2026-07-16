@@ -77,18 +77,22 @@ export class CodexbarService {
           .filter((u) => order.has(u.provider))
           .sort((a, b) => (order.get(a.provider) ?? 0) - (order.get(b.provider) ?? 0));
       }
-      // Offline when nothing came back, or every provider errored — a live
-      // per-provider fetch (from the discovery fallback) is what proves the
-      // server is actually up. On offline, push [] so the store keeps last-good.
-      const offline = usages.length === 0 || usages.every((u) => !u.ok);
+      // Offline only when nothing came back, or every provider failed at the
+      // transport level (server down/flapping) — then push [] so the store keeps
+      // last-good. Semantic per-provider errors (e.g. an expired token, a bad
+      // config) are NOT offline: push them so each segment surfaces its own error
+      // instead of hiding behind stale numbers under a generic offline banner.
+      const offline =
+        usages.length === 0 || usages.every((u) => !u.ok && u.transient === true);
       if (offline) {
         this.log.warn("codexbar poll: no providers (server unavailable?)");
         this.store.setUsage([], this.now(), true);
       } else {
-        // Push every provider we saw so the display order keeps them all; the
-        // store retains last-good for any that failed transiently (server
-        // flapping) instead of blanking them. Real provider errors still show.
-        this.lastGood = usages.map((u) => u.provider);
+        // Remember providers that are live OR merely flapping (transient) so
+        // discovery keeps retrying them; drop ones with a real error so a
+        // removed/disabled provider ages out of discovery instead of lingering
+        // as a phantom segment (and an extra fetch) on every future poll.
+        this.lastGood = usages.filter((u) => u.ok || u.transient).map((u) => u.provider);
         const live = usages.filter((u) => u.ok).map((u) => u.provider);
         this.log.info(`codexbar poll ok: ${live.join(",")}`);
         this.store.setUsage(usages, this.now(), false);
