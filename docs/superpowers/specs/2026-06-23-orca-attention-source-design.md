@@ -5,7 +5,7 @@ Date: 2026-06-23
 
 ## Goal
 
-Muxboard today surfaces only [cmux](https://cmux.io) panes whose coding agents
+Muxboard today surfaces only [cmux](https://cmux.com/) panes whose coding agents
 need attention. This adds [Orca](https://onorca.dev) as a **second, coexisting**
 attention source: Orca worktrees whose agents have finished, been interrupted,
 or are waiting on the user appear on the same 8 keys as cmux panes, merged into

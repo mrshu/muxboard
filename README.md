@@ -1,6 +1,6 @@
 # Muxboard: a Stream Deck+ dashboard for cmux AI coding agents
 
-> Monitor your [cmux](https://cmux.io) and [Orca](https://onorca.dev) AI coding
+> Monitor your [cmux](https://cmux.com/) and [Orca](https://onorca.dev) AI coding
 > agents (Claude Code, Codex, Pi, OMP) from an Elgato Stream Deck+: which agents
 > need attention show on the keys, and your CodexBar usage limits show on the LCD.
 
@@ -12,7 +12,7 @@
 ![Muxboard dashboard](docs/images/dashboard.png)
 
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a queue of
-[cmux](https://cmux.io) panes whose coding agents (Claude Code, Codex, Pi,
+[cmux](https://cmux.com/) panes whose coding agents (Claude Code, Codex, Pi,
 [OMP](https://github.com/can1357/oh-my-pi), or any other) have finished, failed,
 gotten blocked, or are waiting for your input. [Orca](https://onorca.dev)
 worktrees appear on the same keys when Orca is running (auto-detected; see
@@ -38,7 +38,7 @@ unreachable, the display degrades gracefully and the rest keeps working:
 ## Install
 
 macOS, with Node.js, the [Elgato Stream Deck app](https://www.elgato.com/stream-deck),
-and [cmux](https://cmux.io) installed:
+and [cmux](https://cmux.com/) installed:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mrshu/muxboard/main/scripts/setup.sh | bash
