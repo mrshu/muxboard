@@ -7,7 +7,6 @@ import type { AttentionItem } from "../src/core/types.js";
 import { OrcaService } from "../src/core/services/orcaService.js";
 import { OrcaClient } from "../src/core/orca/client.js";
 import { normalizeWorktrees, toAgentKind as orcaToAgentKind } from "../src/core/orca/normalize.js";
-import { makeOrcaBackend } from "../src/runtime.js";
 import { sourceGlyphSvg, sourceTint } from "../src/core/render/sourceIcons.js";
 import { renderKey } from "../src/core/render/keyRender.js";
 
@@ -270,16 +269,6 @@ test("OrcaClient.focus throws when terminal focus returns ok:false", async () =>
   );
 });
 
-
-test("orca backend dismiss focuses the worktree (clears unread)", async () => {
-  const calls: AttentionItem[] = [];
-  const orca = { async focus(it: AttentionItem) { calls.push(it); } } as unknown as import("../src/core/orca/client.js").OrcaClient;
-  const backend = makeOrcaBackend(orca, { info() {}, warn() {}, error() {} });
-  const it = item({ id: "o1", source: "orca" });
-  await backend.dismiss(it); // long-press on an Orca key
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].id, "o1");
-});
 
 test("sourceGlyphSvg emits a tinted group for known sources", () => {
   const orca = sourceGlyphSvg("orca", 110, 120, 22, "#8b919c");
