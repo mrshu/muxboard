@@ -187,9 +187,14 @@ export class AttentionKeyAction extends SingletonAction {
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce: no change
     this.lastSvg.set(a.id, svg);
-    void a.setImage(toDataUri(svg)).catch((err) =>
-      streamDeck.logger.warn(`setImage failed: ${message(err)}`),
-    );
+    void a.setImage(toDataUri(svg)).catch((err) => {
+      // Roll the cache back on failure so the next store emit retries the
+      // write — otherwise the key keeps its stale/blank image until the SVG
+      // content itself happens to change. Guard the delete: a newer render
+      // may already have replaced the entry.
+      if (this.lastSvg.get(a.id) === svg) this.lastSvg.delete(a.id);
+      streamDeck.logger.warn(`setImage failed: ${message(err)}`);
+    });
   }
 }
 
