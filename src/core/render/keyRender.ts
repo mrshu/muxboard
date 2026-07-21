@@ -37,9 +37,14 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   // Age clock: prefer the live activity start (from the cmux event stream) so a
   // key reads "working for 2m" / "waiting since X", not the age of a stale
   // notification. Fall back to the notification createdAt when no event data.
-  const sinceMs = item.activitySince ?? Date.parse(item.createdAt);
-  const ageSeconds = Math.max(0, Math.floor((opts.nowMs - sinceMs) / 1000));
-  const age = formatAgeFromSeconds(ageSeconds);
+  const parsedSince = item.activitySince ?? Date.parse(item.createdAt);
+  // An unparseable timestamp must not flow into the age math: NaN would render
+  // as literal "NaNd" in the OLDEST (hottest) style — the most urgent look for
+  // the one tile we know nothing about. Show a neutral "?" in the calm style
+  // instead, matching formatAge's guard and sort.ts's toMs fallback.
+  const unknownAge = Number.isNaN(parsedSince);
+  const ageSeconds = unknownAge ? 0 : Math.max(0, Math.floor((opts.nowMs - parsedSince) / 1000));
+  const age = unknownAge ? "?" : formatAgeFromSeconds(ageSeconds);
   const ageS = ageStyle(ageSeconds);
   const S = KEY_SIZE;
 

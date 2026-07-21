@@ -74,6 +74,14 @@ test("renderKey marks a stalled pane distinctly from plain working", () => {
   assert.match(renderKey({ ...base, stalled: true }, { nowMs: Date.parse("2026-06-20T12:01:00Z") }), /STALLED/);
 });
 
+test("renderKey survives an unparseable createdAt (no NaN age, calm style)", () => {
+  const base = { id: "x", agent: "claude" as const, workspaceId: "w", title: "t", reason: "waiting" as const, activity: "waiting" as const, body: "", message: "", createdAt: "not-a-date" };
+  const svg = renderKey(base, { nowMs: NOW_MS });
+  assert.doesNotMatch(svg, /NaN/); // was "NaNd" in the hottest urgency style
+  assert.match(svg, />\?</); // neutral unknown-age marker
+  assert.match(svg, /fill="#7f8794">\?</); // calm grey, not the hot-orange oldest style
+});
+
 test("renderOverflow shows the hidden count", () => {
   const svg = renderOverflow(5, "#ff4d4f");
   assert.match(svg, /\+5/);
