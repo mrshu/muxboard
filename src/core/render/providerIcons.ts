@@ -54,6 +54,10 @@ export const PROVIDER_ICONS: Record<string, ProviderIcon> = {
     "viewBox": "0 0 100 100",
     "body": "<path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M80 88H20V12H80V88ZM35 27H65V72H35V27Z\" fill=\"#211E1E\"/>"
   },
+  "commandcode": {
+    "viewBox": "0 0 100 100",
+    "body": "<g fill=\"none\"><path d=\"M38 38H27C20.925 38 16 33.075 16 27C16 20.925 20.925 16 27 16C33.075 16 38 20.925 38 27V73C38 79.075 33.075 84 27 84C20.925 84 16 79.075 16 73C16 66.925 20.925 62 27 62H73C79.075 62 84 66.925 84 73C84 79.075 79.075 84 73 84C66.925 84 62 79.075 62 73V27C62 20.925 66.925 16 73 16C79.075 16 84 20.925 84 27C84 33.075 79.075 38 73 38H38V62\" stroke-width=\"9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></g>"
+  },
   "omp": {
     "viewBox": "0 0 120 90",
     "body": "<!-- OMP (oh-my-pi) mark: pi symbol with a plug connector on the right leg.\n       Vendored from https://github.com/can1357/oh-my-pi assets/icon.svg (MIT),\n       flattened to the monochrome white-on-chip treatment used by the other\n       provider icons (decorative accent dots dropped, plug slots kept dark). -->\n  <rect x=\"10\" y=\"8\" width=\"100\" height=\"12\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"25\" y=\"20\" width=\"12\" height=\"62\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"75\" y=\"20\" width=\"12\" height=\"45\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"71\" y=\"55\" width=\"20\" height=\"16\" rx=\"3\" fill=\"white\"/>\n  <rect x=\"76\" y=\"59\" width=\"3\" height=\"8\" rx=\"1\" fill=\"#0d0d0d\"/>\n  <rect x=\"82\" y=\"59\" width=\"3\" height=\"8\" rx=\"1\" fill=\"#0d0d0d\"/>"
@@ -79,5 +83,5 @@ export function providerIconSvg(
   const s = size / Math.max(vbW || 1, vbH || 1);
   const tx = x - (minX || 0) * s;
   const ty = y - (minY || 0) * s;
-  return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})" fill="${color}">${icon.body}</g>`;
+  return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})" fill="${color}" stroke="${color}">${icon.body}</g>`;
 }

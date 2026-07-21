@@ -22,6 +22,7 @@ const RES = "/Applications/CodexBar.app/Contents/Resources";
 const PROVIDERS = [
   "codex", "openai", "claude", "minimax", "gemini", "kimi", "grok",
   "copilot", "cursor", "deepseek", "mistral", "factory", "opencode",
+  "commandcode",
 ];
 
 function extract(svg) {
@@ -31,9 +32,19 @@ function extract(svg) {
     .replace(/<svg[^>]*>/i, "")
     .replace(/<\/svg>\s*$/i, "")
     .replace(/<title>[\s\S]*?<\/title>/gi, "")
-    // Drop a root-level fill:none so our tint color shows through.
-    .replace(/fill="none"/gi, "")
     .trim();
+  // Two glyph flavors. Filled shapes: drop fill="none" so the wrapping <g>'s
+  // tint fill shows through. Stroked outlines (e.g. commandcode): the shape is
+  // the stroke, not a fill, so keep fills OFF (wrap in fill="none") or the open
+  // outline gets flooded, and strip the hardcoded white stroke so it inherits
+  // the brand tint the render applies via stroke=color.
+  const isStroke = /stroke-width/i.test(inner) && /\sstroke=/i.test(inner);
+  if (isStroke) {
+    inner = inner.replace(/\sstroke="(?:white|#fff|#ffffff)"/gi, "");
+    inner = `<g fill="none">${inner}</g>`;
+  } else {
+    inner = inner.replace(/fill="none"/gi, "");
+  }
   return { viewBox, body: inner };
 }
 
@@ -83,7 +94,7 @@ export function providerIconSvg(
   const s = size / Math.max(vbW || 1, vbH || 1);
   const tx = x - (minX || 0) * s;
   const ty = y - (minY || 0) * s;
-  return \`<g transform="translate(\${tx.toFixed(2)} \${ty.toFixed(2)}) scale(\${s.toFixed(4)})" fill="\${color}">\${icon.body}</g>\`;
+  return \`<g transform="translate(\${tx.toFixed(2)} \${ty.toFixed(2)}) scale(\${s.toFixed(4)})" fill="\${color}" stroke="\${color}">\${icon.body}</g>\`;
 }
 `;
 
