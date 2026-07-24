@@ -7,12 +7,12 @@ import {
   type RawCodexbarUsage,
 } from "./normalize.js";
 
-/** Merge the /cost-derived spend + token fields onto a usage object. */
-function withCost(usage: ProviderUsage, cost: unknown): ProviderUsage {
+/** Merge the /cost-derived spend + token fields (for `today`) onto a usage. */
+function withCost(usage: ProviderUsage, cost: unknown, today: string): ProviderUsage {
   return {
     ...usage,
-    costTodayUsd: extractCostToday(cost),
-    tokensToday: extractTokensToday(cost),
+    costTodayUsd: extractCostToday(cost, today),
+    tokensToday: extractTokensToday(cost, today),
   };
 }
 
@@ -36,6 +36,8 @@ export interface CodexbarClientOptions {
   baseUrl?: string;
   /** Injected JSON fetcher for tests. */
   fetchJson?: FetchJson;
+  /** Epoch-ms clock, injectable for tests. Defaults to Date.now. */
+  now?: () => number;
 }
 
 /**
@@ -47,10 +49,20 @@ export interface CodexbarClientOptions {
 export class CodexbarClient {
   private readonly baseUrl: string;
   private readonly fetchJson: FetchJson;
+  private readonly now: () => number;
 
   constructor(opts: CodexbarClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? "http://127.0.0.1:17777").replace(/\/+$/, "");
     this.fetchJson = opts.fetchJson ?? defaultFetchJson;
+    this.now = opts.now ?? (() => Date.now());
+  }
+
+  /** Local calendar date (YYYY-MM-DD), matching CodexBar's local daily buckets. */
+  private today(): string {
+    const d = new Date(this.now());
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
   /**
@@ -73,7 +85,7 @@ export class CodexbarClient {
         const cost = await this.fetchJson(
           `${this.baseUrl}/cost?provider=${encodeURIComponent(provider)}`,
         );
-        usage = withCost(usage, cost);
+        usage = withCost(usage, cost, this.today());
       } catch {
         // Cost is optional; ignore failures.
       }
@@ -102,6 +114,7 @@ export class CodexbarClient {
    */
   async getAllUsage(knownProviders: string[] = []): Promise<ProviderUsage[]> {
     let raw: unknown;
+    const today = this.today();
     try {
       raw = await this.fetchJson(`${this.baseUrl}/usage`);
     } catch {
@@ -122,7 +135,7 @@ export class CodexbarClient {
           const cost = await this.fetchJson(
             `${this.baseUrl}/cost?provider=${encodeURIComponent(u.provider)}`,
           );
-          usages[i] = withCost(u, cost);
+          usages[i] = withCost(u, cost, today);
         } catch {
           // Cost is optional.
         }

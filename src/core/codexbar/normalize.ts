@@ -151,12 +151,22 @@ function dailyEntries(raw: unknown): DailyEntry[] {
   return entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
-/** Today's total spend (USD) — the most recent day's totalCost. */
-export function extractCostToday(raw: unknown): number | undefined {
-  return dailyEntries(raw)[0]?.totalCost;
+/**
+ * Spend (USD) for a specific day. `today` is a local `YYYY-MM-DD`; when given,
+ * returns that exact day's totalCost, or undefined when CodexBar has no entry
+ * for it (its daily series can lag behind the real today). That keeps the LCD
+ * footer from presenting a stale day's figure as "today's spend". Without
+ * `today`, falls back to the most recent recorded day.
+ */
+export function extractCostToday(raw: unknown, today?: string): number | undefined {
+  const days = dailyEntries(raw);
+  if (today !== undefined) return days.find((d) => d.date === today)?.totalCost;
+  return days[0]?.totalCost;
 }
 
-/** Today's token count — the most recent day's totalTokens. */
-export function extractTokensToday(raw: unknown): number | undefined {
-  return dailyEntries(raw)[0]?.totalTokens;
+/** Token count for a day; same `today` semantics as extractCostToday. */
+export function extractTokensToday(raw: unknown, today?: string): number | undefined {
+  const days = dailyEntries(raw);
+  if (today !== undefined) return days.find((d) => d.date === today)?.totalTokens;
+  return days[0]?.totalTokens;
 }
