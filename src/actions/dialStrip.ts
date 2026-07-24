@@ -187,9 +187,13 @@ export class DialStripAction extends SingletonAction {
 
     if (this.lastSvg.get(a.id) === svg) return; // debounce
     this.lastSvg.set(a.id, svg);
-    void a.setFeedback({ full: { value: toDataUri(svg) } }).catch((err) =>
-      streamDeck.logger.warn(`setFeedback failed: ${message(err)}`),
-    );
+    void a.setFeedback({ full: { value: toDataUri(svg) } }).catch((err) => {
+      // Same retry rule as the keys: un-cache on failure so the next store
+      // emit re-sends instead of leaving the segment stale until its content
+      // changes. Guarded so a newer render's entry is never clobbered.
+      if (this.lastSvg.get(a.id) === svg) this.lastSvg.delete(a.id);
+      streamDeck.logger.warn(`setFeedback failed: ${message(err)}`);
+    });
   }
 }
 
