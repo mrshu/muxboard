@@ -67,27 +67,35 @@ test("empty response is unavailable, not a crash", () => {
   assert.equal(normalizeUsageResponse(null, "codex").ok, false);
 });
 
-test("extractCostToday picks the most recent day", () => {
+test("extractCostToday returns the matched day, not just the newest", () => {
   const raw = loadFixture("codexbar-cost-codex.json");
+  assert.equal(extractCostToday(raw, "2026-06-20"), 4.2);
+  assert.equal(extractCostToday(raw, "2026-06-18"), 70.95);
+  // No entry for the day → undefined, so a stale day is never shown as "today".
+  assert.equal(extractCostToday(raw, "2026-07-24"), undefined);
+  // No day given → falls back to the most recent recorded day.
   assert.equal(extractCostToday(raw), 4.2);
-  assert.equal(extractCostToday([]), undefined);
+  assert.equal(extractCostToday([], "2026-06-20"), undefined);
 });
 
-test("extractTokensToday is the newest day's token count", () => {
+test("extractTokensToday returns the matched day's token count", () => {
   const raw = loadFixture("codexbar-cost-codex.json");
-  assert.equal(extractTokensToday(raw), 500); // most recent day (2026-06-20)
+  assert.equal(extractTokensToday(raw, "2026-06-20"), 500);
+  assert.equal(extractTokensToday(raw, "2026-07-24"), undefined);
+  assert.equal(extractTokensToday(raw), 500); // newest fallback
   assert.equal(extractTokensToday([]), undefined);
 });
 
-test("CodexbarClient.getUsage merges usage + cost via injected fetcher", async () => {
+test("CodexbarClient.getUsage merges usage + today's cost via injected fetcher", async () => {
   const usage = loadFixture("codexbar-usage-codex.json");
   const cost = loadFixture("codexbar-cost-codex.json");
   const client = new CodexbarClient({
     fetchJson: async (url) => (url.includes("/usage") ? usage : cost),
+    now: () => new Date(2026, 5, 20, 12, 0, 0).getTime(),
   });
   const u = await client.getUsage("codex");
   assert.equal(u.ok, true);
-  assert.equal(u.costTodayUsd, 4.2);
+  assert.equal(u.costTodayUsd, 4.2); // date-matched to the 2026-06-20 entry
 });
 
 test("getAllUsage discovers providers from /usage (no hardcoded list)", async () => {
@@ -101,6 +109,7 @@ test("getAllUsage discovers providers from /usage (no hardcoded list)", async ()
       if (url.includes("/cost")) return cost;
       return [];
     },
+    now: () => new Date(2026, 5, 20, 12, 0, 0).getTime(),
   });
   const usages = await client.getAllUsage();
   assert.deepEqual(usages.map((u) => u.provider), ["codex", "claude", "minimax"]);
@@ -119,6 +128,7 @@ test("getAllUsage falls back to per-provider fetch when aggregate /usage is empt
       if (url.includes("/cost")) return cost;
       return [];
     },
+    now: () => new Date(2026, 5, 20, 12, 0, 0).getTime(),
   });
   const usages = await client.getAllUsage(["codex"]);
   assert.deepEqual(usages.map((u) => u.provider), ["codex"]);
