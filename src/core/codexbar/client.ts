@@ -53,16 +53,6 @@ export class CodexbarClient {
     this.fetchJson = opts.fetchJson ?? defaultFetchJson;
   }
 
-  /** True when `/health` reports ok. */
-  async health(): Promise<boolean> {
-    try {
-      const body = (await this.fetchJson(`${this.baseUrl}/health`)) as { status?: string };
-      return body?.status === "ok";
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Fetch usage for a single provider, including today's cost when available.
    * Never throws: failures resolve to an `ok: false` ProviderUsage.

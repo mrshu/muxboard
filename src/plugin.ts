@@ -44,12 +44,7 @@ async function resolveConfigAfterConnect(): Promise<MuxboardConfig> {
  * .start()ed — so it is cheap to build once with defaults and rebuild once the
  * real global settings arrive after connect.
  */
-function buildServices(
-  config: MuxboardConfig,
-  store: Store,
-  logger: Logger,
-  markOpened: (id: string) => void,
-) {
+function buildServices(config: MuxboardConfig, store: Store, logger: Logger) {
   // Talk to cmux directly. This requires cmux's automation mode
   // (socketControlMode: "automation") so the plugin's process is accepted.
   const cmux = new CmuxClient({
@@ -73,7 +68,7 @@ function buildServices(
       logger,
     }),
     backends: {
-      cmux: makeCmuxBackend(cmux, logger, markOpened),
+      cmux: makeCmuxBackend(cmux, logger),
       orca: makeOrcaBackend(orca, logger),
     },
   };
@@ -88,16 +83,12 @@ async function main(): Promise<void> {
   // identity must stay stable across the post-connect config reload.
   const config: MuxboardConfig = { ...DEFAULT_CONFIG };
   const store = new Store(config.codexbarProviders);
-  const lastOpened = new Map<string, number>();
-  const markOpened = (id: string): void => {
-    lastOpened.set(id, Date.now());
-  };
 
   // Placeholder services from defaults, so the runtime is fully valid for any
   // willAppear that lands in the brief window before global settings load. They
   // hold no resources (nothing polls until .start()) and are replaced below once
   // the real config is known.
-  let services = buildServices(config, store, logger, markOpened);
+  let services = buildServices(config, store, logger);
 
   const runtime: Runtime = {
     config,
@@ -108,8 +99,6 @@ async function main(): Promise<void> {
     codexbarService: services.codexbarService,
     orcaService: services.orcaService,
     logger,
-    lastOpened,
-    markOpened,
     backends: services.backends,
   };
 
@@ -125,7 +114,7 @@ async function main(): Promise<void> {
   // busyCpuPercent, and the codexbar URL/providers would never take effect,
   // having been captured by value into the default-built placeholders above.
   Object.assign(config, await resolveConfigAfterConnect());
-  services = buildServices(config, store, logger, markOpened);
+  services = buildServices(config, store, logger);
   runtime.cmux = services.cmux;
   runtime.cmuxService = services.cmuxService;
   runtime.cmuxEventsService = services.cmuxEventsService;

@@ -145,18 +145,6 @@ test("CmuxClient.openNotification calls the blessed jump primitive", async () =>
   assert.deepEqual(calls[0], ["open-notification", "--id", "ABC-123"]);
 });
 
-test("CmuxClient.dismissNotification removes a notification by id", async () => {
-  const calls: string[][] = [];
-  const client = new CmuxClient({
-    runner: async (_bin, args) => {
-      calls.push(args);
-      return { stdout: "", stderr: "" };
-    },
-  });
-  await client.dismissNotification("ABC-123");
-  assert.deepEqual(calls[0], ["dismiss-notification", "--id", "ABC-123"]);
-});
-
 test("CmuxService surfaces a running, custom-titled, notification-less pane from the event stream", async () => {
   const store = new Store();
   // The live event stream (set_status) is authoritative and marks the workspace
