@@ -19,23 +19,35 @@ function withCost(usage: ProviderUsage, cost: unknown, today: string): ProviderU
 /** Pluggable fetch-like fn so the client is testable without a server. */
 export type FetchJson = (url: string) => Promise<unknown>;
 
-const defaultFetchJson: FetchJson = async (url) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-};
+/**
+ * CodexBar's endpoints can be very slow on some builds (the aggregate `/usage`
+ * and even individual providers have been observed at 10-20s+), so the timeout
+ * must be generous or discovery/usage silently aborts and the LCD collapses to
+ * whatever last responded in time. Overridable via CodexbarClientOptions.
+ */
+const DEFAULT_TIMEOUT_MS = 30000;
+
+const makeFetchJson =
+  (timeoutMs: number): FetchJson =>
+  async (url) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
 export interface CodexbarClientOptions {
   /** Base URL of `codexbar serve`. Defaults to http://127.0.0.1:17777. */
   baseUrl?: string;
   /** Injected JSON fetcher for tests. */
   fetchJson?: FetchJson;
+  /** Per-request timeout in ms. CodexBar can be slow; defaults to 30000. */
+  timeoutMs?: number;
   /** Epoch-ms clock, injectable for tests. Defaults to Date.now. */
   now?: () => number;
 }
@@ -53,7 +65,7 @@ export class CodexbarClient {
 
   constructor(opts: CodexbarClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? "http://127.0.0.1:17777").replace(/\/+$/, "");
-    this.fetchJson = opts.fetchJson ?? defaultFetchJson;
+    this.fetchJson = opts.fetchJson ?? makeFetchJson(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     this.now = opts.now ?? (() => Date.now());
   }
 

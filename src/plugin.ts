@@ -52,7 +52,10 @@ function buildServices(config: MuxboardConfig, store: Store, logger: Logger) {
     agentAliases: config.agentAliases,
     busyCpuPercent: config.busyCpuPercent,
   });
-  const codexbar = new CodexbarClient({ baseUrl: config.codexbarBaseUrl });
+  const codexbar = new CodexbarClient({
+    baseUrl: config.codexbarBaseUrl,
+    timeoutMs: config.codexbarTimeoutMs,
+  });
   const orca = new OrcaClient({ bin: config.orcaBin });
   return {
     cmux,

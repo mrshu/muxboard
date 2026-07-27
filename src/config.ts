@@ -24,6 +24,8 @@ export interface MuxboardConfig {
   cmuxPollMs: number;
   /** CodexBar poll interval (ms). */
   codexbarPollMs: number;
+  /** Per-request timeout (ms) for `codexbar serve`. It can be slow; default 30000. */
+  codexbarTimeoutMs: number;
   /**
    * Map a notification name substring → agent, for custom-named agents cmux
    * doesn't tag (e.g. a codex CLI shown as "fieldtheory-cli"). Case-insensitive.
@@ -54,6 +56,7 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   codexbarProviders: [],
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
+  codexbarTimeoutMs: 30000,
   // Agents are detected from the running process; this is only a manual override
   // fallback (name substring → agent) for cases that can't be detected.
   agentAliases: {},
@@ -77,6 +80,7 @@ export function resolveConfig(partial: Partial<MuxboardConfig> | undefined | nul
     codexbarProviders: cleanStrings(p.codexbarProviders) ?? DEFAULT_CONFIG.codexbarProviders,
     cmuxPollMs: clampInt(p.cmuxPollMs, 500, 10_000, DEFAULT_CONFIG.cmuxPollMs),
     codexbarPollMs: clampInt(p.codexbarPollMs, 5_000, 600_000, DEFAULT_CONFIG.codexbarPollMs),
+    codexbarTimeoutMs: clampInt(p.codexbarTimeoutMs, 1_000, 120_000, DEFAULT_CONFIG.codexbarTimeoutMs),
     agentAliases: cleanAliases(p.agentAliases) ?? DEFAULT_CONFIG.agentAliases,
     busyCpuPercent: clampInt(p.busyCpuPercent, 1, 100_000, DEFAULT_CONFIG.busyCpuPercent),
     orcaBin: nonEmpty(p.orcaBin) ?? DEFAULT_CONFIG.orcaBin,
