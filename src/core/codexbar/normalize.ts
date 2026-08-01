@@ -97,19 +97,34 @@ function accountOf(identity: unknown, fallback: unknown): string | undefined {
   return str(fallback);
 }
 
-/** Parse CommandCode's monthly-grant summary from its `loginMethod` string. */
+/**
+ * Parse CommandCode's monthly-grant summary from its `loginMethod` string.
+ *
+ * CodexBar joins three optional parts with " · " (CommandCodeUsageSnapshot
+ * .makeLoginMethod): a plan name, the grant summary, then a purchased-credit
+ * balance — "<plan> · $<spent> of $<budget> · + $<purchased> credits".
+ *
+ * The leading plan segment is optional in the builder, so we don't require it.
+ * Today it is always present alongside an "$x of $y" grant (the grant total is
+ * `plan?.monthlyCreditsUSD`, so a total implies a plan, and catalog plans have
+ * non-empty display names) — accepting the bare form is drift insurance, not a
+ * reachable fix.
+ *
+ * NOT parsed: the plan-less "$<remaining> remaining" form CodexBar emits when
+ * no allowance total is published (free tier, or subscription enrichment
+ * unavailable), and a purchased-only "+ $<n> credits". Both are balances with no
+ * denominator, which this credit model has no footer semantic for.
+ */
 function parseCommandCodeUsdBucket(loginMethod: unknown): CreditBucket | undefined {
   const s = str(loginMethod);
   if (!s) return undefined;
-  // CommandCode appends its optional purchased-credit balance after the monthly
-  // grant: "<plan> · $<spent> of $<budget> · + $<purchased> credits".
-  const m = /^(.*?)\s*·\s*\$([\d,]+(?:\.\d+)?)\s+of\s+\$([\d,]+(?:\.\d+)?)(?:\s*·\s*\+\s*\$[\d,]+(?:\.\d+)?\s+credits)?\s*$/.exec(s);
+  const m = /^(?:(.*?)\s*·\s*)?\$([\d,]+(?:\.\d+)?)\s+of\s+\$([\d,]+(?:\.\d+)?)(?:\s*·\s*\+\s*\$[\d,]+(?:\.\d+)?\s+credits)?\s*$/.exec(s);
   if (!m) return undefined;
   const spent = Number(m[2].replace(/,/g, ""));
   const total = Number(m[3].replace(/,/g, ""));
   if (!Number.isFinite(spent) || !Number.isFinite(total)) return undefined;
-  const label = m[1].trim();
-  return { label: label.length > 0 ? label : undefined, spent, total, unit: "usd" };
+  const label = m[1]?.trim();
+  return { label: label && label.length > 0 ? label : undefined, spent, total, unit: "usd" };
 }
 
 /**
@@ -139,9 +154,13 @@ function loginMethodOf(src: {
 }
 
 /**
- * Credit-metered providers use provider-specific CodexBar contracts. Display
- * strings such as "used/total requests" also occur on ordinary rate-limit
- * providers, so shape-only dispatch would silently replace their S/W gauges.
+ * Credit-metered providers use provider-specific CodexBar contracts, keyed by
+ * provider id rather than by data shape: ordinary rate-limit providers emit the
+ * same count-shaped descriptions, so shape-only dispatch would silently replace
+ * their S/W gauges. Alibaba's coding plan describes all three of its rate-limit
+ * windows "<used> / <total> used" (AlibabaCodingPlanUsageSnapshot.swift), and
+ * Kilo emits "<used>/<total> credits" (KiloUsageFetcher.swift) — the latter is
+ * indistinguishable from Perplexity's own string, so no regex can separate them.
  */
 function creditModel(provider: string, src: {
   primary?: RawWindow;
@@ -150,13 +169,16 @@ function creditModel(provider: string, src: {
   loginMethod?: unknown;
   identity?: { loginMethod?: unknown } | unknown;
 }): { session?: UsageWindow; credits: CreditBucket } | undefined {
-  if (provider.toLowerCase() === "commandcode") {
+  const id = provider.trim().toLowerCase();
+
+  if (id === "commandcode") {
     const credits = parseCommandCodeUsdBucket(loginMethodOf(src));
-    const session = normalizeWindow(src.primary);
-    return credits && session ? { session, credits } : undefined;
+    // Keep the plan/spend footer even when the monthly window is missing — a
+    // gauge-less credit row still tells the operator their allowance.
+    return credits ? { session: normalizeWindow(src.primary), credits } : undefined;
   }
 
-  if (provider.toLowerCase() !== "perplexity") return undefined;
+  if (id !== "perplexity") return undefined;
 
   const candidate = (window: RawWindow | undefined) => {
     const credits = parsePerplexityBucket(window?.resetDescription);
@@ -168,10 +190,16 @@ function creditModel(provider: string, src: {
     (value): value is { session: UsageWindow; credits: CreditBucket } => value !== undefined,
   );
 
-  // Match CodexBar's own Perplexity policy: keep an available recurring grant
-  // visible, then fall back to purchased credits before promotional credit.
-  if (primary && (primary.session.remainingPercent > 0 || fallbacks.length === 0)) return primary;
-  return fallbacks.find((value) => value.session.remainingPercent > 0) ?? fallbacks[0] ?? primary;
+  // Match CodexBar's own Perplexity waterfall (PerplexityUsageSnapshot.swift):
+  // keep an available recurring grant visible, then fall back to purchased
+  // credits before promotional credit. Upstream encodes a drained pool as
+  // usedPercent 100, so remainingPercent is the availability signal.
+  if (primary && primary.session.remainingPercent > 0) return primary;
+  const available = fallbacks.find((value) => value.session.remainingPercent > 0);
+  // With nothing available, prefer the recurring grant's real numbers over an
+  // empty pool: "1000/1000 spent" is the state this gauge exists to show, and
+  // upstream always emits a 0/0 secondary+tertiary that would otherwise win.
+  return available ?? primary ?? fallbacks[0];
 }
 
 /** Normalize one raw CodexBar usage object for a provider. */
