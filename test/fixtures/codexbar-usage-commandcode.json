@@ -1,0 +1,20 @@
+[
+  {
+    "source": "Chrome Profile 1",
+    "provider": "commandcode",
+    "usage": {
+      "primary": {
+        "usedPercent": 0,
+        "resetsAt": "2026-07-20T12:10:00Z"
+      },
+      "secondary": null,
+      "tertiary": null,
+      "loginMethod": "Go · $0.00 of $10.00",
+      "identity": {
+        "loginMethod": "Go · $0.00 of $10.00",
+        "providerID": "commandcode"
+      },
+      "updatedAt": "2026-06-20T12:09:23Z"
+    }
+  }
+]

@@ -102,6 +102,23 @@ export interface UsageWindow {
   windowMinutes?: number;
 }
 
+/**
+ * A "spend against an allowance" bucket for providers that meter in credits
+ * rather than a rate-limit window — CommandCode (dollars, from the `loginMethod`
+ * string "Go · $0.00 of $10.00") and Perplexity (a credit count, from a window's
+ * "0/12000 credits" description). Surfaced in the footer alongside a single gauge.
+ */
+export interface CreditBucket {
+  /** Optional label — a plan tier ("Go") or window title. */
+  label?: string;
+  /** Amount used this period, in `unit`. */
+  spent: number;
+  /** The allowance for the period, in `unit`. */
+  total: number;
+  /** "usd" renders as "$x / $y"; any other value is a count unit ("credits"). */
+  unit: string;
+}
+
 /** Normalized CodexBar usage for one provider. */
 export interface ProviderUsage {
   provider: string;
@@ -115,6 +132,12 @@ export interface ProviderUsage {
   costTodayUsd?: number;
   /** Today's token count, from the most recent /cost daily entry (optional). */
   tokensToday?: number;
+  /**
+   * Credit-bucket spend/allowance parsed from CodexBar's `loginMethod` (e.g.
+   * CommandCode). Present only for credit-metered providers; the `session`
+   * gauge still carries the used-percent for the bucket's window.
+   */
+  credits?: CreditBucket;
   /** ISO-8601 of when CodexBar last refreshed this payload. */
   updatedAt?: string;
   /** True when the payload was usable; false on error/unreachable. */

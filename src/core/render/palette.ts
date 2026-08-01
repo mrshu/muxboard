@@ -60,6 +60,7 @@ export function reasonTheme(reason: AttentionReason): ReasonTheme {
 const PROVIDER_COLORS: Record<string, string> = {
   codex: "#49A3B0",
   commandcode: "#A04DFD",
+  perplexity: "#20B8CD",
   openai: "#0F8270",
   claude: "#CC7C5E",
   minimax: "#FE603C",

@@ -22,7 +22,7 @@ const RES = "/Applications/CodexBar.app/Contents/Resources";
 const PROVIDERS = [
   "codex", "openai", "claude", "minimax", "gemini", "kimi", "grok",
   "copilot", "cursor", "deepseek", "mistral", "factory", "opencode",
-  "commandcode",
+  "commandcode", "perplexity",
 ];
 
 function extract(svg) {

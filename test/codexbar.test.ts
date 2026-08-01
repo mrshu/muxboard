@@ -30,6 +30,77 @@ test("normalizes the claude nested-usage window shape", () => {
   assert.equal(u.account, "anthropic@example.com");
 });
 
+test("commandcode: parses the credit bucket, single monthly window, no weekly", () => {
+  const raw = loadFixture("codexbar-usage-commandcode.json");
+  const u = normalizeUsageResponse(raw, "commandcode");
+  assert.equal(u.ok, true);
+  assert.equal(u.provider, "commandcode");
+  // CodexBar surfaces one window (the monthly credit bucket) as `primary`.
+  assert.equal(u.session?.usedPercent, 0);
+  assert.equal(u.weekly, undefined);
+  // "Go · $0.00 of $10.00" → label + spend/allowance in dollars.
+  assert.equal(u.credits?.label, "Go");
+  assert.equal(u.credits?.spent, 0);
+  assert.equal(u.credits?.total, 10);
+  assert.equal(u.credits?.unit, "usd");
+});
+
+test("credit parsing handles non-zero spend and ignores non-credit loginMethod", () => {
+  const withSpend = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 42, resetsAt: "2026-07-20T12:10:00Z" },
+          loginMethod: "Pro · $12.50 of $30.00",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  assert.equal(withSpend.credits?.label, "Pro");
+  assert.equal(withSpend.credits?.spent, 12.5);
+  assert.equal(withSpend.credits?.total, 30);
+  assert.equal(withSpend.credits?.unit, "usd");
+  // Claude's "Claude Max" loginMethod is not a "$x of $y" credit string → no credits.
+  const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
+  assert.equal(claude.credits, undefined);
+});
+
+test("perplexity: gauges the credits window, skips the empty bonus, count unit", () => {
+  const u = normalizeUsageResponse(loadFixture("codexbar-usage-perplexity.json"), "perplexity");
+  assert.equal(u.ok, true);
+  // The gauge is "0/12000 credits" (Purchased), not the empty "0/0 bonus".
+  assert.equal(u.session?.usedPercent, 0);
+  assert.equal(u.weekly, undefined);
+  assert.equal(u.credits?.spent, 0);
+  assert.equal(u.credits?.total, 12000);
+  assert.equal(u.credits?.unit, "credits");
+});
+
+test("perplexity: a bonus-only (0/0) account stays credit-framed, not a weekly cap", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: null,
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          identity: { providerID: "perplexity" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.ok, true);
+  // No purchased credits — only a 0/0 bonus — must NOT fall back to the S/W layout
+  // (which would render a misleading fully-used weekly bar).
+  assert.equal(u.weekly, undefined);
+  assert.ok(u.session);
+  assert.equal(u.credits?.total, 0);
+  assert.equal(u.credits?.unit, "bonus");
+});
+
 test("normalizes nested usage when primary is null but secondary is live", () => {
   // Real Codex shape from newer CodexBar builds: windows nest under `usage`,
   // the 5h `primary` is null, and only the weekly `secondary` is present. The

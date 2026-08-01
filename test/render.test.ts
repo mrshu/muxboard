@@ -216,6 +216,35 @@ test("renderLcdSegments shows one provider per segment, all at a glance", () => 
   assert.match(s3, /—/);
 });
 
+test("commandcode segment: CMDCODE name, single MO gauge, credit footer, no empty weekly", () => {
+  const cc = normalizeUsageResponse(loadFixture("codexbar-usage-commandcode.json"), "commandcode");
+  const [seg] = renderLcdSegments([cc], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  // Friendly header name, not the 8-char-truncated "COMMANDC".
+  assert.match(seg, /CMDCODE/);
+  assert.doesNotMatch(seg, /COMMANDC/);
+  // One gauge for the monthly bucket labeled "MO"; no session "S"/weekly "W" rows.
+  assert.match(seg, />MO</);
+  assert.doesNotMatch(seg, />W</);
+  assert.doesNotMatch(seg, />S</);
+  // Plan + spend/allowance in the footer.
+  assert.match(seg, /Go · \$0\.00 \/ \$10\.00/);
+});
+
+test("perplexity segment: PPLX name, single CR credits gauge, count footer, brand color", () => {
+  const p = normalizeUsageResponse(loadFixture("codexbar-usage-perplexity.json"), "perplexity");
+  const [seg] = renderLcdSegments([p], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  // Friendly name, not the truncated "PERPLEXI".
+  assert.match(seg, /PPLX/);
+  assert.doesNotMatch(seg, /PERPLEXI/);
+  // One credits gauge labeled "CR"; no session/weekly rows.
+  assert.match(seg, />CR</);
+  assert.doesNotMatch(seg, />W</);
+  assert.doesNotMatch(seg, />S</);
+  // Credit-count footer (not dollars) + Perplexity brand color.
+  assert.match(seg, /0 \/ 12000 credits/);
+  assert.match(seg, /#20B8CD/i);
+});
+
 test("the rightmost dial toggles the quota number to the pace delta", () => {
   const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
   const [s0] = renderLcdSegments([codex], { nowMs: NOW_MS, stale: false, numberMode: "pace" });

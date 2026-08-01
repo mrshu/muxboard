@@ -58,6 +58,10 @@ export const PROVIDER_ICONS: Record<string, ProviderIcon> = {
     "viewBox": "0 0 100 100",
     "body": "<g fill=\"none\"><path d=\"M38 38H27C20.925 38 16 33.075 16 27C16 20.925 20.925 16 27 16C33.075 16 38 20.925 38 27V73C38 79.075 33.075 84 27 84C20.925 84 16 79.075 16 73C16 66.925 20.925 62 27 62H73C79.075 62 84 66.925 84 73C84 79.075 79.075 84 73 84C66.925 84 62 79.075 62 73V27C62 20.925 66.925 16 73 16C79.075 16 84 20.925 84 27C84 33.075 79.075 38 73 38H38V62\" stroke-width=\"9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></g>"
   },
+  "perplexity": {
+    "viewBox": "0 0 100 100",
+    "body": "<g transform=\"translate(10 10) scale(3.3333)\"><path d=\"M22.3977 7.0896h-2.3106V.0676l-7.5094 6.3542V.1577h-1.1554v6.1966L4.4904 0v7.0896H1.6023v10.3976h2.8882V24l6.932-6.3591v6.2005h1.1554v-6.0469l6.9318 6.1807v-6.4879h2.8882V7.0896zm-3.4657-4.531v4.531h-5.355l5.355-4.531zm-13.2862.0676 4.8691 4.4634H5.6458V2.6262zM2.7576 16.332V8.245h7.8476l-6.1149 6.1147v1.9723H2.7576zm2.8882 5.0404v-3.8852h.0001v-2.6488l5.7763-5.7764v7.0111l-5.7764 5.2993zm12.7086.0248-5.7766-5.1509V9.0618l5.7766 5.7766v6.5588zm2.8882-5.0652h-1.733v-1.9723L13.3948 8.245h7.8478v8.087z\"/></g>"
+  },
   "omp": {
     "viewBox": "0 0 120 90",
     "body": "<!-- OMP (oh-my-pi) mark: pi symbol with a plug connector on the right leg.\n       Vendored from https://github.com/can1357/oh-my-pi assets/icon.svg (MIT),\n       flattened to the monochrome white-on-chip treatment used by the other\n       provider icons (decorative accent dots dropped, plug slots kept dark). -->\n  <rect x=\"10\" y=\"8\" width=\"100\" height=\"12\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"25\" y=\"20\" width=\"12\" height=\"62\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"75\" y=\"20\" width=\"12\" height=\"45\" rx=\"2\" fill=\"white\"/>\n  <rect x=\"71\" y=\"55\" width=\"20\" height=\"16\" rx=\"3\" fill=\"white\"/>\n  <rect x=\"76\" y=\"59\" width=\"3\" height=\"8\" rx=\"1\" fill=\"#0d0d0d\"/>\n  <rect x=\"82\" y=\"59\" width=\"3\" height=\"8\" rx=\"1\" fill=\"#0d0d0d\"/>"

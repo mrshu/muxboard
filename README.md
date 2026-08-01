@@ -18,8 +18,9 @@ gotten blocked, or are waiting for your input. [Orca](https://onorca.dev)
 worktrees appear on the same keys when Orca is running (auto-detected; see
 [Orca support](#orca-support)). For cmux to see OMP sessions at all, install its
 hook bridge once with `cmux hooks omp install` (cmux ≥ 0.64.17). The LCD touch
-strip shows CodexBar usage: session and weekly quota with pace, plus spend and
-tokens per provider.
+strip shows CodexBar usage per provider: session and weekly quota with pace, plus
+spend and tokens — or, for credit-metered providers (CommandCode, Perplexity), a
+single credit gauge showing spend against the allowance.
 
 The newest attention item is key 1 (top-left); the queue fills left-to-right,
 top-to-bottom:
@@ -55,7 +56,7 @@ profile. To build from source instead, see [Quick start](#quick-start).
 | Surface | Shows | Source |
 | --- | --- | --- |
 | 8 keys | Attention queue: agent glyph, status, repo, age | `cmux list-notifications --json` + `orca worktree ps --json` (Orca, auto-detected) |
-| LCD strip (4×200×100) | One CodexBar provider per segment: session + weekly quota with pace, spend + tokens | `codexbar serve` HTTP |
+| LCD strip (4×200×100) | One CodexBar provider per segment: session + weekly quota with pace, spend + tokens — or a single credit gauge (spend/allowance) for credit-metered providers | `codexbar serve` HTTP |
 | 4 dials | Scroll, filter, quota view, refresh | local state |
 
 > Required cmux setting. cmux's control socket rejects processes outside a
@@ -78,8 +79,9 @@ profile. To build from source instead, see [Quick start](#quick-start).
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
   rather than a hardcoded list. Each segment carries the provider name in
   CodexBar's brand color, the session and weekly gauges with their reset times,
-  and a footer with today's spend and tokens, so all your providers are visible
-  at once.
+  and a footer with today's spend and tokens — while credit-metered providers
+  show a single credit gauge and a spend/allowance footer — so all your providers
+  are visible at once.
 - Each gauge also carries a calm **pace** marker, comparing how much quota you've
   used against how far through the window the clock is: a faded same-hue
   extension toward where you "should" be when you're under the clock (in reserve,
@@ -316,7 +318,14 @@ both payload shapes CodexBar emits:
 
 Each window provides `usedPercent`, `resetsAt`, `windowMinutes`, and a
 `resetDescription`; `primary` is the session (5h) and `secondary` the weekly (7d)
-window. The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
+window.
+
+Credit-metered providers don't use the session/weekly model: CommandCode carries
+its plan + dollars in a `loginMethod` string (`"Go · $0.00 of $10.00"`), and
+Perplexity reports a credit count in a window's `resetDescription`
+(`"0/12000 credits"`, with `primary` null and the real bucket in `tertiary`).
+Muxboard parses these into a single credit gauge plus a spend/allowance footer
+instead of the two rate-limit gauges. The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
 (elapsed-vs-used); windows with no time bounds (e.g. an "Unlimited" weekly) show
 no pace. Today's spend and token count come from `/cost?provider=<p>` (a daily
 series; amounts are treated as USD since CodexBar emits no currency code). A
