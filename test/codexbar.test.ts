@@ -45,14 +45,14 @@ test("commandcode: parses the credit bucket, single monthly window, no weekly", 
   assert.equal(u.credits?.unit, "usd");
 });
 
-test("credit parsing handles non-zero spend and ignores non-credit loginMethod", () => {
+test("commandcode: parses monthly spend with an optional purchased-credit suffix", () => {
   const withSpend = normalizeUsageResponse(
     [
       {
         provider: "commandcode",
         usage: {
           primary: { usedPercent: 42, resetsAt: "2026-07-20T12:10:00Z" },
-          loginMethod: "Pro · $12.50 of $30.00",
+          loginMethod: "Pro · $12.50 of $30.00 · + $5.00 credits",
         },
       },
     ],
@@ -62,9 +62,49 @@ test("credit parsing handles non-zero spend and ignores non-credit loginMethod",
   assert.equal(withSpend.credits?.spent, 12.5);
   assert.equal(withSpend.credits?.total, 30);
   assert.equal(withSpend.credits?.unit, "usd");
-  // Claude's "Claude Max" loginMethod is not a "$x of $y" credit string → no credits.
+});
+
+test("credit parsing stays scoped to CommandCode and Perplexity", () => {
+  // Claude's "Claude Max" loginMethod is not a CommandCode credit summary.
   const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
   assert.equal(claude.credits, undefined);
+
+  // Alibaba uses the same count-shaped strings for 5h, weekly, and monthly
+  // rate-limit windows. It must retain its ordinary S/W rendering.
+  const alibaba = normalizeUsageResponse(
+    [
+      {
+        provider: "alibaba",
+        usage: {
+          primary: { usedPercent: 20, windowMinutes: 300, resetDescription: "20 / 100 used" },
+          secondary: { usedPercent: 30, windowMinutes: 10080, resetDescription: "300 / 1000 used" },
+          tertiary: { usedPercent: 40, windowMinutes: 43200, resetDescription: "4000 / 10000 used" },
+        },
+      },
+    ],
+    "alibaba",
+  );
+  assert.equal(alibaba.credits, undefined);
+  assert.equal(alibaba.session?.usedPercent, 20);
+  assert.equal(alibaba.weekly?.usedPercent, 30);
+
+  // Kilo's normal credit pool can coexist with its separate Pass window.
+  // It is not one of this feature's single-credit-gauge contracts.
+  const kilo = normalizeUsageResponse(
+    [
+      {
+        provider: "kilo",
+        usage: {
+          primary: { usedPercent: 10, resetDescription: "100/1000 credits" },
+          secondary: { usedPercent: 50, resetDescription: "$5.00 / $10.00" },
+        },
+      },
+    ],
+    "kilo",
+  );
+  assert.equal(kilo.credits, undefined);
+  assert.equal(kilo.session?.usedPercent, 10);
+  assert.equal(kilo.weekly?.usedPercent, 50);
 });
 
 test("perplexity: gauges the credits window, skips the empty bonus, count unit", () => {
@@ -98,6 +138,45 @@ test("perplexity: a bonus-only (0/0) account stays credit-framed, not a weekly c
   assert.equal(u.weekly, undefined);
   assert.ok(u.session);
   assert.equal(u.credits?.total, 0);
+  assert.equal(u.credits?.unit, "bonus");
+});
+
+test("perplexity: keeps an available recurring grant ahead of a larger purchased pool", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: { usedPercent: 90, resetDescription: "900/1000 credits" },
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          tertiary: { usedPercent: 0, resetDescription: "0/12000 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 90);
+  assert.equal(u.credits?.spent, 900);
+  assert.equal(u.credits?.total, 1000);
+});
+
+test("perplexity: uses an expiring promotional balance before an exhausted purchased pool", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: null,
+          secondary: { usedPercent: 50, resetDescription: "50/100 bonus · exp. Aug 31" },
+          tertiary: { usedPercent: 100, resetDescription: "0/0 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 50);
+  assert.equal(u.credits?.spent, 50);
+  assert.equal(u.credits?.total, 100);
   assert.equal(u.credits?.unit, "bonus");
 });
 

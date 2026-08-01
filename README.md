@@ -317,15 +317,24 @@ both payload shapes CodexBar emits:
 - Claude and others nest them under `usage`.
 
 Each window provides `usedPercent`, `resetsAt`, `windowMinutes`, and a
-`resetDescription`; `primary` is the session (5h) and `secondary` the weekly (7d)
-window.
+`resetDescription`; for ordinary rate-limit providers, `primary` is usually the
+session (5h) and `secondary` the weekly (7d) window.
 
-Credit-metered providers don't use the session/weekly model: CommandCode carries
-its plan + dollars in a `loginMethod` string (`"Go · $0.00 of $10.00"`), and
-Perplexity reports a credit count in a window's `resetDescription`
-(`"0/12000 credits"`, with `primary` null and the real bucket in `tertiary`).
-Muxboard parses these into a single credit gauge plus a spend/allowance footer
-instead of the two rate-limit gauges. The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
+Credit-metered providers use explicit provider contracts rather than a generic
+`used/total` display string: CommandCode carries its plan + dollars in a
+`loginMethod` string (`"Go · $0.00 of $10.00"`, optionally followed by purchased
+credits), and Perplexity reports recurring, purchased, and promotional pools in
+its windows. Muxboard shows Perplexity's available recurring pool first, then
+falls back to purchased credits and promotional credit; it parses an optional
+promotion-expiry suffix too. Other providers can use similar count strings for
+ordinary rate limits, so they keep the standard session/weekly layout.
+
+CommandCode's automatic browser-session path requires CodexBar to persist its
+session. Until the upstream [session-persistence fix](https://github.com/steipete/CodexBar/issues/2541)
+ships, automatic CommandCode usage via the CLI/serve path remains unavailable;
+Perplexity is unaffected.
+A configured manual CommandCode cookie remains supported. The pace marker/number
+is derived locally from `resetsAt` + `windowMinutes`
 (elapsed-vs-used); windows with no time bounds (e.g. an "Unlimited" weekly) show
 no pace. Today's spend and token count come from `/cost?provider=<p>` (a daily
 series; amounts are treated as USD since CodexBar emits no currency code). A

@@ -97,17 +97,13 @@ function accountOf(identity: unknown, fallback: unknown): string | undefined {
   return str(fallback);
 }
 
-/**
- * Parse CodexBar's `loginMethod` dollar string (e.g. "Go · $0.00 of $10.00",
- * CommandCode) into a plan label + USD spend/allowance. Returns undefined when
- * the string isn't a dollar summary, so other providers (whose loginMethod means
- * something else, e.g. "Claude Max") are left untouched.
- */
-function parseUsdBucket(loginMethod: unknown): CreditBucket | undefined {
+/** Parse CommandCode's monthly-grant summary from its `loginMethod` string. */
+function parseCommandCodeUsdBucket(loginMethod: unknown): CreditBucket | undefined {
   const s = str(loginMethod);
   if (!s) return undefined;
-  // "<plan> · $<spent> of $<budget>" — · is U+00B7; tolerate surrounding space.
-  const m = /^(.*?)\s*·\s*\$([\d,]+(?:\.\d+)?)\s+of\s+\$([\d,]+(?:\.\d+)?)\s*$/.exec(s);
+  // CommandCode appends its optional purchased-credit balance after the monthly
+  // grant: "<plan> · $<spent> of $<budget> · + $<purchased> credits".
+  const m = /^(.*?)\s*·\s*\$([\d,]+(?:\.\d+)?)\s+of\s+\$([\d,]+(?:\.\d+)?)(?:\s*·\s*\+\s*\$[\d,]+(?:\.\d+)?\s+credits)?\s*$/.exec(s);
   if (!m) return undefined;
   const spent = Number(m[2].replace(/,/g, ""));
   const total = Number(m[3].replace(/,/g, ""));
@@ -117,18 +113,13 @@ function parseUsdBucket(loginMethod: unknown): CreditBucket | undefined {
 }
 
 /**
- * Parse a window's "<spent>/<total> <unit>" description (e.g. Perplexity's
- * "0/12000 credits" or "0/0 bonus") into a count bucket. Returns undefined for
- * ordinary reset descriptions like "Aug 6 at 07:14".
+ * Parse Perplexity's known credit-pool descriptions. The optional expiry suffix
+ * appears on promotional balances (for example, "50/100 bonus · exp. Aug 31").
  */
-function parseCountBucket(resetDescription: unknown): CreditBucket | undefined {
+function parsePerplexityBucket(resetDescription: unknown): CreditBucket | undefined {
   const s = str(resetDescription);
   if (!s) return undefined;
-  // "<spent>/<total> <unit>", leading-digit anchored. Real reset descriptions are
-  // month-name dates ("Aug 6 at 07:14") that start with a letter and never match;
-  // only credit descriptions take this shape. (A numeric-locale date like "6/20 PM"
-  // would false-match, but CodexBar doesn't emit those.)
-  const m = /^(\d[\d,]*)\s*\/\s*(\d[\d,]*)\s+([A-Za-z]+)$/.exec(s);
+  const m = /^(\d[\d,]*)\s*\/\s*(\d[\d,]*)\s+(credits|bonus)(?:\s*·\s*exp\.\s+.+)?\s*$/.exec(s);
   if (!m) return undefined;
   const spent = Number(m[1].replace(/,/g, ""));
   const total = Number(m[2].replace(/,/g, ""));
@@ -148,41 +139,39 @@ function loginMethodOf(src: {
 }
 
 /**
- * Credit-metered providers don't fit the session/weekly rate-limit model — they
- * spend against an allowance, shown as one gauge + a footer. Returns the gauge
- * window + bucket, or undefined for ordinary rate-limit providers.
- *
- * Dispatch is by data SHAPE, not provider id: any provider whose `loginMethod`
- * is "<plan> · $x of $y", or that has a window described "<spent>/<total> <unit>",
- * is treated as credit-metered. Real rate-limit payloads don't match either form
- * (reset descriptions start with a letter, e.g. "Aug 6 at 07:14").
- *
- * CommandCode: dollars from `loginMethod`, gauge = the monthly `primary` window.
- * Perplexity: pick the window with the largest allowance as the gauge — the real
- * "0/12000 credits" beats an empty "0/0 bonus", and an account carrying only a
- * "0/0 bonus" still renders credit-framed rather than as a misleading weekly cap.
+ * Credit-metered providers use provider-specific CodexBar contracts. Display
+ * strings such as "used/total requests" also occur on ordinary rate-limit
+ * providers, so shape-only dispatch would silently replace their S/W gauges.
  */
-function creditModel(src: {
+function creditModel(provider: string, src: {
   primary?: RawWindow;
   secondary?: RawWindow;
   tertiary?: RawWindow;
   loginMethod?: unknown;
   identity?: { loginMethod?: unknown } | unknown;
 }): { session?: UsageWindow; credits: CreditBucket } | undefined {
-  const usd = parseUsdBucket(loginMethodOf(src));
-  if (usd) return { session: normalizeWindow(src.primary), credits: usd };
-
-  const candidates = [src.primary, src.secondary, src.tertiary]
-    .map((w) => ({ w, b: parseCountBucket(w?.resetDescription) }))
-    .filter((c): c is { w: RawWindow; b: CreditBucket } => !!c.b);
-  if (candidates.length > 0) {
-    // Largest allowance wins (stable sort → earliest window on a tie), so a real
-    // purchased bucket beats an empty bonus; a zero-only account still qualifies.
-    candidates.sort((a, b) => b.b.total - a.b.total);
-    const top = candidates[0];
-    return { session: normalizeWindow(top.w), credits: top.b };
+  if (provider.toLowerCase() === "commandcode") {
+    const credits = parseCommandCodeUsdBucket(loginMethodOf(src));
+    const session = normalizeWindow(src.primary);
+    return credits && session ? { session, credits } : undefined;
   }
-  return undefined;
+
+  if (provider.toLowerCase() !== "perplexity") return undefined;
+
+  const candidate = (window: RawWindow | undefined) => {
+    const credits = parsePerplexityBucket(window?.resetDescription);
+    const session = normalizeWindow(window);
+    return credits && session ? { session, credits } : undefined;
+  };
+  const primary = candidate(src.primary);
+  const fallbacks = [candidate(src.tertiary), candidate(src.secondary)].filter(
+    (value): value is { session: UsageWindow; credits: CreditBucket } => value !== undefined,
+  );
+
+  // Match CodexBar's own Perplexity policy: keep an available recurring grant
+  // visible, then fall back to purchased credits before promotional credit.
+  if (primary && (primary.session.remainingPercent > 0 || fallbacks.length === 0)) return primary;
+  return fallbacks.find((value) => value.session.remainingPercent > 0) ?? fallbacks[0] ?? primary;
 }
 
 /** Normalize one raw CodexBar usage object for a provider. */
@@ -201,7 +190,7 @@ export function normalizeUsage(raw: RawCodexbarUsage, providerHint?: string): Pr
 
   // Credit-metered providers (CommandCode, Perplexity) render as a single gauge
   // plus a credit footer, not the session/weekly rate-limit pair.
-  const cm = creditModel(src);
+  const cm = creditModel(provider, src);
   if (cm) {
     return { provider, account, session: cm.session, weekly: undefined, credits: cm.credits, updatedAt, ok: true };
   }
