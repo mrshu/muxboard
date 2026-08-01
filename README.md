@@ -338,13 +338,16 @@ plan describes each of its windows `"<used> / <total> used"`, and Kilo emits
 `"<used>/<total> credits"`, which is indistinguishable from Perplexity's. Shape
 dispatch would silently replace those providers' session/weekly gauges.
 
-CommandCode's automatic browser-session path requires CodexBar to persist its
-session. Until the upstream [session-persistence fix](https://github.com/steipete/CodexBar/issues/2541)
-ships, automatic CommandCode usage via the CLI/serve path remains unavailable.
-CodexBar also offers a manual cookie source for both of these providers
-(`commandcode-cookie-source` / `perplexity-cookie-source`), which avoids the
-browser import; muxboard is a pure consumer of `codexbar serve` and has no
-cookie configuration of its own either way.
+CommandCode currently can't authenticate at all, for a reason upstream of
+muxboard: commandcode.ai ships a custom better-auth `cookiePrefix`, so its real
+cookie is `__Secure-commandcode_prod_.session_token`, while CodexBar's
+`supportedSessionCookieNames` matches only better-auth's defaults by exact name
+([steipete/CodexBar#2550](https://github.com/steipete/CodexBar/issues/2550);
+[#2541](https://github.com/steipete/CodexBar/issues/2541) is likely a symptom of
+it). Selecting CodexBar's manual cookie source doesn't help either — it runs
+through the same name matcher. So the CommandCode tile renders offline until that
+lands; muxboard is a pure consumer of `codexbar serve` and has no cookie
+configuration of its own.
 
 Perplexity's automatic import can also drop out transiently — `codexbar serve`
 answers `{"code":1,"message":"No available fetch strategy for perplexity"}` when
