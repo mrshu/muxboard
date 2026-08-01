@@ -340,8 +340,17 @@ dispatch would silently replace those providers' session/weekly gauges.
 
 CommandCode's automatic browser-session path requires CodexBar to persist its
 session. Until the upstream [session-persistence fix](https://github.com/steipete/CodexBar/issues/2541)
-ships, automatic CommandCode usage via the CLI/serve path remains unavailable;
-Perplexity is unaffected.
+ships, automatic CommandCode usage via the CLI/serve path remains unavailable.
+CodexBar also offers a manual cookie source for both of these providers
+(`commandcode-cookie-source` / `perplexity-cookie-source`), which avoids the
+browser import; muxboard is a pure consumer of `codexbar serve` and has no
+cookie configuration of its own either way.
+
+Perplexity's automatic import can also drop out transiently — `codexbar serve`
+answers `{"code":1,"message":"No available fetch strategy for perplexity"}` when
+no session cookie is currently resolvable, which a refresh in the CodexBar UI
+clears. Muxboard renders that as an unavailable provider; it cannot trigger a
+CodexBar refresh, since `serve` exposes no such endpoint.
 
 The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
 (elapsed-vs-used); windows with no time bounds (e.g. an "Unlimited" weekly) show
