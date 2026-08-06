@@ -168,14 +168,27 @@ function creditModel(provider: string, src: {
   tertiary?: RawWindow;
   loginMethod?: unknown;
   identity?: { loginMethod?: unknown } | unknown;
-}): { session?: UsageWindow; credits: CreditBucket } | undefined {
+}): { session?: UsageWindow; weekly?: UsageWindow; credits: CreditBucket } | undefined {
   const id = provider.trim().toLowerCase();
 
   if (id === "commandcode") {
     const credits = parseCommandCodeUsdBucket(loginMethodOf(src));
     // Keep the plan/spend footer even when the monthly window is missing — a
     // gauge-less credit row still tells the operator their allowance.
-    return credits ? { session: normalizeWindow(src.primary), credits } : undefined;
+    if (!credits) return undefined;
+    // Which window carries the grant moved upstream. CodexBar <= v0.47.0 emits
+    // the monthly grant alone as `primary`; since "parse Command Code usage
+    // windows" (CodexBar#2630, landed after the v0.47.0 cut) `toUsageSnapshot`
+    // returns primary = rolling 5h, secondary = rolling weekly, tertiary = the
+    // grant. Both rolling windows are optional (`RateWindow?`), so treat a
+    // present `secondary` as the signal that this is the newer three-window
+    // shape: those are ordinary rate-limit windows and keep the S/W pair, while
+    // the grant is carried by the credit footer. Otherwise the grant is the only
+    // window there is, and it is the gauge — from `tertiary` when the newer
+    // build reported no rolling limits, else from `primary`.
+    const weekly = normalizeWindow(src.secondary);
+    if (weekly) return { session: normalizeWindow(src.primary), weekly, credits };
+    return { session: normalizeWindow(src.tertiary) ?? normalizeWindow(src.primary), credits };
   }
 
   if (id !== "perplexity") return undefined;
@@ -220,7 +233,7 @@ export function normalizeUsage(raw: RawCodexbarUsage, providerHint?: string): Pr
   // plus a credit footer, not the session/weekly rate-limit pair.
   const cm = creditModel(provider, src);
   if (cm) {
-    return { provider, account, session: cm.session, weekly: undefined, credits: cm.credits, updatedAt, ok: true };
+    return { provider, account, session: cm.session, weekly: cm.weekly, credits: cm.credits, updatedAt, ok: true };
   }
   return {
     provider,

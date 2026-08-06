@@ -456,3 +456,78 @@ test("commandcode: formatUSD drops cents and groups at >= $100", () => {
   assert.equal(u.credits?.spent, 150);
   assert.equal(u.credits?.total, 1000);
 });
+
+test("commandcode: gauges the monthly grant, not the rolling five-hour window", () => {
+  // CodexBar >= the #2630 fix ("parse Command Code usage windows", landed after
+  // the v0.47.0 cut) emits three windows: primary = rolling 5h, secondary =
+  // rolling weekly, tertiary = the monthly credit grant. The credit gauge must
+  // follow the grant into `tertiary` — gauging `primary` here would pair a 5h
+  // rate-limit percentage with a monthly dollar footer.
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 80, windowMinutes: 300, resetsAt: "2026-08-06T05:00:00Z" },
+          secondary: { usedPercent: 55, windowMinutes: 10080, resetsAt: "2026-08-11T05:00:00Z" },
+          tertiary: { usedPercent: 0.925, resetsAt: "2026-08-21T20:51:16Z" },
+          loginMethod: "Go · $0.09 of $10.00",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  // The rolling limits are real rate-limit windows and keep the S/W pair.
+  assert.equal(u.session?.usedPercent, 80);
+  assert.equal(u.weekly?.usedPercent, 55);
+  // The grant still renders as the credit footer.
+  assert.equal(u.credits?.label, "Go");
+  assert.equal(u.credits?.spent, 0.09);
+  assert.equal(u.credits?.total, 10);
+});
+
+test("commandcode: falls back to the grant window when no rolling limits are reported", () => {
+  // Same CodexBar build, an account whose credits response carries no rolling
+  // limits: fiveHourWindow/weeklyWindow are nil, so only the grant is left and
+  // it must be the gauge.
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: null,
+          secondary: null,
+          tertiary: { usedPercent: 0.925, resetsAt: "2026-08-21T20:51:16Z" },
+          loginMethod: "Go · $0.09 of $10.00",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  assert.equal(u.session?.usedPercent, 0.925);
+  assert.equal(u.weekly, undefined);
+  assert.equal(u.credits?.total, 10);
+});
+
+test("commandcode: v0.47.0 payloads still gauge the grant from `primary`", () => {
+  // Regression guard for the build shipped today, captured live from
+  // `codexbar serve` 0.47.0: the grant is in `primary` and there is no tertiary.
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 0.9249999999999935, resetsAt: "2026-08-21T20:51:16Z" },
+          secondary: null,
+          tertiary: null,
+          loginMethod: "Go · $0.09 of $10.00",
+          identity: { providerID: "commandcode", loginMethod: "Go · $0.09 of $10.00" },
+        },
+      },
+    ],
+    "commandcode",
+  );
+  assert.equal(u.session?.usedPercent, 0.9249999999999935);
+  assert.equal(u.weekly, undefined);
+  assert.equal(u.credits?.spent, 0.09);
+});

@@ -324,7 +324,14 @@ Credit-metered providers don't use the session/weekly model: they spend against
 an allowance, and muxboard renders them as a single credit gauge plus a
 spend/allowance footer instead of the two rate-limit gauges. CommandCode carries
 its plan + dollars in a `loginMethod` string (`"Go · $0.00 of $10.00"`,
-optionally followed by a purchased-credit balance), and Perplexity reports
+optionally followed by a purchased-credit balance). Which window holds its
+monthly grant depends on the CodexBar build: up to v0.47.0 the grant is the only
+window and arrives as `primary`, while
+[CodexBar#2630](https://github.com/steipete/CodexBar/pull/2630) added rolling
+rate limits, moving the grant to `tertiary` behind a 5h `primary` and a weekly
+`secondary`. Muxboard follows the grant to whichever window carries it, and on
+the newer shape keeps the ordinary session/weekly gauges with the grant in the
+footer. Perplexity reports
 recurring, purchased, and promotional pools across its windows (`primary` is
 null when the recurring grant is exhausted or absent). Muxboard gauges
 Perplexity's recurring pool while it has credit left, then falls back to
