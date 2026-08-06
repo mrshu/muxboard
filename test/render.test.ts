@@ -262,3 +262,64 @@ test("provider segment marks stale data", () => {
   assert.match(seg, /stale/);
   assert.equal(routeStatus(codex, true), "STALE");
 });
+
+/** x of the first gauge track in a segment (the y=41 row = the first quota row). */
+function firstGaugeX(svg: string): number {
+  const m = /<rect x="(\d+(?:\.\d+)?)" y="41"/.exec(svg);
+  assert.ok(m, "expected a gauge track on the first quota row");
+  return Number(m[1]);
+}
+
+test("a two-character gauge label reserves more room than a one-character one", () => {
+  // "S"/"W" fit the default label column, but "MO"/"CR" are drawn at the same
+  // font-size 13 bold and overrun it — the second glyph ends up underneath the
+  // gauge track. The label column has to widen with the label.
+  const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
+  const cc = normalizeUsageResponse(loadFixture("codexbar-usage-commandcode.json"), "commandcode");
+  const ctx = { nowMs: NOW_MS, stale: false, numberMode: "remaining" as const };
+  const [codexSeg] = renderLcdSegments([codex], ctx);
+  const [ccSeg] = renderLcdSegments([cc], ctx);
+
+  assert.match(ccSeg, />MO</);
+  assert.ok(
+    firstGaugeX(ccSeg) > firstGaugeX(codexSeg),
+    `two-char label must push the gauge right: MO at ${firstGaugeX(ccSeg)}, S at ${firstGaugeX(codexSeg)}`,
+  );
+  // 13px bold caps run ~8.5px/char from x=12, so "MO" ends near x=29.
+  assert.ok(firstGaugeX(ccSeg) >= 34, `gauge must clear the label, got ${firstGaugeX(ccSeg)}`);
+});
+
+test("a widened label column does not push the gauge into the number column", () => {
+  // The row number is right-anchored at x=148, so the track must still end
+  // clear of it.
+  const cc = normalizeUsageResponse(loadFixture("codexbar-usage-commandcode.json"), "commandcode");
+  const [seg] = renderLcdSegments([cc], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  const m = /<rect x="(\d+(?:\.\d+)?)" y="41" width="(\d+(?:\.\d+)?)"/.exec(seg);
+  assert.ok(m);
+  assert.ok(Number(m[1]) + Number(m[2]) <= 124, `gauge overruns the number column: ends at ${Number(m[1]) + Number(m[2])}`);
+});
+
+test("credit footers mirror CodexBar's own USD formatting", () => {
+  // CodexBar formats with maximumFractionDigits = value < 100 ? 2 : 0 and en_US
+  // grouping (CommandCodeUsageSnapshot.formatUSD), so it emits "$1,000", never
+  // "$1000.00". The footer echoes its string back and must match.
+  const big = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 15, resetsAt: "2026-07-20T12:10:00Z" },
+          loginMethod: "Scale · $150 of $1,000",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  const [seg] = renderLcdSegments([big], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.match(seg, /Scale · \$150 \/ \$1,000/);
+
+  // Under $100 keeps cents, as CodexBar does.
+  const small = normalizeUsageResponse(loadFixture("codexbar-usage-commandcode.json"), "commandcode");
+  const [seg2] = renderLcdSegments([small], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.match(seg2, /Go · \$0\.00 \/ \$10\.00/);
+});

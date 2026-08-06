@@ -113,6 +113,20 @@ function rowNumber(win: UsageWindow, nowMs: number, mode: LcdNumberMode): { text
 }
 
 /**
+ * Left edge and width of a gauge track, given its row label.
+ *
+ * The label is drawn at x=12 in 13px bold, whose caps run ~8.5px each, so the
+ * single-character "S"/"W" clear x=28 but a two-character "MO"/"CR" would be
+ * overrun by the track. Widen the label column for those and shorten the track
+ * to match, keeping its right edge fixed so the number column (right-anchored
+ * at x=148) stays put.
+ */
+function gaugeGeometry(label: string): { x: number; w: number } {
+  const x = label.length > 1 ? 40 : 28;
+  return { x, w: 106 - x };
+}
+
+/**
  * One quota row (session or weekly): label, gauge + pace marker, the mode's
  * number (remaining% or pace delta), and reset. The pace marker is shown in
  * both modes — only the number changes.
@@ -131,9 +145,10 @@ function quotaRow(
   const elapsed = elapsedPercent(win, nowMs);
   const reset = formatCountdown(win.resetsAt, nowMs);
   const num = rowNumber(win, nowMs, mode);
+  const g = gaugeGeometry(label);
   return `<text x="12" y="${y}" font-size="13" font-weight="700" fill="#aeb4be">${label}</text>
-    ${bar(28, y - 9, 78, 9, used)}
-    ${paceOverlay(28, y - 9, 78, 9, used, elapsed)}
+    ${bar(g.x, y - 9, g.w, 9, used)}
+    ${paceOverlay(g.x, y - 9, g.w, 9, used, elapsed)}
     <text x="148" y="${y}" font-size="13" font-weight="700" text-anchor="end" fill="${num.color}">${num.text}</text>
     <text x="${SEG_W - 10}" y="${y}" font-size="11" text-anchor="end" fill="#8a909a">${escapeXml(reset)}</text>`;
 }
@@ -143,6 +158,10 @@ function quotaRow(
  * carries only one window (e.g. CommandCode's monthly credit bucket, with no
  * weekly) shows a single "MO" gauge — not an empty "W —" row. Rate-limit
  * providers keep the session (S) + weekly (W) pair.
+ *
+ * Both branches are live for a credit provider: CommandCode also reports rolling
+ * 5h/weekly rate limits on CodexBar builds after CodexBar#2630, and when those
+ * are present it keeps the ordinary S/W pair with the grant in the footer.
  */
 function quotaRowsFor(usage: ProviderUsage): Array<{ label: string; win: UsageWindow | undefined }> {
   if (usage.credits && usage.weekly === undefined) {
@@ -156,14 +175,30 @@ function quotaRowsFor(usage: ProviderUsage): Array<{ label: string; win: UsageWi
 }
 
 /**
+ * Money for a credit footer, mirroring CodexBar's own rendering of the same
+ * numbers (CommandCodeUsageSnapshot.formatUSD): en-US currency with cents below
+ * $100 and whole grouped dollars at or above it, so the footer echoes the string
+ * CodexBar displayed ("$1,000") rather than reformatting it ("$1000.00"). This
+ * is deliberately not `formatUsd`, which drops cents from round costs.
+ */
+function creditUsd(value: number): string {
+  const digits = value < 100 ? 2 : 0;
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+/**
  * Footer for a credit bucket: "Go · $0.00 / $10.00" for a dollar bucket
  * (CommandCode), or "0 / 12000 credits" for a count bucket (Perplexity).
  */
 function formatCredits(c: CreditBucket): string {
   const body =
     c.unit === "usd"
-      ? // Always show cents (money), unlike formatUsd which drops them for round costs.
-        `$${c.spent.toFixed(2)} / $${c.total.toFixed(2)}`
+      ? `${creditUsd(c.spent)} / ${creditUsd(c.total)}`
       : `${c.spent} / ${c.total} ${c.unit}`;
   return c.label ? `${c.label} · ${body}` : body;
 }
