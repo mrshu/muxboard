@@ -30,6 +30,240 @@ test("normalizes the claude nested-usage window shape", () => {
   assert.equal(u.account, "anthropic@example.com");
 });
 
+test("commandcode: parses the credit bucket, single monthly window, no weekly", () => {
+  const raw = loadFixture("codexbar-usage-commandcode.json");
+  const u = normalizeUsageResponse(raw, "commandcode");
+  assert.equal(u.ok, true);
+  assert.equal(u.provider, "commandcode");
+  // CodexBar surfaces one window (the monthly credit bucket) as `primary`.
+  assert.equal(u.session?.usedPercent, 0);
+  assert.equal(u.weekly, undefined);
+  // "Go · $0.00 of $10.00" → label + spend/allowance in dollars.
+  assert.equal(u.credits?.label, "Go");
+  assert.equal(u.credits?.spent, 0);
+  assert.equal(u.credits?.total, 10);
+  assert.equal(u.credits?.unit, "usd");
+});
+
+test("commandcode: parses monthly spend with an optional purchased-credit suffix", () => {
+  const withSpend = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 42, resetsAt: "2026-07-20T12:10:00Z" },
+          loginMethod: "Pro · $12.50 of $30.00 · + $5.00 credits",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  assert.equal(withSpend.credits?.label, "Pro");
+  assert.equal(withSpend.credits?.spent, 12.5);
+  assert.equal(withSpend.credits?.total, 30);
+  assert.equal(withSpend.credits?.unit, "usd");
+});
+
+test("credit parsing stays scoped to CommandCode and Perplexity", () => {
+  // Claude's "Claude Max" loginMethod is not a CommandCode credit summary.
+  const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
+  assert.equal(claude.credits, undefined);
+
+  // Alibaba uses the same count-shaped strings for 5h, weekly, and monthly
+  // rate-limit windows — CodexBar builds them as "\(used) / \(total) used"
+  // (AlibabaCodingPlanUsageSnapshot.usageDetail). It must retain ordinary S/W.
+  const alibaba = normalizeUsageResponse(
+    [
+      {
+        provider: "alibaba",
+        usage: {
+          primary: { usedPercent: 20, windowMinutes: 300, resetDescription: "20 / 100 used" },
+          secondary: { usedPercent: 30, windowMinutes: 10080, resetDescription: "300 / 1000 used" },
+          tertiary: { usedPercent: 40, windowMinutes: 43200, resetDescription: "4000 / 10000 used" },
+        },
+      },
+    ],
+    "alibaba",
+  );
+  assert.equal(alibaba.credits, undefined);
+  assert.equal(alibaba.session?.usedPercent, 20);
+  assert.equal(alibaba.weekly?.usedPercent, 30);
+
+  // Kilo emits "\(used)/\(total) credits" (KiloUsageFetcher) — byte-identical in
+  // shape to Perplexity's own string, so only the provider id can separate them.
+  const kilo = normalizeUsageResponse(
+    [
+      {
+        provider: "kilo",
+        usage: {
+          primary: { usedPercent: 10, resetDescription: "100/1000 credits" },
+          secondary: { usedPercent: 50, resetDescription: "$5.00 / $10.00" },
+        },
+      },
+    ],
+    "kilo",
+  );
+  assert.equal(kilo.credits, undefined);
+  assert.equal(kilo.session?.usedPercent, 10);
+  assert.equal(kilo.weekly?.usedPercent, 50);
+});
+
+test("perplexity: gauges the credits window, skips the empty bonus, count unit", () => {
+  const u = normalizeUsageResponse(loadFixture("codexbar-usage-perplexity.json"), "perplexity");
+  assert.equal(u.ok, true);
+  // The gauge is "0/12000 credits" (Purchased), not the empty "0/0 bonus".
+  assert.equal(u.session?.usedPercent, 0);
+  assert.equal(u.weekly, undefined);
+  assert.equal(u.credits?.spent, 0);
+  assert.equal(u.credits?.total, 12000);
+  assert.equal(u.credits?.unit, "credits");
+});
+
+test("perplexity: a bonus-only (0/0) account stays credit-framed, not a weekly cap", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: null,
+          // Upstream always emits both pools, so an empty account carries a 0/0
+          // purchased bucket alongside the 0/0 bonus.
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          tertiary: { usedPercent: 100, resetDescription: "0/0 credits" },
+          identity: { providerID: "perplexity" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.ok, true);
+  // No credit anywhere — must NOT fall back to the S/W layout (which would
+  // render a misleading fully-used weekly bar).
+  assert.equal(u.weekly, undefined);
+  assert.ok(u.session);
+  assert.ok(u.credits);
+  assert.equal(u.credits?.total, 0);
+});
+
+test("perplexity: a fully-spent recurring grant keeps its own numbers, not an empty pool", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          // Spent the whole monthly grant, with no purchased or promotional credit.
+          // Upstream encodes the drained pools as usedPercent 100, so an
+          // availability-first policy must not let a 0/0 bucket win here.
+          primary: { usedPercent: 100, resetDescription: "1000/1000 credits" },
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          tertiary: { usedPercent: 100, resetDescription: "0/0 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 100);
+  assert.equal(u.credits?.spent, 1000);
+  assert.equal(u.credits?.total, 1000);
+  assert.equal(u.credits?.unit, "credits");
+});
+
+test("perplexity: an available purchased pool wins once the recurring grant is spent", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: { usedPercent: 100, resetDescription: "1000/1000 credits" },
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          tertiary: { usedPercent: 25, resetDescription: "3000/12000 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 25);
+  assert.equal(u.credits?.spent, 3000);
+  assert.equal(u.credits?.total, 12000);
+});
+
+test("perplexity: purchased credit outranks promotional when both are available", () => {
+  // Both fallback pools have credit left, so the tertiary-before-secondary order
+  // is what decides — matching CodexBar's recurring → purchased → promotional
+  // attribution. Without this, swapping the fallback order stays green.
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: null,
+          secondary: { usedPercent: 0, resetDescription: "0/100 bonus" },
+          tertiary: { usedPercent: 0, resetDescription: "0/12000 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.credits?.total, 12000);
+  assert.equal(u.credits?.unit, "credits");
+});
+
+test("commandcode: a known allowance renders without a monthly window", () => {
+  // Decoupling check, not a live shape: upstream pairs an "$x of $y" grant with a
+  // primary window (both derive from the plan allowance), so this payload isn't
+  // reachable today. It pins that a known allowance never depends on the window
+  // to render — no window carries a usedPercent here, so `windowSource` reads the
+  // top level.
+  const u = normalizeUsageResponse(
+    [{ provider: "commandcode", loginMethod: "Go · $4.00 of $10.00" }],
+    "commandcode",
+  );
+  assert.equal(u.ok, true);
+  assert.equal(u.weekly, undefined);
+  assert.equal(u.credits?.spent, 4);
+  assert.equal(u.credits?.total, 10);
+  assert.equal(u.credits?.unit, "usd");
+});
+
+test("perplexity: keeps an available recurring grant ahead of a larger purchased pool", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: { usedPercent: 90, resetDescription: "900/1000 credits" },
+          secondary: { usedPercent: 100, resetDescription: "0/0 bonus" },
+          tertiary: { usedPercent: 0, resetDescription: "0/12000 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 90);
+  assert.equal(u.credits?.spent, 900);
+  assert.equal(u.credits?.total, 1000);
+});
+
+test("perplexity: uses an expiring promotional balance before an exhausted purchased pool", () => {
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "perplexity",
+        usage: {
+          primary: null,
+          secondary: { usedPercent: 50, resetDescription: "50/100 bonus · exp. Aug 31" },
+          tertiary: { usedPercent: 100, resetDescription: "0/0 credits" },
+        },
+      },
+    ],
+    "perplexity",
+  );
+  assert.equal(u.session?.usedPercent, 50);
+  assert.equal(u.credits?.spent, 50);
+  assert.equal(u.credits?.total, 100);
+  assert.equal(u.credits?.unit, "bonus");
+});
+
 test("normalizes nested usage when primary is null but secondary is live", () => {
   // Real Codex shape from newer CodexBar builds: windows nest under `usage`,
   // the 5h `primary` is null, and only the weekly `secondary` is present. The
@@ -176,4 +410,49 @@ test("CodexbarClient.getUsage never throws on transport failure", async () => {
   const u = await client.getUsage("codex");
   assert.equal(u.ok, false);
   assert.match(u.error ?? "", /ECONNREFUSED/);
+});
+
+test("commandcode: parses a grant summary with no plan segment", () => {
+  // The plan segment is optional in CodexBar's builder. It always accompanies an
+  // "$x of $y" grant today (the total *is* the plan's allowance), so this is
+  // drift insurance against a catalog plan with an empty display name — not a
+  // state reachable now.
+  for (const loginMethod of ["$0.00 of $10.00", "$0.00 of $10.00 · + $5.00 credits"]) {
+    const u = normalizeUsageResponse(
+      [
+        {
+          provider: "commandcode",
+          usage: {
+            primary: { usedPercent: 0, resetsAt: "2026-07-20T12:10:00Z" },
+            loginMethod,
+          },
+        },
+      ],
+      "commandcode",
+    );
+    assert.equal(u.credits?.spent, 0, loginMethod);
+    assert.equal(u.credits?.total, 10, loginMethod);
+    assert.equal(u.credits?.label, undefined, loginMethod);
+    assert.equal(u.weekly, undefined, loginMethod);
+  }
+});
+
+test("commandcode: formatUSD drops cents and groups at >= $100", () => {
+  // maximumFractionDigits is 0 for values >= 100, so large grants arrive as
+  // "$1,000" rather than "$1,000.00".
+  const u = normalizeUsageResponse(
+    [
+      {
+        provider: "commandcode",
+        usage: {
+          primary: { usedPercent: 15, resetsAt: "2026-07-20T12:10:00Z" },
+          loginMethod: "Scale · $150 of $1,000",
+        },
+      },
+    ],
+    "commandcode",
+  );
+  assert.equal(u.credits?.label, "Scale");
+  assert.equal(u.credits?.spent, 150);
+  assert.equal(u.credits?.total, 1000);
 });

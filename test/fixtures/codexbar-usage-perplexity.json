@@ -1,0 +1,21 @@
+[
+  {
+    "provider": "perplexity",
+    "source": "web",
+    "usage": {
+      "primary": null,
+      "secondary": {
+        "usedPercent": 100,
+        "resetDescription": "0/0 bonus"
+      },
+      "tertiary": {
+        "usedPercent": 0,
+        "resetDescription": "0/12000 credits"
+      },
+      "identity": {
+        "providerID": "perplexity"
+      },
+      "updatedAt": "2026-06-20T12:09:23Z"
+    }
+  }
+]

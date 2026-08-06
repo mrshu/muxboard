@@ -1,4 +1,4 @@
-import type { LcdNumberMode, ProviderUsage, UsageWindow } from "../types.js";
+import type { CreditBucket, LcdNumberMode, ProviderUsage, UsageWindow } from "../types.js";
 import { providerColor, usageColor } from "./palette.js";
 import { escapeXml, formatCountdown, formatTokens, formatUsd, formatPercent } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
@@ -139,11 +139,43 @@ function quotaRow(
 }
 
 /**
- * Footer line: today's spend + tokens — accounting metadata, dot-separated. No
- * pacing here (that lives on the gauge rows).
+ * The quota rows to render for a provider. A credit-metered provider that
+ * carries only one window (e.g. CommandCode's monthly credit bucket, with no
+ * weekly) shows a single "MO" gauge — not an empty "W —" row. Rate-limit
+ * providers keep the session (S) + weekly (W) pair.
+ */
+function quotaRowsFor(usage: ProviderUsage): Array<{ label: string; win: UsageWindow | undefined }> {
+  if (usage.credits && usage.weekly === undefined) {
+    // "MO" for a monthly dollar bucket (CommandCode); "CR" for a credit count (Perplexity).
+    return [{ label: usage.credits.unit === "usd" ? "MO" : "CR", win: usage.session }];
+  }
+  return [
+    { label: "S", win: usage.session },
+    { label: "W", win: usage.weekly },
+  ];
+}
+
+/**
+ * Footer for a credit bucket: "Go · $0.00 / $10.00" for a dollar bucket
+ * (CommandCode), or "0 / 12000 credits" for a count bucket (Perplexity).
+ */
+function formatCredits(c: CreditBucket): string {
+  const body =
+    c.unit === "usd"
+      ? // Always show cents (money), unlike formatUsd which drops them for round costs.
+        `$${c.spent.toFixed(2)} / $${c.total.toFixed(2)}`
+      : `${c.spent} / ${c.total} ${c.unit}`;
+  return c.label ? `${c.label} · ${body}` : body;
+}
+
+/**
+ * Footer line: the credit bucket (plan + spend/allowance) for credit-metered
+ * providers, else today's spend + tokens — accounting metadata, dot-separated.
+ * No pacing here (that lives on the gauge rows).
  */
 function spendFooter(usage: ProviderUsage, stale: boolean): string {
   const parts: string[] = [];
+  if (usage.credits) parts.push(formatCredits(usage.credits));
   if (usage.costTodayUsd !== undefined) parts.push(formatUsd(usage.costTodayUsd));
   if (usage.tokensToday !== undefined) parts.push(`${formatTokens(usage.tokensToday)} tok`);
   if (stale) parts.push("stale");
@@ -159,7 +191,7 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
   if (!usage) {
     return segFrame(`<text x="14" y="32" font-size="15" fill="#3a3d44">—</text>`, "#16181c");
   }
-  const name = shortProvider((usage.provider || "?").toUpperCase());
+  const name = displayProvider(usage.provider || "?");
   // Name uses CodexBar's brand color; gauges still convey health via usageColor.
   const nameColor = providerColor(usage.provider || "");
   // CodexBar's brand glyph, tinted to match, in the header.
@@ -178,8 +210,9 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
   return segFrame(
     `${icon}<text x="${nameX}" y="25" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
      <text x="${SEG_W - 10}" y="23" font-size="10" text-anchor="end" fill="#5a606a">reset →</text>
-     ${quotaRow(50, "S", usage.session, ctx.nowMs, ctx.numberMode)}
-     ${quotaRow(72, "W", usage.weekly, ctx.nowMs, ctx.numberMode)}
+     ${quotaRowsFor(usage)
+       .map((r, i) => quotaRow(50 + i * 22, r.label, r.win, ctx.nowMs, ctx.numberMode))
+       .join("\n     ")}
      ${spendFooter(usage, ctx.stale)}`,
     nameColor,
   );
@@ -211,6 +244,14 @@ export function renderLcdSegments(
     string,
     string,
   ];
+}
+
+/** Friendly tile names for providers whose id truncates poorly (COMMANDCODE → COMMANDC). */
+const DISPLAY_NAMES: Record<string, string> = { commandcode: "CMDCODE", perplexity: "PPLX" };
+
+/** The header label for a provider: a friendly name if mapped, else the id truncated to fit. */
+function displayProvider(provider: string): string {
+  return DISPLAY_NAMES[provider.toLowerCase()] ?? shortProvider(provider.toUpperCase());
 }
 
 function shortProvider(p: string): string {
