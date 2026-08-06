@@ -1,39 +1,18 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AttentionItem } from "../types.js";
-import type { CommandRunner } from "../cmux/client.js";
+import { type CommandRunner, execEnv, installDirs, resolveBin } from "../exec.js";
 import { normalizeWorktrees } from "./normalize.js";
 
 const execFileAsync = promisify(execFile);
 
-/** Common dirs Orca's CLI is installed into, to resolve a bare `orca`. */
-const ORCA_DIRS = [
-  "/Applications/Orca.app/Contents/Resources/bin",
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  process.env.HOME ? join(process.env.HOME, ".local/bin") : "",
-].filter(Boolean);
-
-const AUGMENTED_PATH = [...ORCA_DIRS, process.env.PATH ?? ""].filter(Boolean).join(":");
-
-/** Resolve a (possibly bare) orca command to an absolute path. */
-export function resolveOrcaBin(bin: string): string {
-  if (isAbsolute(bin)) return bin;
-  if (bin.includes("/")) return bin;
-  for (const dir of ORCA_DIRS) {
-    const candidate = join(dir, bin);
-    if (existsSync(candidate)) return candidate;
-  }
-  return bin;
-}
+const ORCA_DIRS = installDirs("/Applications/Orca.app/Contents/Resources/bin");
 
 const defaultRunner: CommandRunner = async (bin, args) => {
   const { stdout, stderr } = await execFileAsync(bin, args, {
     timeout: 10_000,
     maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, PATH: AUGMENTED_PATH },
+    env: execEnv(ORCA_DIRS),
   });
   return { stdout, stderr };
 };
@@ -87,7 +66,7 @@ export class OrcaClient {
   private readonly now: () => number;
 
   constructor(opts: OrcaClientOptions = {}) {
-    this.bin = resolveOrcaBin(opts.bin ?? "orca");
+    this.bin = resolveBin(opts.bin ?? "orca", ORCA_DIRS);
     this.runner = opts.runner ?? defaultRunner;
     this.now = opts.now ?? (() => Date.now());
   }
@@ -107,8 +86,7 @@ export class OrcaClient {
   async reachable(): Promise<boolean> {
     try {
       const { stdout } = await this.runner(this.bin, ["status", "--json"]);
-      const env = JSON.parse(stdout) as OrcaEnvelope<{ runtime?: { reachable?: unknown } }>;
-      return env.ok === true && env.result?.runtime?.reachable === true;
+      return unwrap<{ runtime?: { reachable?: unknown } }>(stdout, "status").runtime?.reachable === true;
     } catch {
       return false;
     }

@@ -34,7 +34,7 @@ export function applyFilter(items: AttentionItem[], filter: AgentFilter): Attent
  * failed → permission → waiting; panes that are actively working (no longer
  * waiting on you) sink to the end regardless of their lingering notification.
  */
-function itemRank(item: AttentionItem): number {
+export function itemRank(item: AttentionItem): number {
   if (item.stalled) return 3; // working but gone silent — probably hung; surface it
   if (item.activity === "working") return 5; // actively working: sink to the end
   if (item.reason === "failed") return 0;
@@ -96,12 +96,8 @@ export function assignSlots(
   sortedItems: AttentionItem[],
   offset = 0,
 ): (AttentionItem | null)[] {
-  const slots: (AttentionItem | null)[] = new Array(KEY_COUNT).fill(null);
   const start = clampOffset(offset, sortedItems.length);
-  for (let i = 0; i < KEY_COUNT; i++) {
-    slots[i] = sortedItems[start + i] ?? null;
-  }
-  return slots;
+  return Array.from({ length: KEY_COUNT }, (_, i) => sortedItems[start + i] ?? null);
 }
 
 /**

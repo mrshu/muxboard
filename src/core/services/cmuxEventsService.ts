@@ -2,15 +2,13 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { cmuxEnv, resolveCmuxBin } from "../cmux/client.js";
 import { WorkspaceStatusTracker, type CmuxEvent } from "../cmux/eventStatus.js";
 import type { Store } from "./store.js";
-import { type Logger, silentLogger } from "./logger.js";
+import { type Logger, message, silentLogger } from "./logger.js";
 
 export interface CmuxEventsServiceOptions {
   /** cmux binary path or name. Defaults to "cmux". */
   bin?: string;
   store: Store;
   logger?: Logger;
-  /** Delay before respawning after the stream dies (default 2000ms). */
-  reconnectMs?: number;
 }
 
 /**
@@ -25,13 +23,12 @@ export interface CmuxEventsServiceOptions {
  *
  * Entirely best-effort: if cmux lacks `events`, the process dies, or spawning
  * fails, the plugin keeps working on the notification poll + title-glyph
- * fallback. The stream auto-respawns after `reconnectMs`.
+ * fallback. The stream auto-respawns after `RECONNECT_MS`.
  */
 export class CmuxEventsService {
   private readonly bin: string;
   private readonly store: Store;
   private readonly log: Logger;
-  private readonly reconnectMs: number;
   private readonly tracker = new WorkspaceStatusTracker();
   private child: ChildProcess | null = null;
   private buf = "";
@@ -45,12 +42,13 @@ export class CmuxEventsService {
   /** Restart the stream if no data arrives for this long (silent stall). */
   private static readonly STALL_MS = 120_000;
   private static readonly WATCHDOG_MS = 30_000;
+  /** Delay before respawning after the stream dies. */
+  private static readonly RECONNECT_MS = 2_000;
 
   constructor(opts: CmuxEventsServiceOptions) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
     this.store = opts.store;
     this.log = opts.logger ?? silentLogger;
-    this.reconnectMs = opts.reconnectMs ?? 2000;
   }
 
   start(): void {
@@ -142,10 +140,6 @@ export class CmuxEventsService {
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       this.spawnStream();
-    }, this.reconnectMs);
+    }, CmuxEventsService.RECONNECT_MS);
   }
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

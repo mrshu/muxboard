@@ -1,74 +1,25 @@
 import type { CmuxClient } from "../cmux/client.js";
-import type { Store } from "./store.js";
-import { type Logger, silentLogger } from "./logger.js";
+import type { AttentionItem } from "../types.js";
+import { AttentionPoller, type AttentionPollerOptions } from "./attentionPoller.js";
 
-export interface CmuxServiceOptions {
+export interface CmuxServiceOptions extends AttentionPollerOptions {
   client: CmuxClient;
-  store: Store;
-  /** Poll interval in ms (default 1500). */
-  pollMs?: number;
-  logger?: Logger;
 }
 
-/**
- * Polls cmux for the attention queue and pushes it into the store.
- *
- * Robustness rules:
- *  - A failed poll (CLI missing, nonzero exit, bad JSON) marks cmux offline but
- *    keeps the last good items, so a transient hiccup never blanks the keys.
- *  - Two consecutive failures are required before flipping to offline, to ride
- *    out a single dropped call.
- */
-export class CmuxService {
+/** Polls cmux for the attention queue and pushes it into the store. */
+export class CmuxService extends AttentionPoller {
   private readonly client: CmuxClient;
-  private readonly store: Store;
-  private readonly pollMs: number;
-  private readonly log: Logger;
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private inFlight = false;
-  private consecutiveFailures = 0;
 
   constructor(opts: CmuxServiceOptions) {
+    super("cmux", opts);
     this.client = opts.client;
-    this.store = opts.store;
-    this.pollMs = opts.pollMs ?? 1500;
-    this.log = opts.logger ?? silentLogger;
   }
 
-  start(): void {
-    if (this.timer) return;
-    void this.poll();
-    this.timer = setInterval(() => void this.poll(), this.pollMs);
+  /**
+   * Pass the live event-stream status so the client can synthesize
+   * notification-less "running" panes that have no title spinner.
+   */
+  protected fetch(): Promise<AttentionItem[]> {
+    return this.client.listAttention(this.store.getState().workspaceStatus);
   }
-
-  stop(): void {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
-  }
-
-  /** Run a single poll now (also used by dial 4 force-refresh). */
-  async poll(): Promise<void> {
-    if (this.inFlight) return; // never overlap polls
-    this.inFlight = true;
-    try {
-      // Pass the live event-stream status so the client can synthesize
-      // notification-less "running" panes that have no title spinner.
-      const items = await this.client.listAttention(this.store.getState().workspaceStatus);
-      this.consecutiveFailures = 0;
-      this.store.setAttention(items, false);
-    } catch (err) {
-      this.consecutiveFailures++;
-      const detail = err && typeof err === "object" && "stderr" in err ? ` stderr=${String((err as { stderr?: unknown }).stderr).slice(0, 200)}` : "";
-      this.log.warn(`cmux poll failed (${this.consecutiveFailures}): ${message(err)}${detail}`);
-      if (this.consecutiveFailures >= 2) {
-        this.store.setSourceOffline("cmux", true);
-      }
-    } finally {
-      this.inFlight = false;
-    }
-  }
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

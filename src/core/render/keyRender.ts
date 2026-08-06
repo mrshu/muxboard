@@ -16,6 +16,22 @@ export interface KeyRenderOptions {
   viewBadge?: string;
 }
 
+/**
+ * Per-state treatment for the status line and the border. A state urgent enough
+ * to own the border paints it in its own label color, so the two can never drift
+ * apart; the widths are a non-linear ramp so thickness tracks triage rank — the
+ * single most dangerous (failed) tile visibly out-shouts blocked/needs, which in
+ * turn out-shout a plain colored key. A zero width falls back to the workspace color.
+ */
+const STATUS_STYLES = {
+  stalled: { text: "◷ STALLED", color: "#e0852b", borderW: 7 }, // amber-orange: a working pane gone silent
+  working: { text: "● working", color: "#4ec9b0", borderW: 0 }, // busy again: keeps the workspace color
+  failed: { text: "✕ FAILED", color: "#ff4d4f", borderW: 10 },
+  blocked: { text: "PERMISSION", color: "#ffb02e", borderW: 7 },
+  needs: { text: "◆ NEEDS YOU", color: "#38bdf8", borderW: 6 }, // cyan: distinct from blocked's amber
+  waiting: { text: "waiting", color: "#9aa0aa", borderW: 0 },
+} as const;
+
 /** Age → {fontSize, color}: older waits read bigger and warmer (urgency). */
 function ageStyle(ageSeconds: number): { size: number; color: string } {
   if (ageSeconds < 300) return { size: 20, color: "#7f8794" }; // <5m: calm grey
@@ -65,47 +81,29 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
     return `<text x="${x}" y="32" font-size="${size}" font-weight="800" fill="#7b86c4" letter-spacing="0.3">${text}</text>`;
   })();
 
-  const working = item.activity === "working";
-  // A working pane that went silent (probably hung): overrides the plain
-  // "working" look with a distinct stalled treatment.
-  const stalled = item.stalled === true;
-  // A failed/blocked notification lingers in cmux after you respond — but once
-  // the agent resumes (working), it no longer needs you, so "working" wins.
-  const isFailed = !working && item.reason === "failed";
-  const isBlocked = !working && item.reason === "blocked";
-  // cmux's live "Needs" status: the agent is waiting on you. More prominent than
-  // plain waiting, below an explicit permission/failure.
-  const needsInput = !working && !isFailed && !isBlocked && item.needsInput === true;
+  // Status line (bottom): what the pane is doing, in triage order. A working
+  // pane gone silent (probably hung) reads as stalled; otherwise "working"
+  // (busy again) wins, since a failed/blocked notification lingers in cmux after
+  // you respond. cmux's live "Needs" ranks below an explicit permission/failure.
+  const status =
+    STATUS_STYLES[
+      item.stalled
+        ? "stalled"
+        : item.activity === "working"
+          ? "working"
+          : item.reason === "failed"
+            ? "failed"
+            : item.reason === "blocked"
+              ? "blocked"
+              : item.needsInput
+                ? "needs"
+                : "waiting"
+    ];
 
-  // Status line (bottom): what the pane is doing. "working" (building/changing)
-  // means it's busy again; failed/permission/needs-input are the ones that want you.
-  const status = stalled
-    ? { text: "◷ STALLED", color: "#e0852b" }
-    : working
-    ? { text: "● working", color: "#4ec9b0" }
-    : isFailed
-      ? { text: "✕ FAILED", color: "#ff4d4f" }
-      : isBlocked
-        ? { text: "PERMISSION", color: "#ffb02e" }
-        : needsInput
-          ? { text: "◆ NEEDS YOU", color: "#38bdf8" }
-          : { text: "waiting", color: "#9aa0aa" };
-
-  // Border = the workspace's own cmux color; failed/blocked/needs override
-  // (critical) only while still waiting; a working pane keeps its workspace color.
-  const borderColor = stalled
-    ? "#e0852b" // amber-orange: a working pane gone silent
-    : isFailed
-      ? "#ff4d4f"
-      : isBlocked
-        ? "#ffb02e"
-        : needsInput
-          ? "#38bdf8" // cyan: clearly distinct from blocked's amber at a glance
-          : (item.color ?? null);
-  // Non-linear width ramp so border thickness tracks triage rank: the single
-  // most dangerous (failed) tile visibly out-shouts blocked/needs, which in
-  // turn out-shout a plain colored key.
-  const borderW = stalled ? 7 : isFailed ? 10 : isBlocked ? 7 : needsInput ? 6 : item.color ? 4 : 0;
+  // Urgent states own the border in their own color; anything else falls back to
+  // the workspace's own cmux color at a plain 4px.
+  const borderColor = status.borderW ? status.color : (item.color ?? null);
+  const borderW = status.borderW || (item.color ? 4 : 0);
   const border = borderW
     ? `<rect x="${borderW / 2}" y="${borderW / 2}" width="${S - borderW}" height="${S - borderW}" rx="16" fill="none" stroke="${borderColor}" stroke-width="${borderW}"/>`
     : "";
@@ -159,6 +157,16 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
 </svg>`;
 }
 
+/** Shared chrome for the chrome-only tiles: ground, inset border, text group. */
+function tile(stroke: string, strokeW: number, inner: string): string {
+  const S = KEY_SIZE;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
+  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="${stroke}" stroke-width="${strokeW}"/>
+  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">${inner}</g>
+</svg>`;
+}
+
 /**
  * Render the "all clear" tile shown on slot 0 when a view has no items (e.g.
  * the Decisions view with no decisions pending) — a calm, deliberate at-rest
@@ -166,14 +174,8 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
  */
 export function renderAllClear(label: string): string {
   const S = KEY_SIZE;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
-  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
-  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="#1f3a2e" stroke-width="2"/>
-  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">
-    <text x="${S / 2}" y="${S / 2 - 2}" font-size="44" fill="#3fae7a">✓</text>
-    <text x="${S / 2}" y="${S / 2 + 34}" font-size="15" font-weight="700" fill="#5b6b62">${escapeXml(label)}</text>
-  </g>
-</svg>`;
+  return tile("#1f3a2e", 2, `<text x="${S / 2}" y="${S / 2 - 2}" font-size="44" fill="#3fae7a">✓</text>
+    <text x="${S / 2}" y="${S / 2 + 34}" font-size="15" font-weight="700" fill="#5b6b62">${escapeXml(label)}</text>`);
 }
 
 /**
@@ -183,14 +185,8 @@ export function renderAllClear(label: string): string {
  */
 export function renderOverflow(hiddenCount: number, accent: string): string {
   const S = KEY_SIZE;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
-  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
-  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="${accent}" stroke-width="4"/>
-  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle">
-    <text x="${S / 2}" y="${S / 2 + 4}" font-size="40" font-weight="800" fill="${accent}">+${hiddenCount}</text>
-    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700" fill="#7d8794">more</text>
-  </g>
-</svg>`;
+  return tile(accent, 4, `<text x="${S / 2}" y="${S / 2 + 4}" font-size="40" font-weight="800" fill="${accent}">+${hiddenCount}</text>
+    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700" fill="#7d8794">more</text>`);
 }
 
 /**
@@ -199,14 +195,8 @@ export function renderOverflow(hiddenCount: number, accent: string): string {
  */
 export function renderPagerHome(): string {
   const S = KEY_SIZE;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
-  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
-  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="#3a3f48" stroke-width="3"/>
-  <g font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" fill="#9aa0aa">
-    <text x="${S / 2}" y="${S / 2 + 2}" font-size="40" font-weight="800">↑</text>
-    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700">top</text>
-  </g>
-</svg>`;
+  return tile("#3a3f48", 3, `<text x="${S / 2}" y="${S / 2 + 2}" font-size="40" font-weight="800" fill="#9aa0aa">↑</text>
+    <text x="${S / 2}" y="${S / 2 + 36}" font-size="15" font-weight="700" fill="#9aa0aa">top</text>`);
 }
 
 /**
@@ -215,12 +205,8 @@ export function renderPagerHome(): string {
  */
 export function renderEmptyKey(slotNumber: number): string {
   const S = KEY_SIZE;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
-  <rect width="${S}" height="${S}" rx="18" fill="#0d0e10"/>
-  <rect x="3" y="3" width="${S - 6}" height="${S - 6}" rx="16" fill="none" stroke="#1c1e22" stroke-width="2"/>
-  <circle cx="${S / 2}" cy="${S / 2}" r="5" fill="#22252b"/>
-  <text x="${S - 12}" y="138" font-size="14" text-anchor="end" fill="#2a2d33" font-family="-apple-system, Helvetica, Arial, sans-serif">${slotNumber}</text>
-</svg>`;
+  return tile("#1c1e22", 2, `<circle cx="${S / 2}" cy="${S / 2}" r="5" fill="#22252b"/>
+  <text x="${S - 12}" y="138" font-size="14" text-anchor="end" fill="#2a2d33">${slotNumber}</text>`);
 }
 
 /**

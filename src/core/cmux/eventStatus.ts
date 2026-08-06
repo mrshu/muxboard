@@ -15,21 +15,27 @@
 
 import type { WorkspaceState, WorkspaceStatus } from "../types.js";
 
-export type { WorkspaceState, WorkspaceStatus };
 
-/** Hook events that mean the agent is actively working. */
-const RUNNING_HOOKS = new Set(["UserPromptSubmit", "PreToolUse", "PostToolUse", "PreCompact"]);
-/** Hook events that mean the agent is blocked, waiting on you. */
-const NEEDS_HOOKS = new Set(["Notification", "AskUserQuestion"]);
-/** Hook events that mean the agent finished its turn (idle / waiting for you). */
-const IDLE_HOOKS = new Set(["Stop", "SubagentStop", "SessionEnd"]);
+/**
+ * Hook event name → workspace state. Anything unlisted is ignored (null).
+ * A Map, not an object literal: names come straight off the cmux wire, and an
+ * object lookup would return a truthy value for "constructor"/"toString".
+ */
+const HOOK_STATES = new Map<string, WorkspaceState>([
+  ["UserPromptSubmit", "running"],
+  ["PreToolUse", "running"],
+  ["PostToolUse", "running"],
+  ["PreCompact", "running"],
+  ["Notification", "needs"],
+  ["AskUserQuestion", "needs"],
+  ["Stop", "idle"],
+  ["SubagentStop", "idle"],
+  ["SessionEnd", "idle"],
+]);
 
 /** Map a Claude/Codex hook event name to a workspace state (null = ignore). */
 export function hookToState(hookEventName: string): WorkspaceState | null {
-  if (RUNNING_HOOKS.has(hookEventName)) return "running";
-  if (NEEDS_HOOKS.has(hookEventName)) return "needs";
-  if (IDLE_HOOKS.has(hookEventName)) return "idle";
-  return null;
+  return HOOK_STATES.get(hookEventName) ?? null;
 }
 
 /**
@@ -37,7 +43,7 @@ export function hookToState(hookEventName: string): WorkspaceState | null {
  * `sidebar.metadata.updated` (`set_status`), e.g. "Running" / "Idle" /
  * "Needs input" — its authoritative, debounced verdict that drives its UI.
  */
-export function statusLabelToState(label: string): WorkspaceState | null {
+function statusLabelToState(label: string): WorkspaceState | null {
   const v = label.trim().toLowerCase();
   if (v.startsWith("running")) return "running";
   if (v.startsWith("idle")) return "idle";
@@ -181,8 +187,6 @@ export class WorkspaceStatusTracker {
 
   /** Epoch ms of the latest user "clear notifications" per workspace id. */
   clearedSnapshot(): Record<string, number> {
-    const out: Record<string, number> = {};
-    for (const [k, v] of this.cleared) out[k] = v;
-    return out;
+    return Object.fromEntries(this.cleared);
   }
 }

@@ -5,20 +5,13 @@
  *
  *   npm run validate
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { normalizeNotifications } from "../src/core/cmux/normalize.js";
+import { loadFixture, NOW_MS } from "../test/helpers.js";
+import { detectReason, normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { normalizeUsageResponse, extractCostToday } from "../src/core/codexbar/normalize.js";
 import { sortNewestFirst, assignSlots } from "../src/core/cmux/sort.js";
 import { formatAge } from "../src/core/render/format.js";
 import { routeStatus } from "../src/core/render/lcdRender.js";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const fixtures = join(here, "..", "test", "fixtures");
-const load = (n: string): unknown => JSON.parse(readFileSync(join(fixtures, n), "utf8"));
-
-const NOW = Date.parse("2026-06-20T12:10:00Z");
 let failures = 0;
 function check(label: string, ok: boolean): void {
   console.log(`  ${ok ? "✅" : "❌"} ${label}`);
@@ -28,7 +21,7 @@ function check(label: string, ok: boolean): void {
 console.log("Muxboard transform validation\n=============================\n");
 
 // --- cmux attention queue --------------------------------------------------
-const items = sortNewestFirst(normalizeNotifications(load("cmux-notifications.json")));
+const items = sortNewestFirst(normalizeNotifications(loadFixture("cmux-notifications.json")));
 const slots = assignSlots(items, 0);
 
 console.log("Attention keys (physical order 1 2 3 4 / 5 6 7 8):");
@@ -38,7 +31,7 @@ for (let r = 0; r < 2; r++) {
     const it = slots[r * 4 + c];
     row.push(
       it
-        ? `${(it.agent + "/" + it.reason).padEnd(16)} ${formatAge(it.createdAt, NOW).padStart(3)}`
+        ? `${(it.agent + "/" + it.reason).padEnd(16)} ${formatAge(it.createdAt, NOW_MS).padStart(3)}`
         : "· empty".padEnd(20),
     );
   }
@@ -56,17 +49,24 @@ check(
     items.some((i) => i.agent === "codex") &&
     items.some((i) => i.agent === "pi"),
 );
+// The fixture's only permission row is is_read, and a read permission/failure is
+// deliberately demoted to "waiting" (it keeps its key, loses the urgent badge).
+// So assert that demotion rather than the presence of a raw "blocked" — the
+// blocked mapping itself is covered by detectReason's unit tests.
 check(
-  "reasons cover failed/blocked/waiting",
-  ["failed", "blocked", "waiting"].every((r) => items.some((i) => i.reason === r)),
+  "reasons cover failed + waiting; a read permission is demoted",
+  items.some((i) => i.reason === "failed") &&
+    items.some((i) => i.reason === "waiting") &&
+    detectReason("Claude needs your permission to run a command") === "blocked" &&
+    items.every((i) => i.reason !== "blocked"),
 );
 console.log();
 
 // --- CodexBar LCD ----------------------------------------------------------
-const codex = normalizeUsageResponse(load("codexbar-usage-codex.json"), "codex");
-codex.costTodayUsd = extractCostToday(load("codexbar-cost-codex.json"));
-const claude = normalizeUsageResponse(load("codexbar-usage-claude.json"), "claude");
-const kimi = normalizeUsageResponse(load("codexbar-usage-kimi.json"), "kimi");
+const codex = normalizeUsageResponse(loadFixture("codexbar-usage-codex.json"), "codex");
+codex.costTodayUsd = extractCostToday(loadFixture("codexbar-cost-codex.json"));
+const claude = normalizeUsageResponse(loadFixture("codexbar-usage-claude.json"), "claude");
+const kimi = normalizeUsageResponse(loadFixture("codexbar-usage-kimi.json"), "kimi");
 
 console.log("CodexBar (codex):");
 console.log(

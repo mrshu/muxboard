@@ -1,11 +1,9 @@
-import type { AgentKind, AttentionItem, AttentionReason } from "../types.js";
+import { type AttentionItem, type AttentionReason, str, toAgentKind } from "../types.js";
 
 /** Per-agent row from `orca worktree ps --json`. Only fields we use are typed. */
 export interface RawOrcaAgent {
   state?: unknown;             // "working" | "blocked" | "waiting" | "done"
   agentType?: unknown;         // "claude" | "codex" | ... (open set)
-  prompt?: unknown;
-  lastAssistantMessage?: unknown;
   interrupted?: unknown;
   stateStartedAt?: unknown;    // epoch ms
   updatedAt?: unknown;         // epoch ms
@@ -24,18 +22,7 @@ export interface RawOrcaWorktree {
   agents?: unknown;
 }
 
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
-
-/** Map an Orca agentType to muxboard's narrower AgentKind. */
-export function toAgentKind(agentType: string): AgentKind {
-  const t = agentType.toLowerCase().trim();
-  if (t === "claude") return "claude";
-  if (t === "codex") return "codex";
-  if (t === "pi") return "pi";
-  if (t === "omp") return "omp";
-  return "unknown";
-}
 
 /** Recency of an agent's current state, for deterministic primary selection. */
 function recency(a: RawOrcaAgent): number {
@@ -112,7 +99,6 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
 
   const agent = toAgentKind(str(primary.agentType));
   const title = str(raw.displayName) || str(raw.repo) || workspaceId;
-  const message = str(primary.lastAssistantMessage) || str(primary.prompt);
   const since = num(primary.stateStartedAt);
   const createdAt = iso(
     since ?? num(primary.updatedAt) ?? num(raw.lastOutputAt),
@@ -130,8 +116,6 @@ export function normalizeWorktree(raw: RawOrcaWorktree, nowIso: string): Attenti
     activity,
     needsInput,
     activitySince: since,
-    body: "",
-    message,
     createdAt,
     synthetic,
   };

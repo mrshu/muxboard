@@ -1,10 +1,5 @@
-import type { AgentKind, AttentionItem, AttentionReason, WorkspaceStatus } from "../types.js";
-import { cleanTitle, detectActivity, type WorkspaceInfo } from "./workspaces.js";
-
-const basename = (p: string): string => {
-  const parts = p.replace(/\/+$/, "").split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? p;
-};
+import { type AgentKind, type AttentionItem, type AttentionReason, str, type WorkspaceStatus } from "../types.js";
+import { basename, cleanTitle, detectActivity, type WorkspaceInfo } from "./workspaces.js";
 
 /**
  * Raw shape of a `cmux list-notifications --json` row, as verified against
@@ -17,12 +12,9 @@ export interface RawCmuxNotification {
   body?: unknown;
   is_read?: unknown;
   workspace_id?: unknown;
-  surface_id?: unknown;
   tab_title?: unknown;
   created_at?: unknown;
 }
-
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /** Optional user map of name substring → agent (e.g. {"fieldtheory":"codex"}). */
 export type AgentAliases = Record<string, AgentKind>;
@@ -97,13 +89,13 @@ function deriveTitle(tabTitle: string, body: string): string {
 export interface CmuxContext {
   /** workspaceId → agent, from the running process (authoritative). */
   agents?: Map<string, AgentKind>;
-  /** workspaceId → best title + latest message, from `workspace list`. */
+  /** workspaceId → best title + color + activity, from `workspace list`. */
   workspaces?: Map<string, WorkspaceInfo>;
   /** Workspaces with a busy command running → epoch ms the busy window began. */
   busyWorkspaces?: Map<string, number>;
 }
 
-export function normalizeNotification(
+function normalizeNotification(
   raw: RawCmuxNotification,
   aliases: AgentAliases = {},
   ctx: CmuxContext = {},
@@ -142,7 +134,6 @@ export function normalizeNotification(
     source: "cmux",
     agent: processAgent && processAgent !== "unknown" ? processAgent : detectAgent(`${title} ${tabTitle}`, aliases),
     workspaceId,
-    surfaceId: str(raw.surface_id) || undefined,
     repo: tabTitle || undefined,
     title: displayTitle,
     reason,
@@ -151,8 +142,6 @@ export function normalizeNotification(
     busy: ctx.busyWorkspaces?.has(workspaceId) || undefined,
     busySince: ctx.busyWorkspaces?.get(workspaceId),
     color: ws?.color,
-    body,
-    message: (ws?.message ?? "").trim() || body,
     createdAt,
   };
 }
@@ -205,8 +194,6 @@ export function buildRunningItems(
       reason: "waiting", // overridden by the working activity in render/triage
       activity: "working",
       color: ws.color,
-      body: "",
-      message: (ws.message ?? "").trim(),
       createdAt: nowIso,
       synthetic: true,
     });

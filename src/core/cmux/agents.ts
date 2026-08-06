@@ -1,19 +1,5 @@
-import type { AgentKind } from "../types.js";
-import { type Activity, hasSpinnerGlyph } from "./workspaces.js";
-
-/**
- * Map a cmux coding-agent id to our AgentKind. cmux reports canonical ids
- * (codex, claude, gemini, opencode, grok, pi, …); we render claude/codex/pi
- * with branded visuals and everything else as a neutral "unknown".
- */
-export function toAgentKind(id: string): AgentKind {
-  const k = id.toLowerCase();
-  if (k === "claude") return "claude";
-  if (k === "codex") return "codex";
-  if (k === "pi") return "pi";
-  if (k === "omp") return "omp";
-  return "unknown";
-}
+import { type AgentKind, toAgentKind } from "../types.js";
+import { type Activity, forEachWorkspace, hasSpinnerGlyph, walk } from "./workspaces.js";
 
 /**
  * Build a workspaceId → agent map from `cmux --json --id-format uuids top
@@ -43,44 +29,25 @@ export function parseCodingAgents(topRaw: unknown): Map<string, AgentKind> {
   }
   if (pidToAgent.size === 0) return out;
 
-  // Walk to each workspace; collect every root_pid under it; match an agent.
-  const collectPids = (node: unknown, acc: number[]): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (Array.isArray(n.root_pids)) {
-      for (const p of n.root_pids) if (typeof p === "number") acc.push(p);
-    }
-    for (const key of Object.keys(n)) {
-      const v = n[key];
-      if (v && typeof v === "object") collectPids(v, acc);
-    }
-  };
-
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (Array.isArray(n.workspaces)) {
-      for (const w of n.workspaces) {
-        if (!w || typeof w !== "object") continue;
-        const id = (w as { id?: unknown }).id;
-        if (typeof id !== "string") continue;
-        const pids: number[] = [];
-        collectPids(w, pids);
-        for (const p of pids) {
-          const agent = pidToAgent.get(p);
-          if (agent) {
-            out.set(id, agent);
-            break;
-          }
+  // Walk to each workspace; within one, the first root_pid matching an agent
+  // wins. `found` is per-occurrence, not per-id: should the same id appear in
+  // two windows, the last occurrence still overwrites, as it always has.
+  forEachWorkspace(top, (ws) => {
+    const id = ws.id;
+    if (typeof id !== "string") return;
+    let found: AgentKind | undefined;
+    walk(ws, (n) => {
+      if (found || !Array.isArray(n.root_pids)) return;
+      for (const p of n.root_pids) {
+        const agent = typeof p === "number" ? pidToAgent.get(p) : undefined;
+        if (agent) {
+          found = agent;
+          return;
         }
       }
-    }
-    for (const key of Object.keys(n)) {
-      const v = n[key];
-      if (v && typeof v === "object") visit(v);
-    }
-  };
-  visit(top);
+    });
+    if (found) out.set(id, found);
+  });
   return out;
 }
 
@@ -99,37 +66,13 @@ export function parseCodingAgents(topRaw: unknown): Map<string, AgentKind> {
  */
 export function parseSurfaceActivity(topRaw: unknown): Map<string, Activity> {
   const out = new Map<string, Activity>();
-
-  const collectTitles = (node: unknown, acc: string[]): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (typeof n.title === "string") acc.push(n.title);
-    for (const key of Object.keys(n)) {
-      const v = n[key];
-      if (v && typeof v === "object") collectTitles(v, acc);
-    }
-  };
-
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (Array.isArray(n.workspaces)) {
-      for (const w of n.workspaces) {
-        if (!w || typeof w !== "object") continue;
-        const id = (w as { id?: unknown }).id;
-        if (typeof id !== "string") continue;
-        const titles: string[] = [];
-        collectTitles(w, titles);
-        if (titles.some(hasSpinnerGlyph)) out.set(id, "working");
-      }
-    }
-    for (const key of Object.keys(n)) {
-      const v = n[key];
-      if (v && typeof v === "object") visit(v);
-    }
-  };
-
-  visit(topRaw);
+  forEachWorkspace(topRaw, (ws) => {
+    const id = ws.id;
+    if (typeof id !== "string") return;
+    walk(ws, (n) => {
+      if (typeof n.title === "string" && hasSpinnerGlyph(n.title)) out.set(id, "working");
+    });
+  });
   return out;
 }
 
@@ -143,18 +86,10 @@ export function parseSurfaceActivity(topRaw: unknown): Map<string, Activity> {
  */
 export function parseWorkspaceCpu(topRaw: unknown): Map<string, number> {
   const out = new Map<string, number>();
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (n.kind === "workspace" && typeof n.id === "string") {
-      const res = n.resources as { cpu_percent?: unknown } | undefined;
-      out.set(n.id, typeof res?.cpu_percent === "number" ? res.cpu_percent : 0);
-    }
-    for (const key of Object.keys(n)) {
-      const v = n[key];
-      if (v && typeof v === "object") visit(v);
-    }
-  };
-  visit(topRaw);
+  walk(topRaw, (n) => {
+    if (n.kind !== "workspace" || typeof n.id !== "string") return;
+    const res = n.resources as { cpu_percent?: unknown } | undefined;
+    out.set(n.id, typeof res?.cpu_percent === "number" ? res.cpu_percent : 0);
+  });
   return out;
 }

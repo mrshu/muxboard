@@ -17,14 +17,10 @@ export default {
     file: `${sdPlugin}/bin/plugin.cjs`,
     format: "cjs",
     sourcemap: true,
-    sourcemapPathTransform: (relativeSourcePath, sourcemapPath) => {
-      return relativeSourcePath;
-    },
   },
   plugins: [
     typescript({ tsconfig: "./tsconfig.json" }),
     nodeResolve({ browser: false, exportConditions: ["node"], preferBuiltins: true }),
     commonjs(),
   ],
-  external: [],
 };

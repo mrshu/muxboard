@@ -1,4 +1,4 @@
-import type { AgentKind, AttentionReason } from "../types.js";
+import type { AgentKind } from "../types.js";
 
 /** Per-agent visual identity (palette + glyph). No trademarked logos. */
 export interface AgentTheme {
@@ -10,47 +10,23 @@ export interface AgentTheme {
   fg: string;
   /** Short non-branded glyph. */
   glyph: string;
-  /** Short label. */
-  label: string;
 }
 
 const AGENT_THEMES: Record<AgentKind, AgentTheme> = {
   // Claude: warm orange.
-  claude: { bg: ["#3a2415", "#241208"], accent: "#d97746", fg: "#f7e9df", glyph: "C", label: "CLAUDE" },
+  claude: { bg: ["#3a2415", "#241208"], accent: "#d97746", fg: "#f7e9df", glyph: "C" },
   // Codex: green/blue teal.
-  codex: { bg: ["#0f2a2b", "#06181b"], accent: "#3fb6a8", fg: "#e0f5f3", glyph: "X", label: "CODEX" },
+  codex: { bg: ["#0f2a2b", "#06181b"], accent: "#3fb6a8", fg: "#e0f5f3", glyph: "X" },
   // OMP (oh-my-pi): magenta — pi-adjacent but unmistakable next to pi's purple.
-  omp: { bg: ["#33142a", "#1f0a19"], accent: "#e070bd", fg: "#f7e6f1", glyph: "Ω", label: "OMP" },
+  omp: { bg: ["#33142a", "#1f0a19"], accent: "#e070bd", fg: "#f7e6f1", glyph: "Ω" },
   // Pi: purple.
-  pi: { bg: ["#241433", "#140a1f"], accent: "#a779e0", fg: "#efe6f7", glyph: "π", label: "PI" },
+  pi: { bg: ["#241433", "#140a1f"], accent: "#a779e0", fg: "#efe6f7", glyph: "π" },
   // Unknown: neutral grey.
-  unknown: { bg: ["#222428", "#141518"], accent: "#7d828c", fg: "#e6e8ec", glyph: "?", label: "AGENT" },
+  unknown: { bg: ["#222428", "#141518"], accent: "#7d828c", fg: "#e6e8ec", glyph: "?" },
 };
 
 export function agentTheme(agent: AgentKind): AgentTheme {
   return AGENT_THEMES[agent] ?? AGENT_THEMES.unknown;
-}
-
-/** Per-reason treatment: stronger = more urgent. */
-export interface ReasonTheme {
-  /** Band/label color. */
-  color: string;
-  /** Short uppercase label. */
-  label: string;
-  /** 0..3 urgency, used to scale the visual treatment. */
-  urgency: number;
-}
-
-const REASON_THEMES: Record<AttentionReason, ReasonTheme> = {
-  failed: { color: "#ff4d4f", label: "FAILED", urgency: 3 },
-  blocked: { color: "#ffb02e", label: "BLOCKED", urgency: 2 },
-  waiting: { color: "#ffd23f", label: "WAITING", urgency: 2 },
-  finished: { color: "#4ec9b0", label: "DONE", urgency: 1 },
-  unknown: { color: "#9aa0aa", label: "ATTN", urgency: 0 },
-};
-
-export function reasonTheme(reason: AttentionReason): ReasonTheme {
-  return REASON_THEMES[reason] ?? REASON_THEMES.unknown;
 }
 
 /**

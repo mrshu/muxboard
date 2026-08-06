@@ -8,7 +8,7 @@ import {
   elapsedPercent,
 } from "../src/core/render/lcdRender.js";
 import type { UsageWindow } from "../src/core/types.js";
-import { formatAge, formatCountdown, formatUsd, shortName } from "../src/core/render/format.js";
+import { formatAge, formatCountdown, formatUsd } from "../src/core/render/format.js";
 import { normalizeUsageResponse } from "../src/core/codexbar/normalize.js";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
 import { loadFixture, NOW_MS } from "./helpers.js";
@@ -20,7 +20,6 @@ test("format helpers are compact and deterministic", () => {
   assert.equal(formatCountdown(undefined, NOW_MS), "—");
   assert.equal(formatUsd(4.2), "$4.20");
   assert.equal(formatUsd(undefined), "—");
-  assert.equal(shortName("~/w/d/r/codex-playground", 13), "codex-playgr…");
 });
 
 test("reservePercent: reserve, on-par, deficit, and unbounded windows", () => {
@@ -47,7 +46,9 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
   assert.ok(codex);
   const svg = renderKey(codex!, { nowMs: NOW_MS, slotNumber: 1 });
   assert.match(svg, /<svg/);
-  assert.match(svg, /<g transform="translate[^"]+scale/); // codex brand icon, inlined
+  // Anchor to the agent-icon slot (17,15): a bare /<g transform=/ also matches
+  // the source badge, so it would pass with the brand icon gone entirely.
+  assert.match(svg, /<g transform="translate\(17\.00 15\.00\)[^"]*scale/); // codex brand icon
   assert.match(svg, /FAILED/); // reason chip
   assert.match(svg, /codex/); // title (auto-fit, may wrap)
   assert.match(svg, /stroke-width="10"/); // failed -> strongest border (rank-tracking ramp)
@@ -56,7 +57,6 @@ test("renderKey embeds agent glyph, reason, repo, and age", () => {
 test("omp gets its own magenta theme, not the grey unknown fallback", async () => {
   const { agentTheme } = await import("../src/core/render/palette.js");
   const theme = agentTheme("omp");
-  assert.equal(theme.label, "OMP");
   assert.equal(theme.accent, "#e070bd");
   assert.equal(theme.glyph, "Ω"); // text fallback if the icon ever goes missing
 });
@@ -64,7 +64,7 @@ test("omp gets its own magenta theme, not the grey unknown fallback", async () =
 test("renderKey draws the vendored oh-my-pi icon for omp items", () => {
   const base = { id: "o", agent: "omp" as const, workspaceId: "w", title: "omp", reason: "waiting" as const, activity: "waiting" as const, body: "", message: "", createdAt: "2026-06-20T12:00:00Z" };
   const svg = renderKey(base, { nowMs: NOW_MS, slotNumber: 1 });
-  assert.match(svg, /<g transform="translate[^"]+scale/); // vendored icon, inlined
+  assert.match(svg, /<g transform="translate\(17\.00 15\.00\)[^"]*scale/); // vendored icon, inlined
   assert.doesNotMatch(svg, />Ω</); // icon wins over the text-glyph fallback
 });
 

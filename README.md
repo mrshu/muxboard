@@ -390,7 +390,7 @@ Stored in the plugin's global settings; all fields have safe defaults
 
 src/
   plugin.ts          entry: connect, load config, start services
-  runtime.ts         shared store/clients/services + macOS foregrounding
+  runtime.ts         shared store/services/focus-backends + macOS foregrounding
   config.ts          defaults + defensive resolveConfig()
   core/              dependency-free, unit-tested, no SDK import
     types.ts
@@ -445,7 +445,7 @@ failure so a transient outage never blanks the display.
 ## Testing
 
 ```bash
-npm test        # 30 unit tests: normalization, slotting, dual-shape codexbar,
+npm test        # 154 unit tests: normalization, slotting, dual-shape codexbar,
                 # SVG structure, store dial machines, service offline retention
 npm run validate
 npm run typecheck

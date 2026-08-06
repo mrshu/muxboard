@@ -1,3 +1,5 @@
+import { str } from "../types.js";
+
 /** Whether the agent is actively working vs idle/waiting for you. */
 export type Activity = "working" | "waiting";
 
@@ -5,8 +7,6 @@ export type Activity = "working" | "waiting";
 export interface WorkspaceInfo {
   /** Best human title: custom_title → cleaned title → basename(cwd). */
   title: string;
-  /** The pane's latest conversation message (optional fallback content). */
-  message: string;
   /** The workspace's cmux color (custom_color hex), used for the key border. */
   color?: string;
   /** Activity inferred from the title's status glyph (spinner = working). */
@@ -41,19 +41,40 @@ export function cleanTitle(s: string): string {
     .trim();
 }
 
-const basename = (p: string): string => {
+export const basename = (p: string): string => {
   const parts = p.replace(/\/+$/, "").split("/").filter(Boolean);
   return parts[parts.length - 1] ?? p;
 };
 
+/** Any object node in a parsed-JSON tree. */
+type JsonNode = Record<string, unknown>;
+
+/**
+ * Depth-first (pre-order) walk over every object node in a parsed-JSON tree.
+ * cmux nests workspaces/panes/surfaces differently across versions, so the
+ * parsers scan for the fields they need rather than hard-coding a path.
+ */
+export function walk(node: unknown, fn: (n: JsonNode) => void): void {
+  if (!node || typeof node !== "object") return;
+  const n = node as JsonNode;
+  fn(n);
+  for (const key of Object.keys(n)) walk(n[key], fn);
+}
+
+/** Call `fn` for every workspace object found in any `workspaces` array. */
+export function forEachWorkspace(root: unknown, fn: (ws: JsonNode) => void): void {
+  walk(root, (n) => {
+    if (!Array.isArray(n.workspaces)) return;
+    for (const w of n.workspaces) if (w && typeof w === "object") fn(w as JsonNode);
+  });
+}
+
 /** Pick the best display title for a workspace record. */
 function resolveTitle(ws: Record<string, unknown>): string {
-  const custom = typeof ws.custom_title === "string" ? ws.custom_title : "";
-  if (ws.has_custom_title === true || ws.has_custom_title === "true") {
-    if (custom) return cleanTitle(custom);
-  }
-  const title = cleanTitle(typeof ws.title === "string" ? ws.title : "");
-  const cwd = typeof ws.current_directory === "string" ? ws.current_directory : "";
+  const custom = str(ws.custom_title);
+  if (custom && (ws.has_custom_title === true || ws.has_custom_title === "true")) return cleanTitle(custom);
+  const title = cleanTitle(str(ws.title));
+  const cwd = str(ws.current_directory);
   // Path-like titles ("~/w/d/m/harbor", "…/dev/…") read better as the basename.
   if (!title || /^[~…/]/.test(title)) return cwd ? basename(cwd) : title;
   return title;
@@ -66,32 +87,16 @@ function resolveTitle(ws: Record<string, unknown>): string {
  */
 export function parseWorkspaceInfo(raw: unknown): Map<string, WorkspaceInfo> {
   const out = new Map<string, WorkspaceInfo>();
-  const visit = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (Array.isArray(n.workspaces)) {
-      for (const w of n.workspaces) {
-        if (!w || typeof w !== "object") continue;
-        const ws = w as Record<string, unknown>;
-        const id = typeof ws.ref === "string" ? ws.ref : typeof ws.id === "string" ? ws.id : "";
-        if (!id) continue;
-        const message =
-          (typeof ws.latest_conversation_message === "string" && ws.latest_conversation_message) ||
-          (typeof ws.latest_submitted_message === "string" && ws.latest_submitted_message) ||
-          "";
-        const color =
-          typeof ws.custom_color === "string" && /^#[0-9a-f]{6}$/i.test(ws.custom_color)
-            ? ws.custom_color
-            : undefined;
-        const rawTitle = typeof ws.title === "string" ? ws.title : "";
-        out.set(id, { title: resolveTitle(ws), message, color, activity: detectActivity(rawTitle) });
-      }
-    }
-    for (const k of Object.keys(n)) {
-      const v = n[k];
-      if (v && typeof v === "object") visit(v);
-    }
-  };
-  visit(raw);
+  forEachWorkspace(raw, (ws) => {
+    // `ref` wins when present, even empty — an empty ref drops the row, as before.
+    const id = typeof ws.ref === "string" ? ws.ref : str(ws.id);
+    if (!id) return;
+    const hex = str(ws.custom_color);
+    out.set(id, {
+      title: resolveTitle(ws),
+      color: /^#[0-9a-f]{6}$/i.test(hex) ? hex : undefined,
+      activity: detectActivity(str(ws.title)),
+    });
+  });
   return out;
 }
