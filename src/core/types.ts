@@ -7,6 +7,19 @@
 
 export type AgentKind = "claude" | "codex" | "omp" | "pi" | "unknown";
 
+/** A JSON field as a string, or "" when it is absent or the wrong type. */
+export const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * Map a backend's agent id (cmux's canonical `coding_agents[].id`, Orca's
+ * `agentType`) to our AgentKind: claude/codex/pi/omp get branded visuals,
+ * everything else renders as a neutral "unknown".
+ */
+export function toAgentKind(id: string): AgentKind {
+  const k = id.toLowerCase().trim();
+  return k === "claude" || k === "codex" || k === "pi" || k === "omp" ? k : "unknown";
+}
+
 /** Which backend an attention item originates from. */
 export type AttentionSource = "cmux" | "orca";
 
@@ -39,7 +52,6 @@ export interface AttentionItem {
   source: AttentionSource;
   agent: AgentKind;
   workspaceId: string;
-  surfaceId?: string;
   /** Short repo/workspace name, derived from cmux tab_title. */
   repo?: string;
   /** Human-facing label for the key. */
@@ -74,10 +86,6 @@ export interface AttentionItem {
   activitySince?: number;
   /** The workspace's cmux color (hex), used for the key border. */
   color?: string;
-  /** Raw notification body (used for the reason mapping + hints). */
-  body: string;
-  /** Best human content for the key band: the agent/pane's last message. */
-  message: string;
   /** ISO-8601 creation timestamp (sort key). */
   createdAt: string;
   /**
@@ -96,8 +104,6 @@ export interface UsageWindow {
   remainingPercent: number;
   /** ISO-8601 reset timestamp, when known. */
   resetsAt?: string;
-  /** Human reset description from CodexBar (e.g. "Resets in 5h"). */
-  resetDescription?: string;
   /** Window length in minutes (300 = session/5h, 10080 = weekly/7d). */
   windowMinutes?: number;
 }
@@ -172,8 +178,6 @@ export type LcdNumberMode = "remaining" | "pace";
 export interface AppState {
   /** Newest-first attention items (already filtered+sorted). */
   items: AttentionItem[];
-  /** Unfiltered, newest-first — kept so filter changes are cheap. */
-  allItems: AttentionItem[];
   /** Scroll offset into items for the 8-key window (dial 1). */
   offset: number;
   /** Active agent filter (dial 2). */

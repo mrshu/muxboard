@@ -6,7 +6,8 @@ import { Store } from "../src/core/services/store.js";
 import type { AttentionItem } from "../src/core/types.js";
 import { OrcaService } from "../src/core/services/orcaService.js";
 import { OrcaClient } from "../src/core/orca/client.js";
-import { normalizeWorktrees, toAgentKind as orcaToAgentKind } from "../src/core/orca/normalize.js";
+import { normalizeWorktrees } from "../src/core/orca/normalize.js";
+import { toAgentKind as orcaToAgentKind } from "../src/core/types.js";
 import { sourceGlyphSvg, sourceTint } from "../src/core/render/sourceIcons.js";
 import { renderKey } from "../src/core/render/keyRender.js";
 
@@ -104,7 +105,6 @@ test("orca waiting/blocked agent -> blocked + needsInput (worktree status ignore
     assert.equal(items[0].needsInput, true, state);
     assert.equal(items[0].activity, "waiting", state);
     assert.equal(items[0].agent, "claude");
-    assert.equal(items[0].message, "May I run tests?");
     assert.equal(items[0].workspaceId, "repo::/p");
   }
 });

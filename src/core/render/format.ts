@@ -62,23 +62,6 @@ export function formatTokens(n: number | undefined): string {
   return `${Math.round(n)}`;
 }
 
-/**
- * Shorten a repo/workspace label to fit a key.
- *
- * Strips a leading path, keeps the last segment, and truncates with an ellipsis.
- */
-export function shortName(name: string | undefined, max = 12): string {
-  if (!name) return "";
-  let s = name.trim();
-  // Keep the last path-ish segment if it looks like a path.
-  if (s.includes("/")) {
-    const parts = s.split("/").filter(Boolean);
-    s = parts[parts.length - 1] ?? s;
-  }
-  if (s.length <= max) return s;
-  return `${s.slice(0, max - 1)}…`;
-}
-
 /** Collapse markdown/whitespace in an agent message to clean inline text. */
 export function cleanMessage(s: string): string {
   return s
@@ -86,35 +69,6 @@ export function cleanMessage(s: string): string {
     .replace(/[`*_#>~]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-/**
- * Wrap text into up to `maxLines` lines of ~`maxChars`, breaking on spaces.
- * The last line is ellipsized if text remains. Used for the key message band.
- */
-export function wrapText(text: string, maxChars: number, maxLines: number): string[] {
-  const words = cleanMessage(text).split(" ").filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    const candidate = line ? `${line} ${w}` : w;
-    if (candidate.length <= maxChars) {
-      line = candidate;
-    } else {
-      if (line) lines.push(line);
-      line = w.length > maxChars ? `${w.slice(0, maxChars - 1)}…` : w;
-      if (lines.length === maxLines) break;
-    }
-  }
-  if (line && lines.length < maxLines) lines.push(line);
-  if (lines.length === maxLines) {
-    // If content remains beyond the last line, mark it truncated.
-    const consumed = lines.join(" ").length;
-    if (consumed < cleanMessage(text).length && !lines[maxLines - 1].endsWith("…")) {
-      lines[maxLines - 1] = `${lines[maxLines - 1].replace(/.$/, "")}…`;
-    }
-  }
-  return lines;
 }
 
 /** Rough SVG text width (no DOM): ~0.6em/char for a bold sans title. */
@@ -172,8 +126,8 @@ export function fitText(
   text: string,
   boxW: number,
   boxH: number,
-  minFs = 15,
-  maxFs = 30,
+  minFs: number,
+  maxFs: number,
 ): { fontSize: number; lines: string[] } {
   const atoms = atomize(text);
   for (let fs = maxFs; fs >= minFs; fs--) {

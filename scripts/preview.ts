@@ -9,7 +9,7 @@
  *   open out/dashboard.png
  */
 import { Resvg } from "@resvg/resvg-js";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeNotifications } from "../src/core/cmux/normalize.js";
@@ -23,15 +23,11 @@ import { sortNewestFirst, triageOrder, assignSlots, KEY_COUNT } from "../src/cor
 import type { AttentionItem } from "../src/core/types.js";
 import { renderKey, renderEmptyKey, renderSourceOffline, KEY_SIZE } from "../src/core/render/keyRender.js";
 import { renderLcdSegments, SEG_W, SEG_H } from "../src/core/render/lcdRender.js";
+import { loadFixture, NOW_MS } from "../test/helpers.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const outDir = join(root, "out");
-const fixtures = join(root, "test", "fixtures");
-
-function loadFixture(name: string): unknown {
-  return JSON.parse(readFileSync(join(fixtures, name), "utf8"));
-}
 
 function svgToPng(svg: string, width: number): Buffer {
   const r = new Resvg(svg, { fitTo: { mode: "width", value: width } });
@@ -40,16 +36,15 @@ function svgToPng(svg: string, width: number): Buffer {
 
 function main(): void {
   mkdirSync(outDir, { recursive: true });
-  const nowMs = Date.parse("2026-06-20T12:10:00Z");
 
   // --- Keys ----------------------------------------------------------------
   // Demo workspace context: cmux colors + a "working" pane, keyed to the
   // fixture workspace_ids, so the preview shows the border + status states.
   const workspaces = new Map([
-    ["6ECA42AE-78F8-4CD4-8304-93318D3CDB65", { title: "RCJ Scoreboard", message: "", color: "#C0392B", activity: "waiting" as const }],
-    ["AEEAE30E-2F47-453A-A836-9F449716C7C8", { title: "RoboCup CMS", message: "", color: "#922B21", activity: "waiting" as const }],
-    ["P1P1P1P1-0000-0000-0000-0000000P1P11", { title: "pizza-service", message: "", color: "#006B6B", activity: "working" as const }],
-    ["5A1A04C5-9FF8-4445-ACD7-E10E482E9DEB", { title: "fieldtheory-cli", message: "", activity: "working" as const }],
+    ["6ECA42AE-78F8-4CD4-8304-93318D3CDB65", { title: "RCJ Scoreboard", color: "#C0392B", activity: "waiting" as const }],
+    ["AEEAE30E-2F47-453A-A836-9F449716C7C8", { title: "RoboCup CMS", color: "#922B21", activity: "waiting" as const }],
+    ["P1P1P1P1-0000-0000-0000-0000000P1P11", { title: "pizza-service", color: "#006B6B", activity: "working" as const }],
+    ["5A1A04C5-9FF8-4445-ACD7-E10E482E9DEB", { title: "fieldtheory-cli", activity: "working" as const }],
   ]);
   const base = sortNewestFirst(
     normalizeNotifications(loadFixture("cmux-notifications.json"), {}, { workspaces }),
@@ -58,7 +53,7 @@ function main(): void {
   // add a running pane with no notification (sorted to the end via triage).
   const running: AttentionItem = {
     id: "demo-run", source: "cmux", agent: "claude", workspaceId: "demo-run", title: "muxboard",
-    reason: "waiting", activity: "working", color: "#2f6df6", body: "", message: "",
+    reason: "waiting", activity: "working", color: "#2f6df6",
     createdAt: "2026-06-20T12:09:30Z", synthetic: true,
   };
   const orcaRaw = loadFixture("orca-worktree-ps.json") as { result: { worktrees: unknown[] } };
@@ -76,7 +71,7 @@ function main(): void {
   // Render the resting board (offset 0): the queue-position index only appears
   // once you scroll (col-0 dial), so omit slotNumber here to match the device.
   const keySvgs = slots.map((item, i) =>
-    item ? renderKey(item, { nowMs }) : renderEmptyKey(i + 1),
+    item ? renderKey(item, { nowMs: NOW_MS }) : renderEmptyKey(i + 1),
   );
   keySvgs.forEach((svg, i) => writeFileSync(join(outDir, `key-${i + 1}.png`), svgToPng(svg, KEY_SIZE)));
 
@@ -90,10 +85,10 @@ function main(): void {
   const minimax = normalizeUsageResponse(loadFixture("codexbar-usage-minimax.json"), "minimax");
   // Providers are discovered from CodexBar; here three are enabled, 4th blank.
   const usages = [codex, claude, minimax];
-  const segs = renderLcdSegments(usages, { nowMs, stale: false, numberMode: "remaining" });
+  const segs = renderLcdSegments(usages, { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
   segs.forEach((svg, i) => writeFileSync(join(outDir, `lcd-${i + 1}.png`), svgToPng(svg, SEG_W)));
   // Pace-mode variant (the rightmost-dial toggle), for visual review.
-  renderLcdSegments(usages, { nowMs, stale: false, numberMode: "pace" }).forEach((svg, i) =>
+  renderLcdSegments(usages, { nowMs: NOW_MS, stale: false, numberMode: "pace" }).forEach((svg, i) =>
     writeFileSync(join(outDir, `lcd-${i + 1}-pace.png`), svgToPng(svg, SEG_W)),
   );
 
@@ -103,7 +98,7 @@ function main(): void {
 
   // --- Offline scenario (acceptance #6) ------------------------------------
   const offlineKeys = [renderSourceOffline("cmux"), ...Array.from({ length: 7 }, (_, i) => renderEmptyKey(i + 2))];
-  const offlineSegs = renderLcdSegments([], { nowMs, stale: true, numberMode: "remaining" });
+  const offlineSegs = renderLcdSegments([], { nowMs: NOW_MS, stale: true, numberMode: "remaining" });
   writeFileSync(join(outDir, "dashboard-offline.png"), svgToPng(composite(offlineKeys, offlineSegs), 880));
 
   console.log(`Rendered ${KEY_COUNT} keys + 4 LCD segments to ${outDir}`);

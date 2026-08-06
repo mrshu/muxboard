@@ -6,7 +6,7 @@ import { Store } from "./core/services/store.js";
 import { CmuxService } from "./core/services/cmuxService.js";
 import { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import { CodexbarService } from "./core/services/codexbarService.js";
-import type { Logger } from "./core/services/logger.js";
+import { type Logger, message } from "./core/services/logger.js";
 import type { Runtime } from "./runtime.js";
 import { makeCmuxBackend, makeOrcaBackend } from "./runtime.js";
 import { OrcaClient } from "./core/orca/client.js";
@@ -33,7 +33,7 @@ async function resolveConfigAfterConnect(): Promise<MuxboardConfig> {
     const settings = await streamDeck.settings.getGlobalSettings<Partial<MuxboardConfig>>();
     return resolveConfig(settings);
   } catch (err) {
-    logger.warn(`falling back to default config: ${err instanceof Error ? err.message : err}`);
+    logger.warn(`falling back to default config: ${message(err)}`);
     return DEFAULT_CONFIG;
   }
 }
@@ -93,17 +93,9 @@ async function main(): Promise<void> {
   // the real config is known.
   let services = buildServices(config, store, logger);
 
-  const runtime: Runtime = {
-    config,
-    store,
-    cmux: services.cmux,
-    cmuxService: services.cmuxService,
-    cmuxEventsService: services.cmuxEventsService,
-    codexbarService: services.codexbarService,
-    orcaService: services.orcaService,
-    logger,
-    backends: services.backends,
-  };
+  // Spread first so the explicit fields always win: buildServices must never be
+  // able to shadow the store the actions subscribe to in their constructors.
+  const runtime: Runtime = { ...services, config, store, logger };
 
   streamDeck.actions.registerAction(new AttentionKeyAction(runtime));
   streamDeck.actions.registerAction(new DialStripAction(runtime));
@@ -118,12 +110,7 @@ async function main(): Promise<void> {
   // having been captured by value into the default-built placeholders above.
   Object.assign(config, await resolveConfigAfterConnect());
   services = buildServices(config, store, logger);
-  runtime.cmux = services.cmux;
-  runtime.cmuxService = services.cmuxService;
-  runtime.cmuxEventsService = services.cmuxEventsService;
-  runtime.codexbarService = services.codexbarService;
-  runtime.orcaService = services.orcaService;
-  runtime.backends = services.backends;
+  Object.assign(runtime, services);
   logger.info(
     `Muxboard config: cmux="${config.cmuxBin}" codexbar="${config.codexbarBaseUrl}" providers=${config.codexbarProviders.join(",")}`,
   );

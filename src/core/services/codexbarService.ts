@@ -1,6 +1,6 @@
 import type { CodexbarClient } from "../codexbar/client.js";
 import type { Store } from "./store.js";
-import { type Logger, silentLogger } from "./logger.js";
+import { type Logger, message, silentLogger } from "./logger.js";
 
 export interface CodexbarServiceOptions {
   client: CodexbarClient;
@@ -12,8 +12,6 @@ export interface CodexbarServiceOptions {
   providers?: string[];
   /** Poll interval in ms (default 45000). */
   pollMs?: number;
-  /** Epoch-ms clock, injectable for tests. Defaults to Date.now. */
-  now?: () => number;
   logger?: Logger;
 }
 
@@ -29,7 +27,6 @@ export class CodexbarService {
   private readonly store: Store;
   private readonly allow: string[];
   private readonly pollMs: number;
-  private readonly now: () => number;
   private readonly log: Logger;
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight = false;
@@ -45,7 +42,6 @@ export class CodexbarService {
     this.store = opts.store;
     this.allow = opts.providers ?? [];
     this.pollMs = opts.pollMs ?? 45000;
-    this.now = opts.now ?? (() => Date.now());
     this.log = opts.logger ?? silentLogger;
   }
 
@@ -86,7 +82,7 @@ export class CodexbarService {
         usages.length === 0 || usages.every((u) => !u.ok && u.transient === true);
       if (offline) {
         this.log.warn("codexbar poll: no providers (server unavailable?)");
-        this.store.setUsage([], this.now(), true);
+        this.store.setUsage([], Date.now(), true);
       } else {
         // Remember providers that are live OR merely flapping (transient) so
         // discovery keeps retrying them; drop ones with a real error so a
@@ -95,19 +91,15 @@ export class CodexbarService {
         this.lastGood = usages.filter((u) => u.ok || u.transient).map((u) => u.provider);
         const live = usages.filter((u) => u.ok).map((u) => u.provider);
         this.log.info(`codexbar poll ok: ${live.join(",")}`);
-        this.store.setUsage(usages, this.now(), false);
+        this.store.setUsage(usages, Date.now(), false);
       }
     } catch (err) {
       this.log.warn(`codexbar poll failed: ${message(err)}`);
-      this.store.setUsage([], this.now(), true);
+      this.store.setUsage([], Date.now(), true);
     } finally {
       this.inFlight = false;
     }
   }
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /** True when the last successful CodexBar refresh is older than the threshold. */

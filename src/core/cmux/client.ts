@@ -1,75 +1,29 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentKind, AttentionItem, WorkspaceStatus } from "../types.js";
+import { type CommandRunner, execEnv, installDirs, resolveBin } from "../exec.js";
 import { type AgentAliases, buildRunningItems, normalizeNotifications } from "./normalize.js";
 import { parseCodingAgents, parseSurfaceActivity, parseWorkspaceCpu } from "./agents.js";
 import { type Activity, parseWorkspaceInfo, type WorkspaceInfo } from "./workspaces.js";
 
 const execFileAsync = promisify(execFile);
 
-/** Common directories cmux is installed into, used to resolve a bare name. */
-const CMUX_DIRS = [
-  "/Applications/cmux.app/Contents/Resources/bin",
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  process.env.HOME ? join(process.env.HOME, ".local/bin") : "",
-].filter(Boolean);
+const CMUX_DIRS = installDirs("/Applications/cmux.app/Contents/Resources/bin");
 
-/**
- * Resolve a (possibly bare) cmux command to an absolute path.
- *
- * The Stream Deck app launches the plugin with a minimal PATH, and Node's
- * execFile resolves bare commands against the parent's process.env.PATH (not a
- * custom env.PATH), so a bare `cmux` is not found. We therefore resolve the
- * absolute path against known install dirs ourselves. Absolute/existing inputs
- * are returned as-is; if nothing resolves we fall back to the bare name (which
- * still works in a normal shell with cmux on PATH).
- */
+/** Resolve a (possibly bare) cmux command against the known install dirs. */
 export function resolveCmuxBin(bin: string): string {
-  if (isAbsolute(bin)) return bin;
-  if (bin.includes("/")) return bin; // explicit relative path: respect it
-  for (const dir of CMUX_DIRS) {
-    const candidate = join(dir, bin);
-    if (existsSync(candidate)) return candidate;
-  }
-  return bin;
+  return resolveBin(bin, CMUX_DIRS);
 }
-
-/** Result of running a cmux subcommand. */
-export interface RunResult {
-  stdout: string;
-  stderr: string;
-}
-
-/** Pluggable command runner so the client can be unit-tested without cmux. */
-export type CommandRunner = (bin: string, args: string[]) => Promise<RunResult>;
-
-/**
- * PATH augmented with common cmux/Homebrew locations.
- *
- * The Stream Deck app launches the plugin with a minimal PATH that omits the
- * cmux app bundle, so a bare `cmux` is "command not found". Prepending the usual
- * install dirs lets the bare command resolve without hard-coding one path.
- */
-const AUGMENTED_PATH = [
-  "/Applications/cmux.app/Contents/Resources/bin",
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  process.env.HOME ? `${process.env.HOME}/.local/bin` : "",
-  process.env.PATH ?? "",
-]
-  .filter(Boolean)
-  .join(":");
 
 /**
  * Environment for spawning cmux: the augmented PATH (so a bare `cmux` resolves
  * under the Stream Deck app's minimal PATH) plus CMUX_QUIET to keep stdout
- * clean. Shared by the exec-based client and the long-lived events stream.
+ * clean — it silences legacy-alias notices that would otherwise land on stdout
+ * and corrupt the JSON these commands emit. Shared by the exec-based client and
+ * the long-lived events stream.
  */
 export function cmuxEnv(): NodeJS.ProcessEnv {
-  return { ...process.env, PATH: AUGMENTED_PATH, CMUX_QUIET: "1" };
+  return execEnv(CMUX_DIRS, { CMUX_QUIET: "1" });
 }
 
 const defaultRunner: CommandRunner = async (bin, args) => {
@@ -77,8 +31,7 @@ const defaultRunner: CommandRunner = async (bin, args) => {
   const { stdout, stderr } = await execFileAsync(bin, args, {
     timeout: 10_000,
     maxBuffer: 8 * 1024 * 1024,
-    // CMUX_QUIET silences legacy-alias notices that would corrupt JSON output.
-    env: { ...process.env, PATH: AUGMENTED_PATH, CMUX_QUIET: "1" },
+    env: cmuxEnv(),
   });
   return { stdout, stderr };
 };
@@ -114,10 +67,8 @@ export class CmuxClient {
   /** Cached workspace→"working" map from per-surface spinner glyphs (same `top`). */
   private surfaceCache: Map<string, Activity> = new Map();
   private readonly busyCpuPercent: number;
-  /** workspaceId → epoch ms it last exceeded the busy threshold (hysteresis). */
-  private readonly lastBusyAt: Map<string, number> = new Map();
-  /** workspaceId → epoch ms the current busy window started (the "since" clock). */
-  private readonly busySince: Map<string, number> = new Map();
+  /** workspaceId → { since: busy-window start, last: last time CPU exceeded the threshold }. */
+  private readonly busy = new Map<string, { since: number; last: number }>();
   /** Keep a pane "busy" this long after CPU drops, so bursty commands don't flicker. */
   private static readonly BUSY_GRACE_MS = 30_000;
   /** Cached workspace→info map (title + message, from `workspace list`). */
@@ -125,7 +76,7 @@ export class CmuxClient {
   private wsCacheAt = 0;
   private readonly now: () => number;
   private static readonly AGENT_TTL_MS = 5000;
-  private static readonly MSG_TTL_MS = 3000;
+  private static readonly WS_TTL_MS = 3000;
 
   constructor(opts: CmuxClientOptions = {}) {
     this.bin = resolveCmuxBin(opts.bin ?? "cmux");
@@ -179,22 +130,19 @@ export class CmuxClient {
    * "working". Scoped to workspaces cmux identifies as coding agents, so a plain
    * command pane with a spinner-style CLI doesn't get mislabelled an agent. The
    * event-stream verdict still wins downstream (store.applyStatus forces
-   * working=false on a live needs/idle state). Returns the same map untouched
-   * when nothing changes, copying only the entries it upgrades.
+   * working=false on a live needs/idle state).
    */
   private applySurfaceActivity(
     workspaces: Map<string, WorkspaceInfo>,
     agents: Map<string, AgentKind>,
   ): Map<string, WorkspaceInfo> {
-    if (this.surfaceCache.size === 0) return workspaces;
-    let out: Map<string, WorkspaceInfo> | null = null;
+    const out = new Map(workspaces);
     for (const [id, ws] of workspaces) {
       if (ws.activity !== "working" && agents.has(id) && this.surfaceCache.get(id) === "working") {
-        out ??= new Map(workspaces);
         out.set(id, { ...ws, activity: "working" });
       }
     }
-    return out ?? workspaces;
+    return out;
   }
 
   /**
@@ -211,30 +159,26 @@ export class CmuxClient {
   private busyWorkspaces(): Map<string, number> {
     const now = this.now();
     for (const [id, cpu] of this.cpuCache) {
-      if (cpu >= this.busyCpuPercent) {
-        this.lastBusyAt.set(id, now);
-        if (!this.busySince.has(id)) this.busySince.set(id, now); // window start
-      }
+      if (cpu < this.busyCpuPercent) continue;
+      const win = this.busy.get(id);
+      if (win) win.last = now;
+      else this.busy.set(id, { since: now, last: now }); // new busy window
     }
     const out = new Map<string, number>();
-    for (const [id, at] of this.lastBusyAt) {
-      if (now - at <= CmuxClient.BUSY_GRACE_MS) {
-        out.set(id, this.busySince.get(id) ?? at);
-      } else {
-        this.lastBusyAt.delete(id);
-        this.busySince.delete(id);
-      }
+    for (const [id, win] of this.busy) {
+      if (now - win.last <= CmuxClient.BUSY_GRACE_MS) out.set(id, win.since);
+      else this.busy.delete(id);
     }
     return out;
   }
 
   /**
-   * Map of workspaceId → info (best title + latest message), from
-   * `cmux workspace list`. The title is what each key shows; the message is a
-   * fallback. Cached briefly; best-effort.
+   * Map of workspaceId → info (best title, color, activity), from
+   * `cmux workspace list`. The title is what each key shows. Cached briefly;
+   * best-effort.
    */
-  async workspaceInfo(): Promise<Map<string, WorkspaceInfo>> {
-    if (this.now() - this.wsCacheAt < CmuxClient.MSG_TTL_MS) return this.wsCache;
+  private async workspaceInfo(): Promise<Map<string, WorkspaceInfo>> {
+    if (this.now() - this.wsCacheAt < CmuxClient.WS_TTL_MS) return this.wsCache;
     try {
       const { stdout } = await this.runner(this.bin, [
         "--id-format",
@@ -258,7 +202,7 @@ export class CmuxClient {
    * for a few seconds since the running agent rarely changes, and best-effort:
    * on failure we return the last cache (or empty) so the title heuristic wins.
    */
-  async codingAgentsByWorkspace(): Promise<Map<string, AgentKind>> {
+  private async codingAgentsByWorkspace(): Promise<Map<string, AgentKind>> {
     if (this.now() - this.agentCacheAt < CmuxClient.AGENT_TTL_MS) return this.agentCache;
     try {
       const { stdout } = await this.runner(this.bin, [
@@ -299,15 +243,5 @@ export class CmuxClient {
    */
   async selectWorkspace(workspaceId: string): Promise<void> {
     await this.runner(this.bin, ["select-workspace", "--workspace", workspaceId]);
-  }
-
-  /** True when the cmux CLI responds to `ping`. */
-  async ping(): Promise<boolean> {
-    try {
-      await this.runner(this.bin, ["ping"]);
-      return true;
-    } catch {
-      return false;
-    }
   }
 }

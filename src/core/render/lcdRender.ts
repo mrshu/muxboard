@@ -28,7 +28,7 @@ const ONPAR_TEXT = "#8a909a";
 /** |pace| below this many points is treated as on-par (no marker, no number). */
 const PACE_DEADBAND = 3;
 
-function segFrame(inner: string, accent = "#222831"): string {
+function segFrame(inner: string, accent: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${SEG_W}" height="${SEG_H}" viewBox="0 0 ${SEG_W} ${SEG_H}">
   <rect width="${SEG_W}" height="${SEG_H}" fill="#0b0c0e"/>
   <rect x="1" y="1" width="${SEG_W - 2}" height="${SEG_H - 2}" fill="none" stroke="${accent}" stroke-width="2"/>
@@ -36,11 +36,12 @@ function segFrame(inner: string, accent = "#222831"): string {
 </svg>`;
 }
 
-function bar(x: number, y: number, w: number, h: number, usedPercent: number): string {
-  const fillW = Math.round((Math.max(0, Math.min(100, usedPercent)) / 100) * w);
-  const color = usageColor(usedPercent);
+/** One gauge: track, used fill, and the pace marker — all on one shared geometry. */
+function gauge(x: number, y: number, w: number, h: number, used: number, elapsed: number | undefined): string {
+  const fillW = Math.round((Math.max(0, Math.min(100, used)) / 100) * w);
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#1b1e24"/>
-    <rect x="${x}" y="${y}" width="${fillW}" height="${h}" rx="${h / 2}" fill="${color}"/>`;
+    <rect x="${x}" y="${y}" width="${fillW}" height="${h}" rx="${h / 2}" fill="${usageColor(used)}"/>
+    ${paceOverlay(x, y, w, h, used, elapsed)}`;
 }
 
 /**
@@ -91,12 +92,13 @@ function paceOverlay(x: number, y: number, w: number, h: number, used: number, e
 }
 
 /**
- * The signed pace delta for a window: + green = reserve (headroom to spend),
- * − coral = deficit (over the clock), muted within the dead-band. Unbounded
- * "Unlimited" windows have no pace, so they fall back to remaining%.
+ * The right-column number for a window. "remaining" mode — and any unbounded
+ * "Unlimited" window, which has no pace — shows the absolute remaining%.
+ * "pace" mode shows the signed delta: + green = reserve (headroom to spend),
+ * − coral = deficit (over the clock), muted within the dead-band.
  */
-function paceNumber(win: UsageWindow, nowMs: number): { text: string; color: string } {
-  const reserve = reservePercent(win, nowMs);
+function rowNumber(win: UsageWindow, nowMs: number, mode: LcdNumberMode): { text: string; color: string } {
+  const reserve = mode === "pace" ? reservePercent(win, nowMs) : undefined;
   if (reserve === undefined) {
     return { text: formatPercent(win.remainingPercent), color: usageColor(win.usedPercent) };
   }
@@ -104,26 +106,6 @@ function paceNumber(win: UsageWindow, nowMs: number): { text: string; color: str
   const color =
     Math.abs(reserve) < PACE_DEADBAND ? ONPAR_TEXT : reserve > 0 ? RESERVE_TEXT : DEFICIT_TEXT;
   return { text: `${sign}${Math.abs(reserve)}%`, color };
-}
-
-/** The right-column number for a window, per the active mode. */
-function rowNumber(win: UsageWindow, nowMs: number, mode: LcdNumberMode): { text: string; color: string } {
-  if (mode === "pace") return paceNumber(win, nowMs);
-  return { text: formatPercent(win.remainingPercent), color: usageColor(win.usedPercent) };
-}
-
-/**
- * Left edge and width of a gauge track, given its row label.
- *
- * The label is drawn at x=12 in 13px bold, whose caps run ~8.5px each, so the
- * single-character "S"/"W" clear x=28 but a two-character "MO"/"CR" would be
- * overrun by the track. Widen the label column for those and shorten the track
- * to match, keeping its right edge fixed so the number column (right-anchored
- * at x=148) stays put.
- */
-function gaugeGeometry(label: string): { x: number; w: number } {
-  const x = label.length > 1 ? 40 : 28;
-  return { x, w: 106 - x };
 }
 
 /**
@@ -141,14 +123,16 @@ function quotaRow(
   if (!win) {
     return `<text x="12" y="${y}" font-size="13" fill="#5a606a">${label}  —</text>`;
   }
-  const used = win.usedPercent;
-  const elapsed = elapsedPercent(win, nowMs);
   const reset = formatCountdown(win.resetsAt, nowMs);
   const num = rowNumber(win, nowMs, mode);
-  const g = gaugeGeometry(label);
+  // The label is drawn at x=12 in 13px bold, whose caps run ~8.5px each, so a
+  // one-character "S"/"W" clears x=28 but a two-character "MO"/"CR" would be
+  // overrun by the track. Widen the label column for those and shorten the
+  // track to match, keeping its right edge fixed at 106 so the number column
+  // (right-anchored at x=148) stays put.
+  const gx = label.length > 1 ? 40 : 28;
   return `<text x="12" y="${y}" font-size="13" font-weight="700" fill="#aeb4be">${label}</text>
-    ${bar(g.x, y - 9, g.w, 9, used)}
-    ${paceOverlay(g.x, y - 9, g.w, 9, used, elapsed)}
+    ${gauge(gx, y - 9, 106 - gx, 9, win.usedPercent, elapsedPercent(win, nowMs))}
     <text x="148" y="${y}" font-size="13" font-weight="700" text-anchor="end" fill="${num.color}">${num.text}</text>
     <text x="${SEG_W - 10}" y="${y}" font-size="11" text-anchor="end" fill="#8a909a">${escapeXml(reset)}</text>`;
 }
@@ -263,7 +247,6 @@ export function routeStatus(usage: ProviderUsage | undefined, stale: boolean): R
   return "OK";
 }
 
-/** Segment 3: provider identity + status/health pill. */
 /**
  * Render the four touch-strip segments — one CodexBar provider per dial, so all
  * providers are visible at a glance. `usages` is taken in display order; missing
@@ -286,12 +269,9 @@ const DISPLAY_NAMES: Record<string, string> = { commandcode: "CMDCODE", perplexi
 
 /** The header label for a provider: a friendly name if mapped, else the id truncated to fit. */
 function displayProvider(provider: string): string {
-  return DISPLAY_NAMES[provider.toLowerCase()] ?? shortProvider(provider.toUpperCase());
+  return DISPLAY_NAMES[provider.toLowerCase()] ?? provider.toUpperCase().slice(0, 8);
 }
 
-function shortProvider(p: string): string {
-  return p.length > 8 ? p.slice(0, 8) : p;
-}
 function shortError(e: string): string {
   return e.length > 16 ? `${e.slice(0, 15)}…` : e;
 }

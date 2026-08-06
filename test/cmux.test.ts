@@ -5,7 +5,8 @@ import {
   detectReason,
   normalizeNotifications,
 } from "../src/core/cmux/normalize.js";
-import { parseCodingAgents, parseSurfaceActivity, toAgentKind } from "../src/core/cmux/agents.js";
+import { parseCodingAgents, parseSurfaceActivity } from "../src/core/cmux/agents.js";
+import { toAgentKind } from "../src/core/types.js";
 import { hasSpinnerGlyph } from "../src/core/cmux/workspaces.js";
 import {
   assignSlots,
@@ -106,6 +107,53 @@ test("parseCodingAgents maps workspace → agent from running processes", () => 
   assert.equal(toAgentKind("omp"), "omp");
 });
 
+// The per-occurrence `found` local in parseCodingAgents is load-bearing and easy
+// to break silently: hoisting it out of the forEachWorkspace callback flips the
+// winner for a duplicated id, and making the final set unconditional lets a later
+// agent-less occurrence erase a correct match. A regression of the first kind
+// shipped once and no existing test noticed, so pin all three axes here.
+test("parseCodingAgents: a workspace id repeated across windows is last-occurrence-wins", () => {
+  const top = {
+    coding_agents: [
+      { id: "claude", resources: { pids: [100] } },
+      { id: "codex", resources: { pids: [200] } },
+    ],
+    windows: [
+      { workspaces: [{ id: "WS-DUP", panes: [{ surfaces: [{ root_pids: [100] }] }] }] },
+      { workspaces: [{ id: "WS-DUP", panes: [{ surfaces: [{ root_pids: [200] }] }] }] },
+    ],
+  };
+  assert.equal(parseCodingAgents(top).get("WS-DUP"), "codex");
+});
+
+test("parseCodingAgents: a later agent-less occurrence never erases an earlier match", () => {
+  const top = {
+    coding_agents: [{ id: "codex", resources: { pids: [200] } }],
+    windows: [
+      { workspaces: [{ id: "WS-DUP", panes: [{ surfaces: [{ root_pids: [200] }] }] }] },
+      { workspaces: [{ id: "WS-DUP", panes: [{ surfaces: [{ root_pids: [999] }] }] }] },
+    ],
+  };
+  assert.equal(parseCodingAgents(top).get("WS-DUP"), "codex");
+});
+
+test("parseCodingAgents: a matched agent does not leak to a sibling workspace", () => {
+  const top = {
+    coding_agents: [{ id: "claude", resources: { pids: [100] } }],
+    windows: [
+      {
+        workspaces: [
+          { id: "WS-A", panes: [{ surfaces: [{ root_pids: [100] }] }] },
+          { id: "WS-B", panes: [{ surfaces: [{ root_pids: [999] }] }] },
+        ],
+      },
+    ],
+  };
+  const m = parseCodingAgents(top);
+  assert.equal(m.get("WS-A"), "claude");
+  assert.equal(m.get("WS-B"), undefined);
+});
+
 test("hasSpinnerGlyph matches the braille working spinner, not the ✳ idle marker", () => {
   // cmux prepends an animated braille spinner (U+2800–U+28FF) ONLY while the
   // agent is actively working; a leading ✳ (U+2733) is the idle/waiting marker
@@ -164,12 +212,10 @@ test("normalize uses the workspace title + message, falling back to tab/body", (
     { id: "a", title: "Claude Code", tab_title: "~/w/d/r/app", body: "waiting", workspace_id: "WS1", created_at: "2026-06-20T12:00:00Z" },
     { id: "b", title: "Codex", tab_title: "fieldtheory-cli", body: "Ran the update: 23 synced", workspace_id: "WS2", created_at: "2026-06-20T12:00:00Z" },
   ];
-  const workspaces = new Map([["WS1", { title: "RCJ Scoreboard", message: "let's start from dev on #12" }]]);
+  const workspaces = new Map([["WS1", { title: "RCJ Scoreboard" }]]);
   const [a, b] = normalizeNotifications(raw, {}, { workspaces });
   assert.equal(a.title, "RCJ Scoreboard"); // workspace title wins
-  assert.equal(a.message, "let's start from dev on #12");
   assert.equal(b.title, "fieldtheory-cli"); // falls back to tab_title
-  assert.equal(b.message, "Ran the update: 23 synced"); // falls back to body
 });
 
 test("detectReason: failed only from structured subtitle, never free-form body", () => {

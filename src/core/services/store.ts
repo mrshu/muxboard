@@ -52,7 +52,7 @@ function sameNumberMap(a: Record<string, number>, b: Record<string, number>): bo
 export class Store {
   private state: AppState;
   private readonly listeners = new Set<Listener>();
-  /** Raw attention items per source, merged into allItems on recompute. */
+  /** Raw attention items per source, merged and sorted on each recompute. */
   private itemsBySource: Record<AttentionSource, AttentionItem[]> = { cmux: [], orca: [] };
   /** Epoch ms per workspace of the user's latest cmux "clear notifications". */
   private clearedNotifications: Record<string, number> = {};
@@ -64,7 +64,6 @@ export class Store {
     this.now = now;
     this.state = {
       items: [],
-      allItems: [],
       offset: 0,
       filter: "all",
       view: "queue",
@@ -86,9 +85,8 @@ export class Store {
     return this.state;
   }
 
-  subscribe(fn: Listener): () => void {
+  subscribe(fn: Listener): void {
     this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
   }
 
   private emit(): void {
@@ -121,7 +119,7 @@ export class Store {
     // now (failed/permission/needs-input), dropping working/waiting tiles.
     const items = this.state.view === "decisions" ? triaged.filter(isDecision) : triaged;
     const offset = clampOffset(this.state.offset, items.length);
-    this.state = { ...this.state, allItems, items, offset };
+    this.state = { ...this.state, items, offset };
   }
 
   /**
@@ -302,15 +300,12 @@ export class Store {
    * last key when the queue overflows, so a page is KEY_COUNT-1 real items.
    */
   pageForward(): void {
-    const offset = clampOffset(this.state.offset + (KEY_COUNT - 1), this.state.items.length);
-    if (offset === this.state.offset) return;
-    this.state = { ...this.state, offset };
-    this.emit();
+    this.scrollBy(KEY_COUNT - 1);
   }
 
   /** The newest currently-visible item (slot 0), or null. */
   newestVisible(): AttentionItem | null {
-    return this.state.items[this.state.offset] ?? this.state.items[0] ?? null;
+    return this.state.items[this.state.offset] ?? null;
   }
 
   // ---- dial 2: agent filter -------------------------------------------------

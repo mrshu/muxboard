@@ -1,4 +1,4 @@
-import streamDeck, {
+import {
   action,
   SingletonAction,
   type KeyDownEvent,
@@ -8,12 +8,11 @@ import streamDeck, {
   type KeyAction,
 } from "@elgato/streamdeck";
 import type { Runtime } from "../runtime.js";
-import { assignSlots, coordinatesToSlot, KEY_COUNT } from "../core/cmux/sort.js";
+import { assignSlots, coordinatesToSlot, itemRank, KEY_COUNT } from "../core/cmux/sort.js";
 import { renderKey, renderEmptyKey, renderAllClear, renderOverflow, renderPagerHome, renderSourceOffline } from "../core/render/keyRender.js";
 import type { AttentionItem } from "../core/types.js";
-
-const toDataUri = (svg: string): string =>
-  `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+import { HoldTimer, SvgCache } from "./svgCache.js";
+import { message } from "../core/services/logger.js";
 
 /**
  * The Attention Slot key action.
@@ -29,11 +28,9 @@ export class AttentionKeyAction extends SingletonAction {
   /** Appeared key instances by action id. */
   private readonly keys = new Map<string, KeyAction>();
   /** Last rendered SVG per action id, to skip no-op redraws. */
-  private readonly lastSvg = new Map<string, string>();
-  /** Pending long-press timers per key (fire the dismiss while still held). */
-  private readonly longPress = new Map<string, ReturnType<typeof setTimeout>>();
-  /** Keys whose long-press already fired, so the release does nothing more. */
-  private readonly consumed = new Set<string>();
+  private readonly svgCache = new SvgCache();
+  /** Long-press bookkeeping (fires the snooze while the key is still held). */
+  private readonly holds = new HoldTimer();
   /** Hold this long to snooze the notification instead of focusing it. */
   private static readonly LONG_PRESS_MS = 600;
   /** How long a long-press snoozes a workspace before it auto-reverts. */
@@ -55,16 +52,14 @@ export class AttentionKeyAction extends SingletonAction {
   override onWillDisappear(ev: WillDisappearEvent): void {
     const id = ev.action.id;
     this.keys.delete(id);
-    this.lastSvg.delete(id);
-    const timer = this.longPress.get(id);
-    if (timer) clearTimeout(timer);
-    this.longPress.delete(id);
-    this.consumed.delete(id);
+    this.svgCache.forget(id);
+    this.holds.release(id);
   }
 
   override onKeyDown(ev: KeyDownEvent): void {
-    const id = ev.action.id;
-    this.consumed.delete(id);
+    // Drop any stale hold before the early-returns below: if the SDK ever loses
+    // a keyUp, the next press self-heals instead of being silently swallowed.
+    this.holds.release(ev.action.id);
     const slot = ev.action.isKey() ? this.slotOf(ev.action) : null;
     if (slot !== null && this.isPager(slot)) return; // pager: paged on release, no snooze
     const item = this.itemForAction(ev.action);
@@ -73,24 +68,15 @@ export class AttentionKeyAction extends SingletonAction {
     // (release before the threshold) cancels it and focuses instead.
     if (item && !item.synthetic && ev.action.isKey()) {
       const action = ev.action;
-      const timer = setTimeout(() => {
-        this.longPress.delete(id);
-        this.consumed.add(id);
-        void this.snooze(item, action);
-      }, AttentionKeyAction.LONG_PRESS_MS);
-      this.longPress.set(id, timer);
+      this.holds.arm(ev.action.id, AttentionKeyAction.LONG_PRESS_MS, () =>
+        void this.snooze(item, action),
+      );
     }
   }
 
   override async onKeyUp(ev: KeyUpEvent): Promise<void> {
-    const id = ev.action.id;
-    const timer = this.longPress.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      this.longPress.delete(id);
-    }
     // The long-press already snoozed on hold; the release does nothing more.
-    if (this.consumed.delete(id)) return;
+    if (this.holds.release(ev.action.id)) return;
     const slot = this.slotOf(ev.action);
     const state = this.runtime.store.getState();
     if (slot !== null && this.isPager(slot, state)) {
@@ -155,11 +141,9 @@ export class AttentionKeyAction extends SingletonAction {
     const state = this.runtime.store.getState();
 
     let svg: string;
-    const cmuxDown = state.cmuxOffline;
-    const orcaDown = !state.orcaActive || state.orcaOffline;
     // Tile only when every ACTIVE source is offline (an inactive Orca, which
     // never started, doesn't keep the board blank when cmux is down).
-    const allDown = cmuxDown && orcaDown;
+    const allDown = state.cmuxOffline && (!state.orcaActive || state.orcaOffline);
     const decisions = state.view === "decisions";
     // The index shows the item's ABSOLUTE position in the queue, not the
     // physical key — so scrolling (col-0 dial) reveals 9, 10, 11… and you can
@@ -167,8 +151,8 @@ export class AttentionKeyAction extends SingletonAction {
     // scroll (offset 0 → no number), so the resting board stays uncluttered.
     const queuePos = state.offset > 0 ? state.offset + slot + 1 : undefined;
     if (allDown && slot === 0 && state.items.length === 0) {
-      const labels = [state.cmuxOffline ? "cmux" : null, state.orcaActive && state.orcaOffline ? "orca" : null].filter(Boolean);
-      svg = renderSourceOffline(labels.join(" + "));
+      // allDown implies cmux is down; orca joins the label only when it's active.
+      svg = renderSourceOffline(state.orcaActive && state.orcaOffline ? "cmux + orca" : "cmux");
     } else if (decisions && state.items.length === 0 && !allDown) {
       // Decisions view, nothing pending: a calm "all clear" tile, not blank dots.
       svg = slot === 0 ? renderAllClear("no decisions") : renderEmptyKey(slot + 1);
@@ -185,40 +169,13 @@ export class AttentionKeyAction extends SingletonAction {
         : renderEmptyKey(slot + 1);
     }
 
-    if (this.lastSvg.get(a.id) === svg) return; // debounce: no change
-    this.lastSvg.set(a.id, svg);
-    void a.setImage(toDataUri(svg)).catch((err) => {
-      // Roll the cache back on failure so the next store emit retries the
-      // write — otherwise the key keeps its stale/blank image until the SVG
-      // content itself happens to change. Guard the delete: a newer render
-      // may already have replaced the entry.
-      if (this.lastSvg.get(a.id) === svg) this.lastSvg.delete(a.id);
-      streamDeck.logger.warn(`setImage failed: ${message(err)}`);
-    });
+    this.svgCache.write(a.id, svg, (uri) => a.setImage(uri), "setImage");
   }
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /** Border tint for the "+N more" tile = the most-severe hidden item's color. */
 function overflowAccent(items: AttentionItem[]): string {
   const color: Record<number, string> = { 0: "#ff4d4f", 1: "#ffb02e", 2: "#38bdf8", 3: "#e0852b" };
-  let best = 99;
-  for (const it of items) {
-    const rank = it.stalled
-      ? 3
-      : it.activity === "working"
-        ? 99
-        : it.reason === "failed"
-          ? 0
-          : it.reason === "blocked"
-            ? 1
-            : it.needsInput
-              ? 2
-              : 50; // plain waiting
-    if (rank < best) best = rank;
-  }
-  return color[best] ?? "#7d8794";
+  // Ranks 4/5 (plain waiting, working) have no accent -> neutral fallback.
+  return color[Math.min(...items.map(itemRank))] ?? "#7d8794";
 }

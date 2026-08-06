@@ -1,4 +1,4 @@
-import streamDeck, {
+import {
   action,
   SingletonAction,
   type WillAppearEvent,
@@ -13,9 +13,8 @@ import { execFile } from "node:child_process";
 import type { Runtime } from "../runtime.js";
 import { renderLcdSegments } from "../core/render/lcdRender.js";
 import { isStale } from "../core/services/codexbarService.js";
-
-const toDataUri = (svg: string): string =>
-  `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+import { HoldTimer, SvgCache } from "./svgCache.js";
+import { message } from "../core/services/logger.js";
 
 /**
  * The Muxboard dial/touch-strip action (Stream Deck+ Encoder).
@@ -32,11 +31,9 @@ const toDataUri = (svg: string): string =>
 export class DialStripAction extends SingletonAction {
   private readonly runtime: Runtime;
   private readonly dials = new Map<string, DialAction>();
-  private readonly lastSvg = new Map<string, string>();
-  /** Pending col-2 hold timers (fire /usage while still pressed). */
-  private readonly hold = new Map<string, ReturnType<typeof setTimeout>>();
-  /** Dials whose hold already fired, so the release does nothing more. */
-  private readonly consumed = new Set<string>();
+  private readonly svgCache = new SvgCache();
+  /** Col-2 hold bookkeeping (fires /usage while the dial is still pressed). */
+  private readonly holds = new HoldTimer();
   /** Hold this long on the col-2 dial to open /usage instead of switching view. */
   private static readonly HOLD_MS = 600;
 
@@ -57,11 +54,8 @@ export class DialStripAction extends SingletonAction {
   override onWillDisappear(ev: WillDisappearEvent): void {
     const id = ev.action.id;
     this.dials.delete(id);
-    this.lastSvg.delete(id);
-    const timer = this.hold.get(id);
-    if (timer) clearTimeout(timer);
-    this.hold.delete(id);
-    this.consumed.delete(id);
+    this.svgCache.forget(id);
+    this.holds.release(id);
   }
 
   override onDialRotate(ev: DialRotateEvent): void {
@@ -89,35 +83,24 @@ export class DialStripAction extends SingletonAction {
   }
 
   override async onDialDown(ev: DialDownEvent): Promise<void> {
+    // Drop any stale hold first, mirroring the key action: a lost dialUp would
+    // otherwise leave a pending timer that fires mid-press.
+    this.holds.release(ev.action.id);
     const col = ev.action.coordinates?.column ?? 0;
     if (col === 2) {
       // col-2 push = switch board view (on release); hold 600ms = open /usage.
       // Mirrors the key long-press: a tap toggles, a hold does the heavier action.
-      const id = ev.action.id;
-      this.consumed.delete(id);
-      const timer = setTimeout(() => {
-        this.hold.delete(id);
-        this.consumed.add(id);
-        openUrl(
-          `${this.runtime.config.codexbarBaseUrl.replace(/\/+$/, "")}/usage`,
-          this.runtime.logger,
-        );
-      }, DialStripAction.HOLD_MS);
-      this.hold.set(id, timer);
+      this.holds.arm(ev.action.id, DialStripAction.HOLD_MS, () =>
+        openUrl(`${this.runtime.config.codexbarBaseUrl}/usage`, this.runtime.logger),
+      );
       return;
     }
     await this.handlePress(col, ev.action);
   }
 
   override onDialUp(ev: DialUpEvent): void {
-    const id = ev.action.id;
-    const timer = this.hold.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      this.hold.delete(id);
-    }
     // The hold already opened /usage; the release does nothing more.
-    if (this.consumed.delete(id)) return;
+    if (this.holds.release(ev.action.id)) return;
     if ((ev.action.coordinates?.column ?? 0) === 2) this.runtime.store.cycleView();
   }
 
@@ -185,15 +168,7 @@ export class DialStripAction extends SingletonAction {
     });
     const svg = segments[col] ?? segments[0];
 
-    if (this.lastSvg.get(a.id) === svg) return; // debounce
-    this.lastSvg.set(a.id, svg);
-    void a.setFeedback({ full: { value: toDataUri(svg) } }).catch((err) => {
-      // Same retry rule as the keys: un-cache on failure so the next store
-      // emit re-sends instead of leaving the segment stale until its content
-      // changes. Guarded so a newer render's entry is never clobbered.
-      if (this.lastSvg.get(a.id) === svg) this.lastSvg.delete(a.id);
-      streamDeck.logger.warn(`setFeedback failed: ${message(err)}`);
-    });
+    this.svgCache.write(a.id, svg, (uri) => a.setFeedback({ full: { value: uri } }), "setFeedback");
   }
 }
 
@@ -201,8 +176,4 @@ function openUrl(url: string, logger: { warn(m: string): void }): void {
   execFile("open", [url], (err) => {
     if (err) logger.warn(`open ${url} failed: ${err.message}`);
   });
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

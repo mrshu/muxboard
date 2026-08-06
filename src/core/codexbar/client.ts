@@ -1,4 +1,5 @@
 import type { ProviderUsage } from "../types.js";
+import { message } from "../services/logger.js";
 import {
   extractCostToday,
   extractTokensToday,
@@ -6,15 +7,6 @@ import {
   normalizeUsageResponse,
   type RawCodexbarUsage,
 } from "./normalize.js";
-
-/** Merge the /cost-derived spend + token fields (for `today`) onto a usage. */
-function withCost(usage: ProviderUsage, cost: unknown, today: string): ProviderUsage {
-  return {
-    ...usage,
-    costTodayUsd: extractCostToday(cost, today),
-    tokensToday: extractTokensToday(cost, today),
-  };
-}
 
 /** Pluggable fetch-like fn so the client is testable without a server. */
 export type FetchJson = (url: string) => Promise<unknown>;
@@ -82,32 +74,34 @@ export class CodexbarClient {
    * Never throws: failures resolve to an `ok: false` ProviderUsage.
    */
   async getUsage(provider: string): Promise<ProviderUsage> {
-    let usage: ProviderUsage;
     try {
       const raw = await this.fetchJson(
         `${this.baseUrl}/usage?provider=${encodeURIComponent(provider)}`,
       );
-      usage = normalizeUsageResponse(raw, provider);
+      return await this.withCost(normalizeUsageResponse(raw, provider), this.today());
     } catch (err) {
-      return { provider, ok: false, error: errMessage(err), transient: true };
+      return { provider, ok: false, error: message(err), transient: true };
     }
-
-    if (usage.ok) {
-      try {
-        const cost = await this.fetchJson(
-          `${this.baseUrl}/cost?provider=${encodeURIComponent(provider)}`,
-        );
-        usage = withCost(usage, cost, this.today());
-      } catch {
-        // Cost is optional; ignore failures.
-      }
-    }
-    return usage;
   }
 
-  /** Fetch usage for several providers concurrently. */
-  async getUsageAll(providers: string[]): Promise<ProviderUsage[]> {
-    return Promise.all(providers.map((p) => this.getUsage(p)));
+  /**
+   * Merge today's `/cost` spend + token fields onto an ok usage. Best-effort:
+   * cost is optional, so a failure leaves the usage as-is.
+   */
+  private async withCost(usage: ProviderUsage, today: string): Promise<ProviderUsage> {
+    if (!usage.ok) return usage;
+    try {
+      const cost = await this.fetchJson(
+        `${this.baseUrl}/cost?provider=${encodeURIComponent(usage.provider)}`,
+      );
+      return {
+        ...usage,
+        costTodayUsd: extractCostToday(cost, today),
+        tokensToday: extractTokensToday(cost, today),
+      };
+    } catch {
+      return usage;
+    }
   }
 
   /**
@@ -133,26 +127,14 @@ export class CodexbarClient {
       raw = undefined;
     }
 
-    const usages = Array.isArray(raw)
+    const discovered = Array.isArray(raw)
       ? raw
           .filter((r): r is RawCodexbarUsage => !!r && typeof r === "object")
           .map((r) => normalizeUsage(r))
       : [];
 
     // Attach today's cost per provider (best-effort, concurrent).
-    await Promise.all(
-      usages.map(async (u, i) => {
-        if (!u.ok) return;
-        try {
-          const cost = await this.fetchJson(
-            `${this.baseUrl}/cost?provider=${encodeURIComponent(u.provider)}`,
-          );
-          usages[i] = withCost(u, cost, today);
-        } catch {
-          // Cost is optional.
-        }
-      }),
-    );
+    const usages = await Promise.all(discovered.map((u) => this.withCost(u, today)));
 
     // Fill any known provider the aggregate omitted via the stable per-provider
     // endpoint (getUsage already merges cost). Preserves aggregate order, then
@@ -160,12 +142,8 @@ export class CodexbarClient {
     const covered = new Set(usages.map((u) => u.provider));
     const missing = knownProviders.filter((p) => !covered.has(p));
     if (missing.length > 0) {
-      usages.push(...(await this.getUsageAll(missing)));
+      usages.push(...(await Promise.all(missing.map((p) => this.getUsage(p)))));
     }
     return usages;
   }
-}
-
-function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

@@ -11,3 +11,8 @@ export const silentLogger: Logger = {
   warn() {},
   error() {},
 };
+
+/** Error → message string, for log lines. */
+export function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

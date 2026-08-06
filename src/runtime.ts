@@ -1,10 +1,9 @@
 import { execFile } from "node:child_process";
 import type { MuxboardConfig } from "./config.js";
-import type { Logger } from "./core/services/logger.js";
+import { type Logger, message } from "./core/services/logger.js";
 import type { Store } from "./core/services/store.js";
 import type { CmuxClient } from "./core/cmux/client.js";
 import type { CmuxService } from "./core/services/cmuxService.js";
-import type { CmuxEventsService } from "./core/services/cmuxEventsService.js";
 import type { CodexbarService } from "./core/services/codexbarService.js";
 import type { AttentionItem, AttentionSource } from "./core/types.js";
 import type { OrcaClient } from "./core/orca/client.js";
@@ -12,14 +11,12 @@ import type { OrcaService } from "./core/services/orcaService.js";
 
 /**
  * Shared runtime handed to the Stream Deck actions: the store they render from,
- * the clients/services they drive, and config. Constructed once in plugin.ts.
+ * the poll services they drive, the per-source focus backends, and config. Constructed once in plugin.ts.
  */
 export interface Runtime {
   config: MuxboardConfig;
   store: Store;
-  cmux: CmuxClient;
   cmuxService: CmuxService;
-  cmuxEventsService: CmuxEventsService;
   codexbarService: CodexbarService;
   /** Orca poller; force-refresh triggers it when Orca is active. */
   orcaService: OrcaService;
@@ -52,7 +49,7 @@ export function makeCmuxBackend(cmux: CmuxClient, logger: Logger): AttentionBack
       try {
         await cmux.openNotification(item.id);
       } catch (err) {
-        logger.warn(`open-notification failed, falling back: ${err instanceof Error ? err.message : err}`);
+        logger.warn(`open-notification failed, falling back: ${message(err)}`);
         await cmux.selectWorkspace(item.workspaceId);
       }
     },

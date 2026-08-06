@@ -8,28 +8,28 @@ interface RawWindow {
   windowMinutes?: unknown;
 }
 
-/** Raw CodexBar `/usage?provider=X` element. */
-export interface RawCodexbarUsage {
-  provider?: unknown;
-  source?: unknown;
-  account?: unknown;
-  updatedAt?: unknown;
-  error?: { message?: unknown } | unknown;
-  /** Codex nests windows at top level; claude/minimax nest them under `usage`. */
+/**
+ * The object carrying a provider's windows: either the raw element itself
+ * (Codex) or its nested `usage` (claude/minimax). See `windowSource`.
+ */
+interface WindowSource {
   primary?: RawWindow;
   secondary?: RawWindow;
   tertiary?: RawWindow;
-  identity?: { accountEmail?: unknown } | unknown;
+  /** Some providers carry the account/credit fields one level down. */
+  identity?: { accountEmail?: unknown; loginMethod?: unknown };
   /** Credit summary string (e.g. CommandCode "Go · $0.00 of $10.00"). */
   loginMethod?: unknown;
-  usage?: {
-    primary?: RawWindow;
-    secondary?: RawWindow;
-    tertiary?: RawWindow;
-    identity?: { accountEmail?: unknown; loginMethod?: unknown } | unknown;
-    loginMethod?: unknown;
-    updatedAt?: unknown;
-  };
+  updatedAt?: unknown;
+}
+
+/** Raw CodexBar `/usage?provider=X` element. */
+export interface RawCodexbarUsage extends WindowSource {
+  provider?: unknown;
+  account?: unknown;
+  error?: { message?: unknown } | unknown;
+  /** Codex nests windows at top level; claude/minimax nest them under `usage`. */
+  usage?: WindowSource;
 }
 
 const num = (v: unknown): number | undefined =>
@@ -46,7 +46,6 @@ function normalizeWindow(raw: RawWindow | undefined): UsageWindow | undefined {
     usedPercent: clamp(used),
     remainingPercent: clamp(100 - used),
     resetsAt: str(raw.resetsAt),
-    resetDescription: str(raw.resetDescription),
     windowMinutes: num(raw.windowMinutes),
   };
 }
@@ -61,14 +60,7 @@ function normalizeWindow(raw: RawWindow | undefined): UsageWindow | undefined {
  * `secondary` (weekly) window — checking only `primary` there wrongly falls
  * back to the empty top level and drops the weekly gauge entirely.
  */
-function windowSource(raw: RawCodexbarUsage): {
-  primary?: RawWindow;
-  secondary?: RawWindow;
-  tertiary?: RawWindow;
-  identity?: { accountEmail?: unknown; loginMethod?: unknown } | unknown;
-  loginMethod?: unknown;
-  updatedAt?: unknown;
-} {
+function windowSource(raw: RawCodexbarUsage): WindowSource {
   const nested = raw.usage;
   if (
     nested &&
@@ -79,22 +71,8 @@ function windowSource(raw: RawCodexbarUsage): {
   ) {
     return nested;
   }
-  return {
-    primary: raw.primary,
-    secondary: raw.secondary,
-    tertiary: raw.tertiary,
-    identity: raw.identity,
-    loginMethod: raw.loginMethod,
-    updatedAt: raw.updatedAt,
-  };
-}
-
-function accountOf(identity: unknown, fallback: unknown): string | undefined {
-  if (identity && typeof identity === "object") {
-    const email = (identity as { accountEmail?: unknown }).accountEmail;
-    if (str(email)) return email as string;
-  }
-  return str(fallback);
+  // The raw element IS a WindowSource — its own windows live at the top level.
+  return raw;
 }
 
 /**
@@ -123,8 +101,7 @@ function parseCommandCodeUsdBucket(loginMethod: unknown): CreditBucket | undefin
   const spent = Number(m[2].replace(/,/g, ""));
   const total = Number(m[3].replace(/,/g, ""));
   if (!Number.isFinite(spent) || !Number.isFinite(total)) return undefined;
-  const label = m[1]?.trim();
-  return { label: label && label.length > 0 ? label : undefined, spent, total, unit: "usd" };
+  return { label: str(m[1]?.trim()), spent, total, unit: "usd" };
 }
 
 /**
@@ -142,17 +119,6 @@ function parsePerplexityBucket(resetDescription: unknown): CreditBucket | undefi
   return { spent, total, unit: m[3].toLowerCase() };
 }
 
-/** Read the credit string from the nested usage or its identity, whichever carries it. */
-function loginMethodOf(src: {
-  loginMethod?: unknown;
-  identity?: { loginMethod?: unknown } | unknown;
-}): unknown {
-  if (src.loginMethod !== undefined) return src.loginMethod;
-  const ident = src.identity;
-  if (ident && typeof ident === "object") return (ident as { loginMethod?: unknown }).loginMethod;
-  return undefined;
-}
-
 /**
  * Credit-metered providers use provider-specific CodexBar contracts, keyed by
  * provider id rather than by data shape: ordinary rate-limit providers emit the
@@ -162,17 +128,19 @@ function loginMethodOf(src: {
  * Kilo emits "<used>/<total> credits" (KiloUsageFetcher.swift) — the latter is
  * indistinguishable from Perplexity's own string, so no regex can separate them.
  */
-function creditModel(provider: string, src: {
-  primary?: RawWindow;
-  secondary?: RawWindow;
-  tertiary?: RawWindow;
-  loginMethod?: unknown;
-  identity?: { loginMethod?: unknown } | unknown;
-}): { session?: UsageWindow; weekly?: UsageWindow; credits: CreditBucket } | undefined {
+function creditModel(
+  provider: string,
+  src: WindowSource,
+): { session?: UsageWindow; weekly?: UsageWindow; credits: CreditBucket } | undefined {
   const id = provider.trim().toLowerCase();
 
   if (id === "commandcode") {
-    const credits = parseCommandCodeUsdBucket(loginMethodOf(src));
+    // Presence, not nullishness: an explicitly null top-level `loginMethod`
+    // (Swift encodes a nil optional as JSON null) means "this build reports no
+    // credit string here" and must NOT fall through to identity's copy.
+    const credits = parseCommandCodeUsdBucket(
+      src.loginMethod !== undefined ? src.loginMethod : src.identity?.loginMethod,
+    );
     // Keep the plan/spend footer even when the monthly window is missing — a
     // gauge-less credit row still tells the operator their allowance.
     if (!credits) return undefined;
@@ -193,26 +161,22 @@ function creditModel(provider: string, src: {
 
   if (id !== "perplexity") return undefined;
 
-  const candidate = (window: RawWindow | undefined) => {
-    const credits = parsePerplexityBucket(window?.resetDescription);
-    const session = normalizeWindow(window);
-    return credits && session ? { session, credits } : undefined;
-  };
-  const primary = candidate(src.primary);
-  const fallbacks = [candidate(src.tertiary), candidate(src.secondary)].filter(
-    (value): value is { session: UsageWindow; credits: CreditBucket } => value !== undefined,
-  );
+  // CodexBar's own Perplexity waterfall (PerplexityUsageSnapshot.swift): the
+  // recurring grant, then purchased credit, then promotional credit.
+  const pools = [src.primary, src.tertiary, src.secondary]
+    .map((window) => {
+      const credits = parsePerplexityBucket(window?.resetDescription);
+      const session = normalizeWindow(window);
+      return credits && session ? { session, credits } : undefined;
+    })
+    .filter((pool) => pool !== undefined);
 
-  // Match CodexBar's own Perplexity waterfall (PerplexityUsageSnapshot.swift):
-  // keep an available recurring grant visible, then fall back to purchased
-  // credits before promotional credit. Upstream encodes a drained pool as
-  // usedPercent 100, so remainingPercent is the availability signal.
-  if (primary && primary.session.remainingPercent > 0) return primary;
-  const available = fallbacks.find((value) => value.session.remainingPercent > 0);
-  // With nothing available, prefer the recurring grant's real numbers over an
-  // empty pool: "1000/1000 spent" is the state this gauge exists to show, and
+  // Keep the first pool with credit left visible; upstream encodes a drained
+  // pool as usedPercent 100, so remainingPercent is the availability signal.
+  // With nothing available, prefer the earliest pool's real numbers over an
+  // empty one: "1000/1000 spent" is the state this gauge exists to show, and
   // upstream always emits a 0/0 secondary+tertiary that would otherwise win.
-  return available ?? primary ?? fallbacks[0];
+  return pools.find((pool) => pool.session.remainingPercent > 0) ?? pools[0];
 }
 
 /** Normalize one raw CodexBar usage object for a provider. */
@@ -226,7 +190,7 @@ export function normalizeUsage(raw: RawCodexbarUsage, providerHint?: string): Pr
   }
 
   const src = windowSource(raw);
-  const account = accountOf(src.identity, raw.account);
+  const account = str(src.identity?.accountEmail) ?? str(raw.account);
   const updatedAt = str(src.updatedAt) ?? str(raw.updatedAt);
 
   // Credit-metered providers (CommandCode, Perplexity) render as a single gauge
@@ -268,43 +232,36 @@ interface DailyEntry {
 }
 
 /**
- * Parse the `/cost?provider=X` daily series, newest day first.
+ * Pick one day out of the `/cost?provider=X` series, whose payload is
+ * `[{ daily: [{ date, totalCost, totalTokens }, ...] }]`.
  *
- * The payload is `[{ daily: [{ date, totalCost, totalTokens }, ...] }]`. Returns
- * [] when unavailable.
+ * `today` is a local `YYYY-MM-DD`; when given, only that exact day matches, so
+ * a CodexBar series lagging behind the real today yields undefined rather than
+ * presenting a stale day's figures as "today's". Without it, the most recent
+ * recorded day wins. Returns undefined when the payload is unusable.
  */
-function dailyEntries(raw: unknown): DailyEntry[] {
-  if (!Array.isArray(raw) || raw.length === 0) return [];
-  const daily = (raw[0] as { daily?: unknown })?.daily;
-  if (!Array.isArray(daily)) return [];
-  const entries: DailyEntry[] = [];
+function dayEntry(raw: unknown, today?: string): DailyEntry | undefined {
+  const daily = Array.isArray(raw) ? (raw[0] as { daily?: unknown } | undefined)?.daily : undefined;
+  if (!Array.isArray(daily)) return undefined;
+  let best: DailyEntry | undefined;
   for (const day of daily) {
     if (!day || typeof day !== "object") continue;
-    entries.push({
-      date: str((day as { date?: unknown }).date) ?? "",
+    const date = str((day as { date?: unknown }).date) ?? "";
+    if (today !== undefined ? date !== today : best !== undefined && date <= best.date) continue;
+    best = {
+      date,
       totalCost: num((day as { totalCost?: unknown }).totalCost),
       totalTokens: num((day as { totalTokens?: unknown }).totalTokens),
-    });
+    };
+    if (today !== undefined) break; // first exact match wins, as the sort did
   }
-  return entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return best;
 }
 
-/**
- * Spend (USD) for a specific day. `today` is a local `YYYY-MM-DD`; when given,
- * returns that exact day's totalCost, or undefined when CodexBar has no entry
- * for it (its daily series can lag behind the real today). That keeps the LCD
- * footer from presenting a stale day's figure as "today's spend". Without
- * `today`, falls back to the most recent recorded day.
- */
-export function extractCostToday(raw: unknown, today?: string): number | undefined {
-  const days = dailyEntries(raw);
-  if (today !== undefined) return days.find((d) => d.date === today)?.totalCost;
-  return days[0]?.totalCost;
-}
+/** Spend (USD) for a day; see `dayEntry` for the `today` semantics. */
+export const extractCostToday = (raw: unknown, today?: string): number | undefined =>
+  dayEntry(raw, today)?.totalCost;
 
-/** Token count for a day; same `today` semantics as extractCostToday. */
-export function extractTokensToday(raw: unknown, today?: string): number | undefined {
-  const days = dailyEntries(raw);
-  if (today !== undefined) return days.find((d) => d.date === today)?.totalTokens;
-  return days[0]?.totalTokens;
-}
+/** Token count for a day; see `dayEntry` for the `today` semantics. */
+export const extractTokensToday = (raw: unknown, today?: string): number | undefined =>
+  dayEntry(raw, today)?.totalTokens;
