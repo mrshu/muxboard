@@ -1,0 +1,37 @@
+name: CI
+
+# Typecheck, test, and build on every push and PR. The Release workflow runs
+# the same gates but only on release/dispatch; this catches regressions on
+# ordinary commits.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # ubuntu, not macOS: unlike Release there is no `streamdeck pack` step
+    # here, and typecheck/test/build are platform-independent (rollup bundle,
+    # pure-logic tests). The plugin's runtime is mac-only, but nothing in
+    # these gates touches it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          # 22, not 20: the test script's glob (test/**/*.test.ts) needs
+          # Node's test-runner glob support (21+). Matches release.yml; the
+          # shipped plugin still targets the Node 20 Stream Deck runtime.
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+      - run: npm test
+
+      # bin/ is gitignored, so verify the bundle actually builds.
+      - run: npm run build
