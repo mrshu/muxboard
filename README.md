@@ -345,33 +345,34 @@ plan describes each of its windows `"<used> / <total> used"`, and Kilo emits
 `"<used>/<total> credits"`, which is indistinguishable from Perplexity's. Shape
 dispatch would silently replace those providers' session/weekly gauges.
 
-CommandCode needs an interactive cookie refresh, for reasons upstream of
-muxboard. Its session is imported from the browser, and only an interactive
-process — the CodexBar app, or the CLI run with `--allow-keychain-prompt` — can
-prompt for the Keychain access that decryption needs. Unattended, `codexbar
-serve` declines that path (`cookie refresh` returns `status: "blocked"`) and
-falls back to its last saved session. So the menu bar can show live numbers
-while `serve` reports "Command Code session is invalid or expired"; the two are
-reading different things. Recover with an interactive
+CommandCode can need an interactive cookie refresh when browser-cookie import
+requires Keychain access. CodexBar checks its saved session first, then tries
+browser import if that session is missing or invalid. Background imports can
+read cookies when Keychain access is already granted, but cannot prompt for
+access. The CodexBar app or an interactive CLI refresh can request that access,
+so the menu bar can show live numbers while `codexbar serve` reports a missing
+or expired session. Retry interactively with
 `codexbar cookie refresh --provider commandcode --allow-keychain-prompt`.
-Through CodexBar v0.46.0 even that failed to persist
-([steipete/CodexBar#2541](https://github.com/steipete/CodexBar/issues/2541)); on
-0.50.0 it has been observed to save and `serve` to return live data. Muxboard
-renders the provider as unavailable meanwhile, and the tile populates on its own
-once CodexBar holds a session; it is a pure consumer of `codexbar serve` and has
-no cookie configuration of its own.
+Without `--allow-keychain-prompt`, the explicit cookie-refresh command can
+return `status: "blocked"` rather than attempt decryption. CodexBar v0.46.0
+also had a separate session-persistence bug
+([steipete/CodexBar#2541](https://github.com/steipete/CodexBar/issues/2541)),
+fixed upstream by
+[steipete/CodexBar#2564](https://github.com/steipete/CodexBar/pull/2564);
+upgrade affected builds before retrying. Muxboard renders provider errors as
+unavailable, and the tile populates on its own once CodexBar returns usage; it
+is a pure consumer of `codexbar serve` and has no cookie configuration of its own.
 
-Perplexity has two observed failure modes, told apart by the message. Its
-automatic import drops out transiently — `codexbar serve` answers
+Perplexity has two observed failure modes, told apart by the message.
+`codexbar serve` can answer
 `{"code":1,"message":"No available fetch strategy for perplexity"}` when no
-session cookie is currently resolvable, which a refresh in the CodexBar UI
-clears. Separately, Perplexity rate-limits the account itself: `serve` returns
-`Perplexity API error: HTTP 429` (`RATE_LIMITED`) with a perfectly good cookie.
-A refresh does not clear that one, it can recur for days, and it is usually
-intermittent rather than total — so the tile alternates between real credits and
-unavailable depending on which poll lands. Muxboard renders either failure as an
-unavailable provider; it cannot trigger a CodexBar refresh, since `serve`
-exposes no such endpoint.
+session cookie is currently resolvable; a refresh in the CodexBar UI may recover
+it if a valid browser session is available. Separately, `serve` can return a
+provider error payload containing `Perplexity API error: HTTP 429`, indicating
+rate limiting even with a valid cookie. Cookie refresh does not resolve rate
+limiting; allow the limit to subside before retrying. Muxboard renders either
+provider error as unavailable and restores the gauge on a successful poll; it
+does not request authentication or cookie refreshes from CodexBar.
 
 The pace marker/number is derived locally from `resetsAt` + `windowMinutes`
 (elapsed-vs-used); windows with no time bounds (e.g. an "Unlimited" weekly) show
