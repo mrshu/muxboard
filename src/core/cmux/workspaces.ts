@@ -15,10 +15,11 @@ export interface WorkspaceInfo {
 
 /**
  * Optional leading `π` marker that OMP/Pi put before their own status glyph
- * when they title a workspace: `π ⠇ task` while working, `π > task` when idle.
- * Only matched when a status glyph follows, so a title like "π notes" is kept.
+ * when they title a workspace: `π ⠇ task` while working, `π > task` when idle,
+ * optionally followed by a Nerd Font task icon (`π > <icon> task`, `π <icon> task`).
+ * Only matched when a status glyph or icon follows, so a title like "π notes" is kept.
  */
-const PI_PREFIX = /^\s*π\s+(?=[>⠀-⣿])/u;
+const PI_PREFIX = /^\s*π\s+(?=[>⠀-⣿\p{Co}])/u;
 
 /**
  * True iff a title leads with cmux's animated braille spinner (U+2800–U+28FF),

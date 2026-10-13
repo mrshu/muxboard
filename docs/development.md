@@ -25,10 +25,11 @@ src/
     orca/            worktree snapshot normalization + terminal focus
     herdr/           snapshots, terminal identity, existing-host mapping + focus
     codexbar/        client (HTTP), normalize (dual-shape + error + cost)
-    render/          palette, format, keyRender (SVG), lcdRender (SVG)
+    render/          palette, format, keyRender (SVG), lcdRender (SVG),
+                     nerdGlyphs (vendored Nerd Font outlines for title icons)
     services/        store, cmux/orca/herdr/codexbar polls, cmuxEvents (event stream)
   actions/           attentionKey (8 keys), dialStrip (4 dials): thin SDK glue
-scripts/             preview / validate / gen-icons / install-profile / dev.sh
+scripts/             preview / validate / gen-icons / gen-nerd-glyphs / install-profile / dev.sh
 test/                fixtures + node:test suite
 com.mrshu.muxboard.sdPlugin/   manifest, layouts, imgs, built bin
 ```

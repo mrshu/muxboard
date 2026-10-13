@@ -128,6 +128,23 @@ test("renderKey marks a stalled pane distinctly from plain working", () => {
   assert.match(renderKey({ ...base, stalled: true }, { nowMs: Date.parse("2026-06-20T12:01:00Z") }), /STALLED/);
 });
 
+test("renderKey draws a leading Nerd Font icon and drops unknown private-use glyphs", () => {
+  // OMP prefixes task titles with Nerd Font icons (U+F0428 = nf-md-presentation,
+  // U+F41B = nf-oct-issue_opened); keys draw their outlines instead of relying
+  // on an installed Nerd Font.
+  const base = { id: "x", agent: "omp" as const, workspaceId: "w", title: "\u{F0428} POSTER: Brainstorm", reason: "waiting" as const, activity: "waiting" as const, body: "", message: "", createdAt: "2026-06-20T12:00:00Z" };
+  for (const title of [base.title, "\u{F41B} ISSUE: Assess"]) {
+    const svg = renderKey({ ...base, title }, { nowMs: NOW_MS });
+    assert.doesNotMatch(svg, /\p{Co}/u);
+    assert.match(svg, /<path transform="translate\(12\.0 [\d.]+\) scale\([\d.]+\)" d="M/);
+    assert.match(svg, /<text x="(?!12")[\d.]+"[^>]*>(POSTER|ISSUE):/); // text shifted past the icon
+  }
+  // A private-use character the Nerd Font does not define is dropped, not boxed.
+  const unknown = renderKey({ ...base, title: "\u{F1F00} main" }, { nowMs: NOW_MS });
+  assert.doesNotMatch(unknown, /\p{Co}/u);
+  assert.match(unknown, /<text x="12"[^>]*>main</);
+});
+
 test("renderKey survives an unparseable createdAt (no NaN age, calm style)", () => {
   const base = { id: "x", agent: "claude" as const, workspaceId: "w", title: "t", reason: "waiting" as const, activity: "waiting" as const, body: "", message: "", createdAt: "not-a-date" };
   const svg = renderKey(base, { nowMs: NOW_MS });

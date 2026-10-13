@@ -45,6 +45,7 @@
     "icons": "tsx scripts/gen-icons.ts",
     "install-profile": "node scripts/install-profile.mjs",
     "icons:providers": "node scripts/gen-provider-icons.mjs",
+    "icons:nerd": "node scripts/gen-nerd-glyphs.mjs",
     "test:herdr:e2e": "tsx scripts/herdr-e2e.ts",
     "e2e:streamdeck": "npm run build && tsx scripts/streamdeck-e2e.ts"
   },
@@ -58,6 +59,7 @@
     "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-typescript": "^12.1.0",
     "@types/node": "^22.0.0",
+    "opentype.js": "^2.0.0",
     "rollup": "^4.24.0",
     "tslib": "^2.8.0",
     "tsx": "^4.19.0",

@@ -3,6 +3,7 @@ import { agentTheme } from "./palette.js";
 import { escapeXml, estTextWidth, fitText, formatAgeFromSeconds } from "./format.js";
 import { providerIconSvg } from "./providerIcons.js";
 import { sourceGlyphSvg, sourceTint } from "./sourceIcons.js";
+import { nerdIcon } from "./nerdIcons.js";
 
 /** Key canvas size. Stream Deck keys are 72pt; we render @2x for crispness. */
 export const KEY_SIZE = 144;
@@ -40,6 +41,29 @@ function ageStyle(ageSeconds: number): { size: number; color: string } {
   if (ageSeconds < 1800) return { size: 24, color: "#b9c0a8" }; // <30m: pale
   if (ageSeconds < 7200) return { size: 28, color: "#ffce5a" }; // <2h: amber
   return { size: 30, color: "#ff8a4d" }; // older: hot orange
+}
+
+/**
+ * One wrapped title line at baseline `y`. Agents lead titles with Nerd Font
+ * icons (OMP: `<icon> POSTER: …`) that the Stream Deck font may not have, so a
+ * leading icon is drawn as its vendored outline in the title color, sitting on
+ * the text baseline like the glyph would. Any other private-use character, or a
+ * lone surrogate from a hard wrap, would render as a tofu box and is dropped.
+ */
+function titleLineSvg(line: string, y: number, fontSize: number, fill: string): string {
+  const scale = fontSize / 24;
+  let x = 12;
+  let rest = line;
+  let icons = "";
+  for (let m = /^(\p{Co})\s*/u.exec(rest); m; m = /^(\p{Co})\s*/u.exec(rest)) {
+    rest = rest.slice(m[0].length);
+    const icon = nerdIcon(m[1]);
+    if (!icon) continue;
+    icons += `<path transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${scale.toFixed(3)})" d="${icon.path}" fill="${fill}"/>`;
+    x += icon.advance * scale + fontSize * 0.3;
+  }
+  const text = rest.replace(/[\p{Co}\p{Cs}]/gu, "").trim();
+  return icons + (text ? `<text x="${+x.toFixed(1)}" y="${y.toFixed(1)}" font-size="${fontSize}" font-weight="800" fill="${fill}">${escapeXml(text)}</text>` : "");
 }
 
 /**
@@ -119,16 +143,13 @@ export function renderKey(item: AttentionItem, opts: KeyRenderOptions): string {
   const boxTop = 50;
   const provenance = item.source === "herdr" ? (item.repo?.split(" · ")[0] ?? item.herdr?.session ?? "") : "";
   const boxBottom = provenance ? 94 : 116;
-  const fit = fitText(item.title || item.repo || "?", S - 24, boxBottom - boxTop, 14, 30);
+  // fitText sizes a private-use icon (a surrogate pair) as ~1.2em, close to the
+  // drawn icon's advance, so icons wrap with the words they lead.
+  const fit = fitText((item.title || item.repo || "").replace(/\s+/g, " ").trim() || "?", S - 24, boxBottom - boxTop, 14, 30);
   const lineH = fit.fontSize * 1.14;
   const totalH = fit.lines.length * lineH;
   const startY = boxTop + Math.max(0, (boxBottom - boxTop - totalH) / 2) + fit.fontSize * 0.82;
-  const title = fit.lines
-    .map(
-      (l, i) =>
-        `<text x="12" y="${(startY + i * lineH).toFixed(1)}" font-size="${fit.fontSize}" font-weight="800" fill="${a.fg}">${escapeXml(l)}</text>`,
-    )
-    .join("");
+  const title = fit.lines.map((l, i) => titleLineSvg(l, startY + i * lineH, fit.fontSize, a.fg)).join("");
 
   const contextFit = fitText(provenance, S - 24, 22, 8, 11);
   const context = provenance ? contextFit.lines.map((line, i) =>

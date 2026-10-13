@@ -175,12 +175,15 @@ test("parseWorkspaceInfo reads OMP's `π <glyph> task` workspace titles", () => 
       row("WS-WORK", "π ⠇ Stabilize finding context"),
       row("WS-IDLE", "π > Deploy theses offer"),
       row("WS-PI", "π notes"),
+      row("WS-ICON", "π \u{F0428} POSTER: Brainstorm"),
     ],
   });
   assert.deepEqual(info.get("WS-WORK"), { title: "Stabilize finding context", color: undefined, activity: "working" });
   assert.deepEqual(info.get("WS-IDLE"), { title: "Deploy theses offer", color: undefined, activity: "waiting" });
   // A plain π with no status glyph after it is part of the title.
   assert.deepEqual(info.get("WS-PI"), { title: "π notes", color: undefined, activity: "waiting" });
+  // A π followed by a task icon is OMP's marker; the icon is dropped at render.
+  assert.deepEqual(info.get("WS-ICON"), { title: "\u{F0428} POSTER: Brainstorm", color: undefined, activity: "waiting" });
 });
 
 test("parseSurfaceActivity marks a workspace working from a surface-title spinner", () => {
