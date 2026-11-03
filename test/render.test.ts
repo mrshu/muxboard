@@ -301,7 +301,7 @@ test("commandcode segment: CMDCODE name, single MO gauge, credit footer, no empt
   assert.match(seg, /Go · \$0\.00 \/ \$10\.00/);
 });
 
-test("claude segment without a 5h session shows weekly then the scoped Fable limit", () => {
+test("a provider without a 5h session drops the S row; Claude adds its scoped Fable limit", () => {
   // Shape from CodexBar 0.60 for a Claude Max account whose 5h window is absent.
   const raw = [{
     provider: "claude",
@@ -319,6 +319,11 @@ test("claude segment without a 5h session shows weekly then the scoped Fable lim
   assert.deepEqual(rows(seg), ["W", "F"]);
   assert.match(seg, />27%</); // weekly remaining
   assert.match(seg, />88%</); // Fable remaining
+  // Codex reports no 5h window and no scoped limits: a lone weekly row, no "S —".
+  const codex = [{ provider: "codex", usage: { primary: null, secondary: raw[0].usage.secondary } }];
+  const [weeklyOnly] = renderLcdSegments([normalizeUsageResponse(codex, "codex")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.deepEqual(rows(weeklyOnly), ["W"]);
+  assert.doesNotMatch(weeklyOnly, /S {2}—/);
   // A live 5h session keeps the ordinary S/W pair.
   raw[0].usage.primary = { usedPercent: 10, windowMinutes: 300, resetsAt: "2026-06-20T15:00:00Z" } as never;
   const [withSession] = renderLcdSegments([normalizeUsageResponse(raw, "claude")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });

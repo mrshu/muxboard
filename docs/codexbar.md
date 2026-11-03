@@ -22,9 +22,10 @@ same LCD. `codexbarProviders` can restrict or reorder them.
 Each window provides `usedPercent`, `resetsAt`, `windowMinutes`, and a
 `resetDescription`. For ordinary rate-limit providers, `primary` is usually the
 session (5h) and `secondary` the weekly (7d) window. When the session window is
-absent but CodexBar reports a model-scoped limit in `extraRateWindows` (Claude's
-"Fable only" weekly), the segment shows `W` first and the scoped limit second,
-labeled by its title's initial (`F`).
+absent but the weekly is reported (as Codex and Claude currently do), the empty
+`S` row is dropped and `W` leads. A model-scoped limit CodexBar reports in
+`extraRateWindows` (Claude's "Fable only" weekly) follows it, labeled by its
+title's initial (`F`).
 
 ## Credit pools and monthly grants
 
