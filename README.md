@@ -87,6 +87,9 @@ permission requests, and agents explicitly needing input.
   nothing more. Muxboard leaves the backend notification intact, and the key
   returns automatically if it still needs attention. Working-only keys cannot
   be snoozed.
+- Key titles keep the icons agents put in them, such as OMP's task icons.
+  Muxboard draws these icons itself, so they show up without a Nerd Font
+  installed.
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
   rather than a hardcoded list. Each segment carries the provider name in
   CodexBar's brand color, the session and weekly gauges with their reset times,
