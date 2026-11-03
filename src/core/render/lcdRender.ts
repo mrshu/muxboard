@@ -141,7 +141,10 @@ function quotaRow(
  * The quota rows to render for a provider. A credit-metered provider that
  * carries only one window (e.g. CommandCode's monthly credit bucket, with no
  * weekly) shows a single "MO" gauge — not an empty "W —" row. Rate-limit
- * providers keep the session (S) + weekly (W) pair.
+ * providers keep the session (S) + weekly (W) pair; when the session window is
+ * absent but a model-scoped limit exists (Claude's "Fable only" weekly), the
+ * weekly leads and the scoped limit takes the second row, labeled by its
+ * title's initial ("F").
  *
  * Both branches are live for a credit provider: CommandCode also reports rolling
  * 5h/weekly rate limits on CodexBar builds after CodexBar#2630, and when those
@@ -151,6 +154,13 @@ function quotaRowsFor(usage: ProviderUsage): Array<{ label: string; win: UsageWi
   if (usage.credits && usage.weekly === undefined) {
     // "MO" for a monthly dollar bucket (CommandCode); "CR" for a credit count (Perplexity).
     return [{ label: usage.credits.unit === "usd" ? "MO" : "CR", win: usage.session }];
+  }
+  const scoped = usage.scoped?.[0];
+  if (!usage.session && scoped) {
+    return [
+      { label: "W", win: usage.weekly },
+      { label: scoped.title.charAt(0).toUpperCase(), win: scoped.window },
+    ];
   }
   return [
     { label: "S", win: usage.session },

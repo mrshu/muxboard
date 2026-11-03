@@ -90,7 +90,9 @@ permission requests, and agents explicitly needing input.
 - The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
   rather than a hardcoded list. Each segment carries the provider name in
   CodexBar's brand color, the session and weekly gauges with their reset times,
-  and a footer with today's spend and tokens when available. CommandCode can
+  and a footer with today's spend and tokens when available. When Claude has no
+  5h session window, its segment shows the weekly gauge and the weekly limit for
+  Fable (`F`) instead. CommandCode can
   show its monthly grant alongside rolling quotas. Credit-only accounts and
   Perplexity show a credit gauge and a spend/allowance footer. Four providers
   are visible at once. Dial 4 rotates through any additional providers.

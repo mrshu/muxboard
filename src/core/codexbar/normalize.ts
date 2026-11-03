@@ -20,6 +20,8 @@ interface WindowSource {
   identity?: { accountEmail?: unknown; loginMethod?: unknown };
   /** Credit summary string (e.g. CommandCode "Go · $0.00 of $10.00"). */
   loginMethod?: unknown;
+  /** Model-scoped limits beyond the main windows (Claude: `{ title: "Fable only", window }`). */
+  extraRateWindows?: unknown;
   updatedAt?: unknown;
 }
 
@@ -204,9 +206,21 @@ export function normalizeUsage(raw: RawCodexbarUsage, providerHint?: string): Pr
     account,
     session: normalizeWindow(src.primary),
     weekly: normalizeWindow(src.secondary),
+    scoped: normalizeScoped(src.extraRateWindows),
     updatedAt,
     ok: true,
   };
+}
+
+/** CodexBar's `extraRateWindows` → titled windows; malformed rows are dropped. */
+function normalizeScoped(raw: unknown): ProviderUsage["scoped"] {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw.flatMap((row) => {
+    const title = str((row as { title?: unknown } | null)?.title);
+    const window = normalizeWindow((row as { window?: RawWindow } | null)?.window);
+    return title && window ? [{ title, window }] : [];
+  });
+  return out.length > 0 ? out : undefined;
 }
 
 /**

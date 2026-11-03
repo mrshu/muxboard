@@ -146,6 +146,11 @@ export interface ProviderUsage {
   session?: UsageWindow;
   /** secondary window. */
   weekly?: UsageWindow;
+  /**
+   * Model-scoped limits CodexBar reports beside the main windows (Claude's
+   * "Fable only" weekly), in CodexBar's order.
+   */
+  scoped?: Array<{ title: string; window: UsageWindow }>;
   /** Today's spend in USD, from /cost (optional). CodexBar reports no currency
    * code; provider billing is USD, so amounts are treated as dollars. */
   costTodayUsd?: number;

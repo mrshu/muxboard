@@ -301,6 +301,30 @@ test("commandcode segment: CMDCODE name, single MO gauge, credit footer, no empt
   assert.match(seg, /Go · \$0\.00 \/ \$10\.00/);
 });
 
+test("claude segment without a 5h session shows weekly then the scoped Fable limit", () => {
+  // Shape from CodexBar 0.60 for a Claude Max account whose 5h window is absent.
+  const raw = [{
+    provider: "claude",
+    usage: {
+      primary: null,
+      secondary: { usedPercent: 73, windowMinutes: 10080, resetsAt: "2026-06-25T14:00:00Z" },
+      tertiary: null,
+      extraRateWindows: [
+        { id: "claude-weekly-scoped-fable", title: "Fable only", window: { usedPercent: 12, windowMinutes: 10080, resetsAt: "2026-06-25T14:00:00Z" } },
+      ],
+    },
+  }];
+  const rows = (seg: string) => [...seg.matchAll(/font-weight="700" fill="#aeb4be">([^<]+)</g)].map((m) => m[1]);
+  const [seg] = renderLcdSegments([normalizeUsageResponse(raw, "claude")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.deepEqual(rows(seg), ["W", "F"]);
+  assert.match(seg, />27%</); // weekly remaining
+  assert.match(seg, />88%</); // Fable remaining
+  // A live 5h session keeps the ordinary S/W pair.
+  raw[0].usage.primary = { usedPercent: 10, windowMinutes: 300, resetsAt: "2026-06-20T15:00:00Z" } as never;
+  const [withSession] = renderLcdSegments([normalizeUsageResponse(raw, "claude")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.deepEqual(rows(withSession), ["S", "W"]);
+});
+
 test("perplexity segment: PPLX name, single CR credits gauge, count footer, brand color", () => {
   const p = normalizeUsageResponse(loadFixture("codexbar-usage-perplexity.json"), "perplexity");
   const [seg] = renderLcdSegments([p], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
