@@ -93,7 +93,8 @@ permission requests, and agents explicitly needing input.
   and a footer with today's spend and tokens when available. A provider with
   only a weekly limit, such as Codex, shows a single `W` row. When Claude has no
   5h session window, its segment shows the weekly gauge and the weekly limit for
-  Fable (`F`) instead. CommandCode can
+  Fable (`F`) instead. MiniMax adds its 5h prompt count to the footer, for
+  example `5h 0 / 100 prompts`. CommandCode can
   show its monthly grant alongside rolling quotas. Credit-only accounts and
   Perplexity show a credit gauge and a spend/allowance footer. Four providers
   are visible at once. Dial 4 rotates through any additional providers.

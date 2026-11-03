@@ -27,6 +27,10 @@ absent but the weekly is reported (as Codex and Claude currently do), the empty
 `extraRateWindows` (Claude's "Fable only" weekly) follows it, labeled by its
 title's initial (`F`).
 
+MiniMax also reports its 5h quota as a prompt count in CodexBar's `details`
+rows (`General · 5 hours`, `0 / 100`). Muxboard shows that count in the
+footer, as `5h 0 / 100 prompts`.
+
 ## Credit pools and monthly grants
 
 Credit allowances can accompany rolling quotas or replace them. Muxboard

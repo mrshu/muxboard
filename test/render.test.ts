@@ -301,6 +301,16 @@ test("commandcode segment: CMDCODE name, single MO gauge, credit footer, no empt
   assert.match(seg, /Go · \$0\.00 \/ \$10\.00/);
 });
 
+test("minimax segment shows its 5h quota count in the footer", () => {
+  const raw = loadFixture("codexbar-usage-minimax.json") as Array<{ usage: { primary: unknown } }>;
+  const [seg] = renderLcdSegments([normalizeUsageResponse(raw, "minimax")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.match(seg, /<text x="12" y="92"[^>]*>5h 2 \/ 100 prompts</);
+  // Without a live 5h window the count would describe nothing on screen.
+  raw[0].usage.primary = null;
+  const [noSession] = renderLcdSegments([normalizeUsageResponse(raw, "minimax")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.doesNotMatch(noSession, /prompts/);
+});
+
 test("a provider without a 5h session drops the S row; Claude adds its scoped Fable limit", () => {
   // Shape from CodexBar 0.60 for a Claude Max account whose 5h window is absent.
   const raw = [{

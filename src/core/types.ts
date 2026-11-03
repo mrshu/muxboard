@@ -151,6 +151,8 @@ export interface ProviderUsage {
    * "Fable only" weekly), in CodexBar's order.
    */
   scoped?: Array<{ title: string; window: UsageWindow }>;
+  /** The 5h quota as a count ("0 / 100 prompts"), for providers that report one (MiniMax). */
+  sessionCount?: string;
   /** Today's spend in USD, from /cost (optional). CodexBar reports no currency
    * code; provider billing is USD, so amounts are treated as dollars. */
   costTodayUsd?: number;

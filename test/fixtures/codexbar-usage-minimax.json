@@ -6,9 +6,19 @@
       "primary": { "windowMinutes": 300, "resetDescription": "Resets in 2 hours", "resetsAt": "2026-06-20T15:00:00Z", "usedPercent": 2 },
       "secondary": { "windowMinutes": 10080, "resetDescription": "Unlimited", "usedPercent": 0 },
       "tertiary": null,
+      "details": [
+        {
+          "title": "Quota services",
+          "rows": [
+            { "label": "General · 5 hours", "value": "2 / 100", "secondaryValue": "2% used · Resets in 2 hours" },
+            { "label": "General · Weekly", "value": "Unlimited", "secondaryValue": "0% used · Unlimited" }
+          ]
+        }
+      ],
       "updatedAt": "2026-06-20T12:09:27Z",
       "identity": { "providerID": "minimax", "loginMethod": "Plus" },
       "loginMethod": "Plus"
-    }
+    },
+    "rateWindowLabels": { "primary": "Prompts", "secondary": "Window" }
   }
 ]

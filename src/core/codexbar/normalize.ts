@@ -22,6 +22,8 @@ interface WindowSource {
   loginMethod?: unknown;
   /** Model-scoped limits beyond the main windows (Claude: `{ title: "Fable only", window }`). */
   extraRateWindows?: unknown;
+  /** Display rows CodexBar shows in its menu (MiniMax: `{ label: "General · 5 hours", value: "0 / 100" }`). */
+  details?: unknown;
   updatedAt?: unknown;
 }
 
@@ -32,6 +34,8 @@ export interface RawCodexbarUsage extends WindowSource {
   error?: { message?: unknown } | unknown;
   /** Codex nests windows at top level; claude/minimax nest them under `usage`. */
   usage?: WindowSource;
+  /** What each window counts (MiniMax: `{ primary: "Prompts" }`). */
+  rateWindowLabels?: { primary?: unknown };
 }
 
 const num = (v: unknown): number | undefined =>
@@ -207,6 +211,7 @@ export function normalizeUsage(raw: RawCodexbarUsage, providerHint?: string): Pr
     session: normalizeWindow(src.primary),
     weekly: normalizeWindow(src.secondary),
     scoped: normalizeScoped(src.extraRateWindows),
+    sessionCount: sessionCount(src.details, raw.rateWindowLabels?.primary),
     updatedAt,
     ok: true,
   };
@@ -221,6 +226,28 @@ function normalizeScoped(raw: unknown): ProviderUsage["scoped"] {
     return title && window ? [{ title, window }] : [];
   });
   return out.length > 0 ? out : undefined;
+}
+
+/**
+ * The 5h quota as a count ("0 / 100 prompts"), from the first CodexBar detail
+ * row labeled "… 5 hours" whose value is "<used> / <limit>". Only MiniMax
+ * reports one today. The unit comes from CodexBar's label for the primary
+ * window, when it has one.
+ */
+function sessionCount(details: unknown, unitLabel: unknown): string | undefined {
+  if (!Array.isArray(details)) return undefined;
+  for (const section of details) {
+    const rows = (section as { rows?: unknown } | null)?.rows;
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      const label = str((row as { label?: unknown } | null)?.label);
+      const m = str((row as { value?: unknown } | null)?.value)?.match(/^\s*([\d,]+)\s*\/\s*([\d,]+)\s*$/);
+      if (!label || !/\b5 hours?$/i.test(label) || !m) continue;
+      const unit = str(unitLabel)?.toLowerCase();
+      return `${m[1]} / ${m[2]}${unit ? ` ${unit}` : ""}`;
+    }
+  }
+  return undefined;
 }
 
 /**

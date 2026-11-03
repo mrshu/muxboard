@@ -200,12 +200,14 @@ function formatCredits(c: CreditBucket): string {
 
 /**
  * Footer line: the credit bucket (plan + spend/allowance) for credit-metered
- * providers, else today's spend + tokens — accounting metadata, dot-separated.
- * No pacing here (that lives on the gauge rows).
+ * providers, the 5h quota as a count when the provider reports one (MiniMax
+ * "5h 0 / 100 prompts"), then today's spend + tokens — accounting metadata,
+ * dot-separated. No pacing here (that lives on the gauge rows).
  */
 function spendFooter(usage: ProviderUsage, stale: boolean): string {
   const parts: string[] = [];
   if (usage.credits) parts.push(formatCredits(usage.credits));
+  if (usage.sessionCount && usage.session) parts.push(`5h ${usage.sessionCount}`);
   if (usage.costTodayUsd !== undefined) parts.push(formatUsd(usage.costTodayUsd));
   if (usage.tokensToday !== undefined) parts.push(`${formatTokens(usage.tokensToday)} tok`);
   if (stale) parts.push("stale");
