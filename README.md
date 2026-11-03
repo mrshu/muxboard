@@ -11,23 +11,24 @@
 
 ![Muxboard dashboard](docs/images/dashboard.png)
 
-*Agent glyphs appear at the top left and source badges at the bottom right.
-`?` means the source's state age is not yet known.*
+*Each key shows the agent's icon at the top left and its source badge at the
+bottom right. A `?` in place of the age means Muxboard does not know yet how
+long the agent has been in its current state.*
 
 Muxboard turns the 8 keys of an Elgato Stream Deck+ into a shared queue of
-[cmux](https://cmux.com/) panes, [Orca](https://onorca.dev) worktrees, and
-[Herdr](https://herdr.dev) sessions whose coding agents (Claude Code, Codex, Pi,
-[OMP](https://github.com/can1357/oh-my-pi), or any other) are working, waiting,
-blocked, failed, or have unread results. Agents needing you stay up front.
-Each key shows its state, age, and source, and pressing it reveals the existing
-workspace or pane. Orca and Herdr are auto-detected, and Herdr includes named
-local sessions and saved SSH machines (see [Orca support](#orca-support) and
-[Herdr support](#herdr-support)). The LCD touch strip shows usage for every
-enabled CodexBar provider, including Codex, Claude, MiniMax, Kimi, CommandCode,
-and Perplexity: session and weekly quotas with reset countdowns and pace,
-today's spend and tokens when available, and credit usage and allowances.
-CommandCode can show rolling quotas alongside its monthly grant. Credit-only
-accounts and Perplexity use a credit gauge.
+coding agents (Claude Code, Codex, Pi, [OMP](https://github.com/can1357/oh-my-pi),
+or any other) running in [cmux](https://cmux.com/) panes,
+[Orca](https://onorca.dev) worktrees, and [Herdr](https://herdr.dev) sessions.
+A key shows the agent's state (working, waiting, blocked, failed, or an unread
+result). It also shows how long the agent has been in that state and where it
+runs. Agents that need your attention come first. Pressing a key switches to
+the existing workspace or pane. Muxboard detects Orca and Herdr automatically,
+including named Herdr sessions and saved SSH machines.
+
+The LCD touch strip shows usage for every provider you enable in CodexBar, such
+as Codex, Claude, MiniMax, Kimi, CommandCode, and Perplexity. You get quotas with
+reset countdowns and pace, today's spend and tokens when CodexBar has them, and
+credit balances.
 
 [Install](#install) · [Controls](#how-it-works) · [Sources](#sources) ·
 [Configuration](#configuration) · [Troubleshooting](#troubleshooting) ·
@@ -37,23 +38,23 @@ accounts and Perplexity use a credit gauge.
 
 You need macOS, Node.js ≥ 20, a Stream Deck+, the
 [Elgato Stream Deck app](https://www.elgato.com/stream-deck), and at least one
-attention source: cmux, Orca, or Herdr. CodexBar is optional for the LCD.
+agent source: cmux, Orca, or Herdr. CodexBar is only needed for the LCD.
 
 The packaged [v0.2.0 release](https://github.com/mrshu/muxboard/releases/tag/v0.2.0)
-includes cmux, Orca, Herdr, and the controls described here. To customize the
-plugin, [build from source](#build-from-source).
+supports cmux, Orca, Herdr, and all the controls described here. To change the
+plugin itself, [build from source](#build-from-source).
 
-To install the latest packaged release:
+Connect your device and open Stream Deck once, so the app knows about it. Then
+install the latest release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mrshu/muxboard/main/scripts/setup.sh | bash
 ```
 
-The installer opens the plugin package for confirmation, attempts to install
-the bundled 8-key + 4-dial profile, and checks cmux automation mode when cmux is
-present. Connect your device and open Stream Deck once before installing so
-its device profile exists. Then select **Muxboard** in the profile dropdown.
-If automatic profile installation is skipped, see [Troubleshooting](#troubleshooting).
+The installer asks you to confirm the plugin package, installs the bundled
+profile for the 8 keys and 4 dials, and checks cmux's automation mode if cmux is
+installed. When it finishes, pick **Muxboard** in the Stream Deck profile
+dropdown. If the profile did not install, see [Troubleshooting](#troubleshooting).
 
 ## How it works
 
@@ -63,50 +64,52 @@ If automatic profile installation is skipped, see [Troubleshooting](#troubleshoo
 | LCD touch strip | Quotas, resets, pace, spend, tokens, and credits | [CodexBar](#codexbar-support) |
 | 4 dials | Queue scrolling, agent/source filters, quota view, refresh | See [Dials](#dials-stream-deck) |
 
-The keys fill left-to-right, top-to-bottom. Urgent items come first: failed,
-permission, needs-input, stalled, then other waiting/results, with working
-agents at the end. Items are newest-first within each priority band.
+The keys fill left to right, top to bottom. The most urgent agents come first,
+in this order: failed, asking for permission, needing input, stalled, other
+waiting agents and results, and finally agents that are working. Within each
+group, the newest come first.
 
 ```text
-1 2 3 4      key 1 = first item in the triage queue
-5 6 7 8      key 8 = eighth item, or the overflow pager
+1 2 3 4      key 1 = first item in the queue
+5 6 7 8      key 8 = eighth item, or the "+N more" key
 ```
 
-When more than eight items match, seven agents and a **+N more** key appear.
-Tap that key to page forward. **↑ top** returns to the start. Dial 1 scrolls the
-queue directly. Empty slots render muted. **Decisions** shows only failures,
-permission requests, and agents explicitly needing input.
+When more than eight agents match, the last key turns into **+N more**. Tap it
+to see the next page, and tap **↑ top** to go back. You can also scroll with
+dial 1. Unused keys stay dark. The **Decisions** view shows only failures,
+permission requests, and agents that asked for input.
 
-- Tapping a key focuses its source: cmux opens the notification's workspace and
-  surface, Orca selects the worktree's terminal, and Herdr reveals the existing
-  session in its current host before focusing the selected agent. Herdr resolves
-  direct terminal windows, Zellij, tmux, and cmux hosts without launching a new
-  terminal. Each Herdr agent has an independent key, even in the same workspace.
-- Long-pressing an attention key (hold ~0.6s) snoozes it locally for five
-  minutes. It fires while you are still holding (you get a ✓). Releasing does
-  nothing more. Muxboard leaves the backend notification intact, and the key
-  returns automatically if it still needs attention. Working-only keys cannot
-  be snoozed.
+- Tapping a key takes you to the agent. For cmux, it opens the workspace and
+  surface of the notification. For Orca, it selects the worktree's terminal.
+  For Herdr, it switches to the window the session already runs in (a
+  terminal, Zellij, tmux, or cmux) and focuses the agent, without opening a new
+  terminal. Every Herdr agent gets its own key, even when several share a
+  workspace.
+- Holding a key for about 0.6 seconds snoozes it for five minutes. A ✓ shows
+  while you hold the key, and releasing it has no further effect. Muxboard does
+  not change the notification, so the key returns if the agent still needs you.
+  Keys for working agents cannot be snoozed.
 - Key titles keep the icons agents put in them, such as OMP's task icons.
   Muxboard draws these icons itself, so they show up without a Nerd Font
   installed.
-- The LCD shows one segment per CodexBar provider, auto-discovered from CodexBar
-  rather than a hardcoded list. Each segment carries the provider name in
-  CodexBar's brand color, the session and weekly gauges with their reset times,
-  and a footer with today's spend and tokens when available. A provider with
-  only a weekly limit, such as Codex, shows a single `W` row. When Claude has no
-  5h session window, its segment shows the weekly gauge and the weekly limit for
-  Fable (`F`) instead. MiniMax adds its 5h prompt count to the footer, for
-  example `5h 0 / 100 prompts`. CommandCode can
-  show its monthly grant alongside rolling quotas. Credit-only accounts and
-  Perplexity show a credit gauge and a spend/allowance footer. Four providers
-  are visible at once. Dial 4 rotates through any additional providers.
-- Each gauge also carries a calm **pace** marker, comparing how much quota you've
-  used against how far through the window the clock is: a faded same-hue
-  extension toward where you "should" be when you're under the clock (in reserve,
-  banking headroom), or a coral cap past it when you're over (in deficit). By
-  default the row number is percent remaining. Rotating dial 3 flips it to the
-  signed pace delta (`+12%` green = reserve, `−8%` coral = deficit).
+- The LCD has one segment per CodexBar provider. Muxboard reads the list from
+  CodexBar, so any provider you enable there shows up. Each segment shows the
+  provider name in CodexBar's brand color, the 5h session (`S`) and weekly
+  (`W`) gauges with their reset times, and today's spend and tokens when
+  CodexBar has them. A provider with only a weekly limit, such as Codex, shows
+  just the `W` row. When Claude has no 5h session, its segment shows the weekly
+  gauge and the weekly limit for Fable (`F`) instead. MiniMax adds its 5h prompt
+  count at the bottom, for example `5h 0 / 100 prompts`. CommandCode can show
+  its monthly grant next to its rolling quotas. Credit-only accounts and
+  Perplexity show one credit gauge with the amount spent and the allowance.
+  Four providers fit at once, and dial 4 scrolls through the rest.
+- Each gauge also has a **pace** marker. It compares how much of the quota you
+  have used with how much of the window has passed. If you are under pace, a
+  faded extension of the bar shows where you would be at an even rate. If you
+  are over pace, a coral cap marks how far over pace you are. The number next to
+  the gauge is the percentage left. Turn dial 3 to show the pace difference
+  instead. A green `+12%` means you have quota to spare. A coral `−8%` means you
+  are using it too fast.
 
 ### Dials (Stream Deck+)
 
@@ -117,20 +120,20 @@ permission requests, and agents explicitly needing input.
 | 3 | Remaining % ↔ pace | Queue ↔ Decisions | Open CodexBar `/usage` |
 | 4 | Scroll providers (> 4) | Refresh sources and quota | Same as press |
 
-Agent cycle: **All → Claude → Codex → OMP → Pi**. Source cycle:
-**All → cmux → Orca → Herdr**. Dial 4 leaves the LCD order unchanged when
-four or fewer providers are enabled.
+Dial 2 cycles the agent type through **All → Claude → Codex → OMP → Pi**.
+Holding it cycles the source through **All → cmux → Orca → Herdr**, one step
+per hold. With four or fewer providers, turning dial 4 does nothing.
 
-Agent type and source filters work together: select Claude, then hold dial 2
-until Herdr is selected to show only Claude agents in Herdr. Release after each
-hold to advance one source. Keys show **CMX**, **ORC**, or **HDR** while a source
-is selected. Decisions adds **C DEC**, **O DEC**, or **H DEC**. Empty results
-name the selected source. An unavailable source shows its own offline state
-when no cached items match. Otherwise its last good tiles remain visible.
-A short press or a touch on dial 2 clears both filters.
+The two filters combine. For example, select Claude, then hold dial 2 until
+Herdr is selected to see only Claude agents running in Herdr. While a source is
+selected, the keys show **CMX**, **ORC**, or **HDR**, and the Decisions view
+shows **C DEC**, **O DEC**, or **H DEC**. If nothing matches, the empty keys
+name the selected source. If that source is offline and Muxboard has nothing
+cached for it, the keys say so. A short press or a touch on dial 2 clears both
+filters.
 
-Each source keeps its last good data during an outage, and other sources keep
-working when cmux, Orca, Herdr, or CodexBar is unreachable.
+When cmux, Orca, Herdr, or CodexBar stops responding, Muxboard keeps showing the
+last data it received, and the other sources keep working.
 
 <details>
 <summary>Offline dashboard preview</summary>
@@ -141,19 +144,19 @@ working when cmux, Orca, Herdr, or CodexBar is unreachable.
 
 ## Requirements
 
-- **Device:** Stream Deck+ and the Elgato Stream Deck desktop app, which launches
-  the plugin process. Node.js ≥ 20 is needed for the installer. Use ≥ 22 for
-  development and tests.
-- **Attention:** at least one running source. Keep the relevant CLI on `PATH`:
-  `cmux`, `orca`, or `herdr`. Orca needs a reachable runtime (`orca status`).
-  Herdr needs a running local session or enabled saved SSH machine.
-- **cmux only:** enable Settings → Automation → Socket Control Mode →
-  **Automation**, then fully quit and relaunch cmux. Verify with
-  `cmux capabilities | grep access_mode`. For live state, install agent hooks
-  as described in [cmux support](#cmux-support).
-- **Herdr focus:** keep an existing client attached to the target session or
-  saved machine. macOS must allow the window inspection and foregrounding
-  requested through System Events. See [focus permissions](docs/herdr.md#macos-focus-permissions).
+- **Device:** a Stream Deck+ and the Elgato Stream Deck desktop app, which
+  starts the plugin. The installer needs Node.js ≥ 20. Development and tests
+  need Node.js ≥ 22.
+- **Agent sources:** at least one of cmux, Orca, or Herdr running, with its CLI
+  (`cmux`, `orca`, or `herdr`) on `PATH`. Orca must answer `orca status`. Herdr
+  needs a running local session or an enabled saved SSH machine.
+- **cmux:** set Settings → Automation → Socket Control Mode to **Automation**,
+  then fully quit and relaunch cmux. `cmux capabilities | grep access_mode`
+  should then show `automation`. For live agent state, install the agent hooks
+  described in [cmux support](#cmux-support).
+- **Herdr focus:** keep a Herdr client attached to the session or saved machine
+  you want to reach. macOS must allow Muxboard to inspect and raise windows
+  through System Events. See [focus permissions](docs/herdr.md#macos-focus-permissions).
 - **LCD:** install CodexBar and keep its HTTP server running on port 17777.
   The keys work without it. See [CodexBar support](#codexbar-support).
 
@@ -161,95 +164,97 @@ working when cmux, Orca, Herdr, or CodexBar is unreachable.
 
 ### cmux support
 
-Muxboard combines `cmux list-notifications --json` with workspace status,
-agent hooks, and process activity. It shows one key per workspace, keeps read
-notifications at reduced urgency, and honors explicit notification clears.
-Actively working agents can appear even without a notification.
+Muxboard combines `cmux list-notifications --json` with workspace status, agent
+hooks, and process activity. Each workspace gets one key. A notification you
+have already seen stays on the board at lower urgency, and clearing
+notifications in cmux removes the key. Agents that are working can appear even
+without a notification.
 
-Enable cmux automation mode as described in [Requirements](#requirements).
-For accurate live state, use cmux's Claude wrapper or `cmux hooks setup` for
+Turn on cmux automation mode as described in [Requirements](#requirements).
+For accurate live state, use cmux's Claude wrapper, or `cmux hooks setup` for
 other agents. OMP needs `cmux hooks omp install` (cmux ≥ 0.64.17). If Claude
-states stay stale while Codex works, check the
+keys stay stale while Codex keys update, see the
 [hook troubleshooting guide](docs/cmux.md#troubleshooting-agent-hooks).
 
-See the [cmux integration guide](docs/cmux.md) for notification fields, agent
-identification, state and age signals, and automation details.
+The [cmux integration guide](docs/cmux.md) covers notification fields, how
+agents are identified, where state and age come from, and automation details.
 
 ### Orca support
 
 Muxboard polls `orca worktree ps --json` and shows one key per worktree.
-`waiting`/`blocked` agents show as needs-input, and `working` sinks to the end.
-`done` shows a finished result (or failed when interrupted), only while the
-worktree is **unread** so an already-seen result does not linger.
-The Orca mark on each key distinguishes it from the cmux and Herdr sources.
+`waiting` and `blocked` agents show as needing input, and `working` agents go to
+the end. A `done` agent shows a finished result (or a failure if it was
+interrupted) only while the worktree is **unread**, so results you have seen do
+not linger. The Orca mark on each key tells it apart from cmux and Herdr keys.
 
-Orca is **auto-detected** when its runtime is reachable (`orca status`).
-Advanced settings `enableOrca`, `orcaBin`, and `orcaPollMs` control detection,
-the binary path, and cadence. See [Configuration](#configuration).
+Muxboard starts polling Orca when `orca status` answers. The `enableOrca`,
+`orcaBin`, and `orcaPollMs` settings control this, the binary path, and how often
+it polls. See [Configuration](#configuration).
 
-Pressing an Orca key brings Orca forward and jumps to the worktree's most
-recent terminal (`orca terminal focus`). Long-pressing an attention
-key snoozes it locally for five minutes without changing Orca's unread state.
-For the state-field distinction, see [Orca agent state](docs/development.md#orca-agent-state).
+Pressing an Orca key brings Orca to the front and jumps to the worktree's most
+recent terminal (`orca terminal focus`). Holding the key snoozes it for five
+minutes without changing Orca's unread state. For how Orca's state fields are
+read, see [Orca agent state](docs/development.md#orca-agent-state).
 
 ### Herdr support
 
-Muxboard auto-detects **all running local sessions**, including named sessions,
-and **enabled saved SSH machines**. Each terminal needing attention or actively
-working gets its own key, even when several agents share a workspace. An **H**
-badge and machine/session label identify it.
+Muxboard finds all running local sessions, including named ones, and all
+enabled saved SSH machines. Each terminal that needs you or is working gets
+its own key, even when several agents share a workspace. An **H** badge and a
+machine/session label mark these keys.
 
-`working` sinks to the end, `blocked` shows **NEEDS YOU**, and `done` surfaces an
-unseen result. Already-seen `idle` agents are omitted. While a terminal remains
-completed, viewing a sibling does not clear its unread result observed by
-Muxboard. Focusing its own key acknowledges it. On startup, native `idle` is
-accepted as seen, including on servers retaining `completion_seq`.
+`working` agents go to the end, `blocked` agents show **NEEDS YOU**, and `done`
+agents show a result you have not seen yet. Idle agents you have already seen
+are left out. A finished result stays on its key until you open that key, and
+looking at another agent in the same workspace does not clear it. Agents that
+are already idle when Muxboard starts count as seen, even on servers that keep
+`completion_seq`.
 
-Pressing a key reveals the **existing host**—a direct terminal, Zellij, tmux,
-or cmux—and focuses the selected agent. It discovers the owning application
-rather than assuming a particular terminal. A remote client must already be
-attached to the matching saved machine. An ambiguous or missing host produces
-an alert and leaves the item pending.
+Pressing a key switches to the window Herdr already runs in (a terminal,
+Zellij, tmux, or cmux) and focuses the agent. Muxboard finds the app that owns
+the session instead of assuming a particular terminal. For a remote machine, a
+client must already be attached to the matching saved machine. If Muxboard
+cannot find exactly one matching window, the key shows an alert and the item
+stays on the board.
 
-Remote snapshots refresh independently every 15 seconds by default, retaining
-cached tiles during failures. Muxboard does not start stopped sessions or prompt
-for SSH authentication. Herdr 0.9.0 servers are supported without restarting
-existing sessions. The CLI/server integration suite is exercised with 0.9.3.
+Remote machines refresh every 15 seconds by default, and keep their last keys
+if a refresh fails. Muxboard does not start stopped sessions or ask for SSH
+passwords. It works with Herdr 0.9.0 servers without restarting existing
+sessions, and the integration tests run against Herdr 0.9.3.
 
-See the [Herdr integration guide](docs/herdr.md) for session/machine allow-lists,
-completion history, age tracking, host discovery, and compatibility details.
+The [Herdr integration guide](docs/herdr.md) covers session and machine
+allow-lists, completion history, age tracking, host discovery, and
+compatibility.
 
 ### CodexBar support
 
-The LCD discovers enabled providers from `codexbar serve`. It is not limited to
-Codex and Claude. Four providers fit at once, and dial 4 scrolls any extras.
-It shows session/weekly quotas, resets, pace, today's spend and tokens where
-available, and credit/grant usage. CommandCode can show rolling quotas plus a
-monthly grant. Credit-only accounts and Perplexity use a credit gauge.
+The LCD reads the list of enabled providers from `codexbar serve`, so it is not
+limited to Codex and Claude. [How it works](#how-it-works) describes what each
+segment shows.
 
-Keep the server running on port **17777** with the launchd installer, which
-starts it at login and restarts it after crashes:
+Keep the server running on port **17777** with the launchd installer. It starts
+the server at login and restarts it if it crashes:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mrshu/muxboard/main/scripts/install-codexbar-agent.sh | bash
 ```
 
 The packaged installer offers this step when CodexBar is installed. From a
-checkout, use `bash scripts/install-codexbar-agent.sh`. Set `CODEXBAR_PORT` to
-change the port and match `codexbarBaseUrl`. Remove the agent with the same
-script's `--uninstall` option.
+checkout, run `bash scripts/install-codexbar-agent.sh`. To use another port, set
+`CODEXBAR_PORT` and change `codexbarBaseUrl` to match. To remove the agent, run
+the same script with `--uninstall`.
 
-See the [CodexBar integration guide](docs/codexbar.md) for provider payloads,
-credit pools, cookie/session failures, and rate-limit troubleshooting.
+The [CodexBar integration guide](docs/codexbar.md) covers provider payloads,
+credit pools, expired logins, and rate limits.
 
 ## Configuration
 
-These advanced settings have defaults in [src/config.ts](src/config.ts).
-There is currently **no settings editor** in the Stream Deck property inspector.
-Standard installs use the defaults. Source builds can
-[change defaults and rebuild](docs/development.md#configuration-overrides).
-Stored Stream Deck global settings take precedence and are read at plugin startup.
-Poll intervals and timeouts below are in milliseconds.
+The settings below have their defaults in [src/config.ts](src/config.ts). The
+Stream Deck property inspector has no settings editor yet, so standard installs
+use the defaults. In a source build, you can
+[change the defaults and rebuild](docs/development.md#configuration-overrides).
+Global settings stored by Stream Deck override the defaults and are read when
+the plugin starts. Poll intervals and timeouts are in milliseconds.
 
 | Field | Default | Notes |
 | --- | --- | --- |
@@ -271,53 +276,55 @@ Poll intervals and timeouts below are in milliseconds.
 
 ## Troubleshooting
 
-- **An agent is missing:** short-press dial 2 to clear source and agent filters,
-  switch to Queue with dial 3, and check **+N more** for overflow. cmux needs a
-  notification or live working signal. Orca uses primary-agent state and unread
-  completion. Herdr shows working, blocked, or unread completion. Already-seen
-  idle Herdr agents are intentionally omitted.
-- Herdr keys are missing. Check `herdr session list --json` for running local
-  sessions, `enableHerdr`, and the `herdrSessions` allow-list. Stopped sessions
-  are outside the attention feed. For saved machines, check that the profile is
-  enabled and included in `herdrMachines`. Authentication must be completed
-  separately in a terminal with `herdr machine reconnect <profile-id>`.
-- A Herdr key shows an alert without revealing the agent. Keep an existing
-  Herdr client attached in a direct terminal, Zellij, tmux, or cmux.
-  Muxboard refuses an ambiguous host match instead of choosing another window.
-  For remote work, select the matching saved machine in that client. Muxboard
-  focuses the containing tab before the agent pane for compatibility with
-  Herdr 0.9.0 servers. Restarting a running session is not required. If logs
-  report a macOS permission error, check
+- An agent is missing. Short-press dial 2 to clear the source and agent
+  filters, switch to the Queue view with dial 3, and check the **+N more** key.
+  A cmux agent needs a notification or a live working signal. An Orca agent
+  shows up from its primary agent's state or an unread result. A Herdr agent
+  shows up while it is working, blocked, or has an unread result. Muxboard
+  hides idle Herdr agents you have already seen.
+- Herdr keys are missing. Run `herdr session list --json` to see the running
+  local sessions, and check `enableHerdr` and the `herdrSessions` allow-list.
+  Stopped sessions do not show up. For a saved machine, check that its profile
+  is enabled and listed in `herdrMachines`. Log in to it in a terminal with
+  `herdr machine reconnect <profile-id>`.
+- A Herdr key shows an alert and does not switch to the agent. Keep a Herdr
+  client attached in a terminal, Zellij, tmux, or cmux. If more than one window
+  matches, Muxboard does nothing. For a remote machine, select the matching
+  saved machine in that client. You do not need to restart a running session.
+  For Herdr 0.9.0 servers, Muxboard focuses the tab first and then the agent
+  pane. If the logs show a macOS permission error, see
   [focus permissions](docs/herdr.md#macos-focus-permissions).
-- Plugin won't start or crash-loops on first install. The Stream Deck app runs
-  Node plugins with its own managed Node.js runtime, downloaded on demand. If
-  it's missing (`NodeJS/manifest.json not found` in
-  `~/Library/Logs/ElgatoStreamDeck/StreamDeck.log`), fully quit and relaunch the
-  Stream Deck app so it fetches the runtime, then restart the plugin.
-- LCD shows "CodexBar off", or every segment reads "stale". `codexbar serve`
-  isn't answering: it's not running, has crashed, or `codexbarBaseUrl` doesn't
-  match its port. "stale" means the strip has not received a non-offline poll
-  update for more than 2× the poll interval. Check with
-  `curl -s http://127.0.0.1:17777/health`. If it's dead, install the keep-alive so
-  it can't stay down: see [CodexBar support](#codexbar-support)
-  (status: `launchctl list | grep codexbar-serve`, logs: `/tmp/codexbar-serve.log`).
-- Keys are blank or show "cmux offline". cmux is rejecting the plugin. Confirm
-  `cmux capabilities | grep access_mode` reads `"automation"` (not `cmuxOnly`).
-  If it still says `cmuxOnly`, the setting hasn't taken. Set Socket Control Mode
-  to Automation and fully quit and relaunch cmux (a reload is not enough). The
-  plugin log (`com.mrshu.muxboard.sdPlugin/logs/`) will show `broken pipe` when
-  rejected.
-- No Muxboard keys, or the profile is missing. Connect the device and open
-  Stream Deck once. For a packaged install, rerun the installer and complete
-  the profile step. From a checkout, run `npm run install-profile` with the app
-  closed. Reopen Stream Deck and select Muxboard from the profile dropdown.
-- A key is stuck on a stale state (wrong "waiting", or an age that won't move
-  even though the agent is active). cmux's agent hook feed has gone quiet for
-  that session, so Muxboard has no live signal and falls back to the last
-  notification. Confirm it: `cmux events --limit 5` shows recent UI rows but no
-  `agent.hook.*` while an agent works. See
-  [hook troubleshooting](docs/cmux.md#troubleshooting-agent-hooks). The usual
-  cause is a PATH issue where cmux's `claude` wrapper is shadowed.
+- The plugin does not start, or crashes after the first install. The Stream
+  Deck app runs plugins on its own copy of Node.js, which it downloads when needed.
+  If `~/Library/Logs/ElgatoStreamDeck/StreamDeck.log` says
+  `NodeJS/manifest.json not found`, fully quit and reopen the Stream Deck app so
+  it downloads Node.js, then restart the plugin.
+- The LCD shows "CodexBar off", or every segment says "stale". `codexbar serve`
+  is not answering. It may not be running, it may have crashed, or
+  `codexbarBaseUrl` may point at the wrong port. "stale" means the LCD has had
+  no good update for more than twice the poll interval. Check the server with
+  `curl -s http://127.0.0.1:17777/health`. To keep it running, install the
+  launchd agent from [CodexBar support](#codexbar-support). Its status is in
+  `launchctl list | grep codexbar-serve` and its log in `/tmp/codexbar-serve.log`.
+- The keys are blank or show "cmux offline". cmux is refusing the plugin's
+  connection.
+  `cmux capabilities | grep access_mode` should show `"automation"`. If it shows
+  `cmuxOnly`, the setting has not taken effect. Set Socket Control Mode to
+  Automation, then fully quit and relaunch cmux (reloading is not enough). The
+  plugin log in `com.mrshu.muxboard.sdPlugin/logs/` shows `broken pipe` when
+  cmux rejects it.
+- There are no Muxboard keys, or the profile is missing. Connect the device and
+  open Stream Deck once. For a packaged install, run the installer again and
+  finish the profile step. From a checkout, close the app and run
+  `npm run install-profile`. Then reopen Stream Deck and pick Muxboard in the
+  profile dropdown.
+- A key is stuck on an old state, such as "waiting" or an age that stops moving
+  while the agent works. cmux has stopped sending agent hook events for that
+  session, so Muxboard falls back to the last notification. To check,
+  run `cmux events --limit 5` while the agent works. You will see recent UI
+  events but no `agent.hook.*` events. The usual cause is a `PATH` problem that
+  hides cmux's `claude` wrapper. See
+  [hook troubleshooting](docs/cmux.md#troubleshooting-agent-hooks).
 
 ## Build from source
 
@@ -338,12 +345,12 @@ Fully quit Stream Deck, then install the profile:
 npm run install-profile
 ```
 
-Reopen Stream Deck and select **Muxboard**. Start your attention sources and,
-for the LCD, install the [CodexBar keep-alive agent](#codexbar-support).
+Reopen Stream Deck and select **Muxboard**. Start your agent sources and, for
+the LCD, install the [CodexBar launchd agent](#codexbar-support).
 
 ### Headless preview and checks
 
-These commands run without the hardware or desktop app:
+These commands run without the device or the Stream Deck app:
 
 ```bash
 npm test
@@ -352,24 +359,26 @@ npm run validate
 npm run preview
 ```
 
-`npm run preview` rasterizes the same key and LCD SVGs used on the device to
-`out/dashboard.png` and `out/dashboard-offline.png` using controlled fixtures.
+`npm run preview` renders the same key and LCD images the device shows, using
+fixed test data, and writes them to `out/dashboard.png` and
+`out/dashboard-offline.png`.
 
-See the [development guide](docs/development.md) for the watcher, architecture,
-device profile format, and Herdr/Stream Deck integration test suites.
+The [development guide](docs/development.md) covers the watcher, the
+architecture, the device profile format, and the Herdr and Stream Deck
+integration tests.
 
-## Privacy & non-goals
+## Privacy and scope
 
-- CodexBar connects to `127.0.0.1`, and enabled Herdr machine profiles use
-  their saved SSH routes. SSH authentication never prompts from the plugin.
-- No terminal buffer scraping. Attention comes from structured source snapshots.
-  Host discovery reads selected process routing metadata and window titles.
-- No destructive actions. Muxboard never dismisses cmux notifications, runs
-  commands inside agents, or sends approve/deny input. It reads and focuses.
-- No cloud and no database beyond plugin settings and an in-memory cache.
-
-MVP intentionally excludes: command execution, approve/deny buttons, non-Stream
-Deck+ devices.
+- Muxboard talks to CodexBar on `127.0.0.1`. Enabled Herdr machine profiles use
+  their saved SSH routes, and the plugin never asks for SSH passwords.
+- Muxboard does not read terminal contents. Agent state comes from structured
+  data the sources provide. To find windows, it reads some process metadata
+  and window titles.
+- Muxboard only reads and focuses. It never dismisses cmux notifications, runs
+  commands in agents, or answers approve/deny prompts.
+- Nothing goes to the cloud, and nothing is stored beyond the plugin settings
+  and an in-memory cache.
+- Only the Stream Deck+ is supported.
 
 ## License
 
