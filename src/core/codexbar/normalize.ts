@@ -229,12 +229,12 @@ function normalizeScoped(raw: unknown): ProviderUsage["scoped"] {
 }
 
 /**
- * The 5h quota as a count ("0 / 100 prompts"), from the first CodexBar detail
+ * The 5h quota as a count (49 of 100 prompts), from the first CodexBar detail
  * row labeled "… 5 hours" whose value is "<used> / <limit>". Only MiniMax
  * reports one today. The unit comes from CodexBar's label for the primary
  * window, when it has one.
  */
-function sessionCount(details: unknown, unitLabel: unknown): string | undefined {
+function sessionCount(details: unknown, unitLabel: unknown): ProviderUsage["sessionCount"] {
   if (!Array.isArray(details)) return undefined;
   for (const section of details) {
     const rows = (section as { rows?: unknown } | null)?.rows;
@@ -243,8 +243,7 @@ function sessionCount(details: unknown, unitLabel: unknown): string | undefined 
       const label = str((row as { label?: unknown } | null)?.label);
       const m = str((row as { value?: unknown } | null)?.value)?.match(/^\s*([\d,]+)\s*\/\s*([\d,]+)\s*$/);
       if (!label || !/\b5 hours?$/i.test(label) || !m) continue;
-      const unit = str(unitLabel)?.toLowerCase();
-      return `${m[1]} / ${m[2]}${unit ? ` ${unit}` : ""}`;
+      return { used: m[1], limit: m[2], unit: str(unitLabel)?.toLowerCase() };
     }
   }
   return undefined;

@@ -28,8 +28,8 @@ absent but the weekly is reported (as Codex and Claude currently do), the empty
 title's initial (`F`).
 
 MiniMax also reports its 5h quota as a prompt count in CodexBar's `details`
-rows (`General · 5 hours`, `0 / 100`). Muxboard shows that count in the
-footer, as `5h 0 / 100 prompts`.
+rows (`General · 5 hours`, `49 / 100`). Muxboard shows that count in the
+footer, after a small `5h` tag, with the used count in bold.
 
 ## Credit pools and monthly grants
 

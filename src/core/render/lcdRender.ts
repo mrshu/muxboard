@@ -199,20 +199,26 @@ function formatCredits(c: CreditBucket): string {
 }
 
 /**
- * Footer line: the credit bucket (plan + spend/allowance) for credit-metered
- * providers, the 5h quota as a count when the provider reports one (MiniMax
- * "5h 0 / 100 prompts"), then today's spend + tokens — accounting metadata,
- * dot-separated. No pacing here (that lives on the gauge rows).
+ * Footer line: the 5h quota as a count when the provider reports one (a "5h"
+ * tag, then the used count in bold: MiniMax "[5h] 49 / 100 prompts"), the
+ * credit bucket (plan + spend/allowance) for credit-metered providers, then
+ * today's spend + tokens — accounting metadata, dot-separated. No pacing here
+ * (that lives on the gauge rows).
  */
 function spendFooter(usage: ProviderUsage, stale: boolean): string {
+  const count = usage.session ? usage.sessionCount : undefined;
   const parts: string[] = [];
+  if (count) parts.push(` / ${count.limit}${count.unit ? ` ${count.unit}` : ""}`);
   if (usage.credits) parts.push(formatCredits(usage.credits));
-  if (usage.sessionCount && usage.session) parts.push(`5h ${usage.sessionCount}`);
   if (usage.costTodayUsd !== undefined) parts.push(formatUsd(usage.costTodayUsd));
   if (usage.tokensToday !== undefined) parts.push(`${formatTokens(usage.tokensToday)} tok`);
   if (stale) parts.push("stale");
   if (parts.length === 0) return "";
-  return `<text x="12" y="92" font-size="12" fill="#8a909a">${escapeXml(parts.join(" · "))}</text>`;
+  const text = escapeXml(parts.join(" · "));
+  if (!count) return `<text x="12" y="92" font-size="12" fill="#8a909a">${text}</text>`;
+  return `<rect x="12" y="81" width="22" height="14" rx="7" fill="#2a2e36"/>
+     <text x="23" y="92" font-size="10" font-weight="800" text-anchor="middle" fill="#cfd4dc">5h</text>
+     <text x="40" y="92" font-size="12" fill="#8a909a"><tspan font-weight="800" fill="#e6e8ec">${escapeXml(count.used)}</tspan>${text}</text>`;
 }
 
 /**

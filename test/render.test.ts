@@ -304,7 +304,8 @@ test("commandcode segment: CMDCODE name, single MO gauge, credit footer, no empt
 test("minimax segment shows its 5h quota count in the footer", () => {
   const raw = loadFixture("codexbar-usage-minimax.json") as Array<{ usage: { primary: unknown } }>;
   const [seg] = renderLcdSegments([normalizeUsageResponse(raw, "minimax")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
-  assert.match(seg, /<text x="12" y="92"[^>]*>5h 2 \/ 100 prompts</);
+  assert.match(seg, />5h<\/text>/); // the 5h tag
+  assert.match(seg, /<tspan font-weight="800"[^>]*>2<\/tspan> \/ 100 prompts</); // bold used count
   // Without a live 5h window the count would describe nothing on screen.
   raw[0].usage.primary = null;
   const [noSession] = renderLcdSegments([normalizeUsageResponse(raw, "minimax")], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
