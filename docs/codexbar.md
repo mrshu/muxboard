@@ -14,6 +14,13 @@ payload shapes CodexBar emits:
 - Codex exposes `primary`/`secondary` windows at the top level.
 - Claude and others nest them under `usage`.
 
+The launchd installer and development script start the server with
+`--request-timeout 60`. Muxboard waits up to 75 seconds for each HTTP request.
+Claude's browser request can fail with HTTP 403 and fall back to the CLI.
+This fallback can take over 30 seconds, exceeding CodexBar's default
+24-second provider deadline. Re-run `bash scripts/install-codexbar-agent.sh`
+to update an existing launchd agent.
+
 The provider list is discovered from CodexBar, rather than limited to the
 examples in the dashboard image. Enabled Codex, Claude, MiniMax, Kimi, Gemini,
 CommandCode, Perplexity, and other providers exposed by the server share the

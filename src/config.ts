@@ -24,7 +24,7 @@ export interface MuxboardConfig {
   cmuxPollMs: number;
   /** CodexBar poll interval (ms). */
   codexbarPollMs: number;
-  /** Per-request timeout (ms) for `codexbar serve`. It can be slow; default 30000. */
+  /** Per-request timeout (ms), allowing the server's 60s deadline to finish. */
   codexbarTimeoutMs: number;
   /**
    * Map a notification name substring → agent, for custom-named agents cmux
@@ -66,7 +66,7 @@ export const DEFAULT_CONFIG: MuxboardConfig = {
   codexbarProviders: [],
   cmuxPollMs: 1500,
   codexbarPollMs: 45000,
-  codexbarTimeoutMs: 30000,
+  codexbarTimeoutMs: 75000,
   // Agents are detected from the running process; this is only a manual override
   // fallback (name substring → agent) for cases that can't be detected.
   agentAliases: {},

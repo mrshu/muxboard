@@ -12,12 +12,11 @@ import {
 export type FetchJson = (url: string) => Promise<unknown>;
 
 /**
- * CodexBar's endpoints can be very slow on some builds (the aggregate `/usage`
- * and even individual providers have been observed at 10-20s+), so the timeout
- * must be generous or discovery/usage silently aborts and the LCD collapses to
- * whatever last responded in time. Overridable via CodexbarClientOptions.
+ * Claude's web-to-CLI fallback can take over 30 seconds. Allow the server's
+ * configured 60-second request deadline to finish before aborting locally.
+ * Overridable via CodexbarClientOptions.
  */
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 75000;
 
 const makeFetchJson =
   (timeoutMs: number): FetchJson =>
@@ -38,7 +37,7 @@ export interface CodexbarClientOptions {
   baseUrl?: string;
   /** Injected JSON fetcher for tests. */
   fetchJson?: FetchJson;
-  /** Per-request timeout in ms. CodexBar can be slow; defaults to 30000. */
+  /** Per-request timeout in ms. Defaults to 75000. */
   timeoutMs?: number;
   /** Epoch-ms clock, injectable for tests. Defaults to Date.now. */
   now?: () => number;

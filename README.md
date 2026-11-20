@@ -264,7 +264,7 @@ the plugin starts. Poll intervals and timeouts are in milliseconds.
 | `codexbarProviders` | `[]` | Optional allow-list/order. Empty = auto-discover all |
 | `cmuxPollMs` | `1500` | cmux poll interval |
 | `codexbarPollMs` | `45000` | CodexBar poll interval |
-| `codexbarTimeoutMs` | `30000` | Per-request HTTP timeout |
+| `codexbarTimeoutMs` | `75000` | Per-request HTTP timeout (server deadline: 60 seconds) |
 | `agentAliases` | `{}` | Manual override (name substring → agent). Process detection is primary |
 | `busyCpuPercent` | `40` | Workspace CPU% (from `cmux top`) at/above which a running command counts as "working" |
 | `enableOrca` / `enableHerdr` | `"auto"` | Start each optional source when reachable. `true` forces polling, `false` disables it |

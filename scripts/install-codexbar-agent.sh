@@ -10,6 +10,7 @@
 # This installs a launchd user agent with KeepAlive, so the server starts at
 # login and is respawned within a couple of seconds every time it exits. The
 # LCD then never sits past its staleness threshold on a server crash.
+# Allow 60 seconds per request so Claude's CLI fallback can finish.
 #
 #   bash scripts/install-codexbar-agent.sh              # install + load
 #   CODEXBAR_PORT=8099 bash scripts/install-codexbar-agent.sh
@@ -62,6 +63,8 @@ cat > "$PLIST" <<EOF
     <string>serve</string>
     <string>--port</string>
     <string>$PORT</string>
+    <string>--request-timeout</string>
+    <string>60</string>
   </array>
   <key>KeepAlive</key><true/>
   <key>RunAtLoad</key><true/>
@@ -80,5 +83,5 @@ if ! launchctl load -w "$PLIST"; then
   die "launchctl load failed for $PLIST. On an SSH/non-GUI session, log in locally and re-run (or: launchctl bootstrap gui/\$(id -u) \"$PLIST\")."
 fi
 
-say "Installed $LABEL: $BIN serve --port $PORT (auto-restarts, logs to $LOG)."
+say "Installed $LABEL: $BIN serve --port $PORT --request-timeout 60 (auto-restarts, logs to $LOG)."
 say "Verify with: curl -s http://127.0.0.1:$PORT/health"

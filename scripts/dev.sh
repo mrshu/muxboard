@@ -25,10 +25,11 @@ echo "▸ Generating icons (if missing) and building…"
 npm run build
 
 # CodexBar (TCP) powers the LCD; background it if not already up.
+# Allow 60 seconds per request so Claude's CLI fallback can finish.
 if ! curl -sf -m 2 "http://127.0.0.1:${CODEXBAR_PORT}/health" >/dev/null 2>&1; then
   if command -v codexbar >/dev/null 2>&1; then
-    echo "▸ Starting 'codexbar serve --port ${CODEXBAR_PORT}' in the background…"
-    (codexbar serve --port "${CODEXBAR_PORT}" >/tmp/muxboard-codexbar.log 2>&1 &)
+    echo "▸ Starting 'codexbar serve --port ${CODEXBAR_PORT} --request-timeout 60' in the background…"
+    (codexbar serve --port "${CODEXBAR_PORT}" --request-timeout 60 >/tmp/muxboard-codexbar.log 2>&1 &)
   else
     echo "⚠ codexbar not found on PATH — the LCD will show an offline state."
   fi
