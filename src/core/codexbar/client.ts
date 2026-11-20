@@ -95,7 +95,9 @@ export class CodexbarClient {
       );
       return {
         ...usage,
-        costTodayUsd: extractCostToday(cost, today),
+        // Antigravity reports a local list-price estimate, not billed spend.
+        costTodayUsd: usage.provider.toLowerCase() === "antigravity"
+          ? undefined : extractCostToday(cost, today),
         tokensToday: extractTokensToday(cost, today),
       };
     } catch {

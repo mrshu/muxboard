@@ -434,3 +434,46 @@ test("credit footers mirror CodexBar's own USD formatting", () => {
   const [seg2] = renderLcdSegments([small], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
   assert.match(seg2, /Go · \$0\.00 \/ \$10\.00/);
 });
+
+test("Antigravity shows model families and leaves unknown usage blank", () => {
+  const usage = normalizeUsageResponse([{
+    provider: "antigravity",
+    usage: {
+      primary: { usedPercent: 20, windowMinutes: 300 },
+      secondary: { usedPercent: 0, usageKnown: false, windowMinutes: 300 },
+      extraRateWindows: [{ title: "Gemini weekly", window: { usedPercent: 10 } }],
+    },
+  }]);
+  const [svg] = renderLcdSegments([usage], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  assert.equal(usage.session?.remainingPercent, 80);
+  assert.equal(usage.weekly, undefined);
+  assert.match(svg, />ANTIGRAV</);
+  assert.match(svg, /#60BA7E/i);
+  assert.match(svg, /M85\.2843 88\.0301C90\.1329/);
+  assert.match(svg, />G<\/text>/);
+  assert.match(svg, />80%<\/text>/);
+  assert.doesNotMatch(svg, />C  —<\/text>/);
+  assert.doesNotMatch(svg, />W<\/text>/);
+});
+
+test("Antigravity shows only Gemini 5-hour and weekly windows", () => {
+  const usage = normalizeUsageResponse([{
+    provider: "antigravity",
+    usage: {
+      primary: { usedPercent: 11 },
+      secondary: { usedPercent: 22 },
+      extraRateWindows: [
+        { id: "antigravity-quota-summary-gemini-5h", title: "Gemini 5-hour", window: { usedPercent: 11 } },
+        { id: "antigravity-quota-summary-gemini-weekly", title: "Gemini weekly", window: { usedPercent: 33 } },
+        { id: "antigravity-quota-summary-3p-5h", title: "Claude/GPT 5-hour", window: { usedPercent: 22 } },
+        { id: "antigravity-quota-summary-3p-weekly", title: "Claude/GPT weekly", window: { usedPercent: 44 } },
+      ],
+    },
+  }]);
+  const [svg] = renderLcdSegments([usage], { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
+  for (const [label, remaining, y] of [["S", 89, 50], ["W", 67, 72]] as const) {
+    assert.match(svg, new RegExp(`y="${y}"[^>]*>${label}</text>`));
+    assert.match(svg, new RegExp(`y="${y}"[^>]*>${remaining}%</text>`));
+  }
+  assert.doesNotMatch(svg, />78%<\/text>|>56%<\/text>/);
+});

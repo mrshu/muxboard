@@ -23,8 +23,8 @@ to update an existing launchd agent.
 
 The provider list is discovered from CodexBar, rather than limited to the
 examples in the dashboard image. Enabled Codex, Claude, MiniMax, Kimi, Gemini,
-CommandCode, Perplexity, and other providers exposed by the server share the
-same LCD. `codexbarProviders` can restrict or reorder them.
+CommandCode, Perplexity, Antigravity, and other providers exposed by the server
+share the same LCD. `codexbarProviders` can restrict or reorder them.
 
 Each window provides `usedPercent`, `resetsAt`, `windowMinutes`, and a
 `resetDescription`. For ordinary rate-limit providers, `primary` is usually the
@@ -65,6 +65,17 @@ because ordinary rate-limit providers emit count strings too — Alibaba's codin
 plan describes each of its windows `"<used> / <total> used"`, and Kilo emits
 `"<used>/<total> credits"`, which is indistinguishable from Perplexity's. Shape
 dispatch would silently replace those providers' session/weekly gauges.
+
+## Antigravity
+
+Antigravity shows the Gemini 5-hour (`S`) and weekly (`W`) quota windows,
+with a reset countdown for each. If CodexBar does not provide named quota
+windows, Muxboard shows its representative Gemini window as `G`. Claude/GPT
+and other model-specific windows remain available in CodexBar. Enable
+Antigravity in CodexBar and sign in through the Antigravity app.
+
+CodexBar estimates Antigravity costs using public API list prices. Muxboard
+omits this estimate because it does not represent Antigravity charges.
 
 ## CommandCode authentication
 

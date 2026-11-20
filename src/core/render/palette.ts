@@ -34,6 +34,7 @@ export function agentTheme(agent: AgentKind): AgentTheme {
  * (ProviderDescriptor color definitions) so the LCD matches the menubar app.
  */
 const PROVIDER_COLORS: Record<string, string> = {
+  antigravity: "#60BA7E",
   codex: "#49A3B0",
   commandcode: "#A04DFD",
   perplexity: "#20B8CD",

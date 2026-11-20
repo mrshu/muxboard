@@ -531,3 +531,16 @@ test("commandcode: v0.47.0 payloads still gauge the grant from `primary`", () =>
   assert.equal(u.weekly, undefined);
   assert.equal(u.credits?.spent, 0.09);
 });
+
+
+test("Antigravity list-price estimates are not presented as spend", async () => {
+  const client = new CodexbarClient({
+    fetchJson: async (url) => url.includes("/usage")
+      ? [{ provider: "antigravity", usage: { primary: { usedPercent: 20 } } }]
+      : [{ totals: { provenance: "listPriceEstimate" }, daily: [{ date: "2026-06-20", totalCost: 12, totalTokens: 500 }] }],
+    now: () => new Date(2026, 5, 20, 12).getTime(),
+  });
+  const usage = await client.getUsage("antigravity");
+  assert.equal(usage.costTodayUsd, undefined);
+  assert.equal(usage.tokensToday, 500);
+});

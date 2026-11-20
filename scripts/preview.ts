@@ -116,7 +116,7 @@ function main(): void {
   const usages = [codex, claude, commandcode, perplexity];
   const segs = renderLcdSegments(usages, { nowMs: NOW_MS, stale: false, numberMode: "remaining" });
   segs.forEach((svg, i) => writeFileSync(join(outDir, `lcd-${i + 1}.png`), svgToPng(svg, SEG_W)));
-  // Pace-mode variant (the rightmost-dial toggle), for visual review.
+  // Pace-mode variant (the dial 3 toggle), for visual review.
   renderLcdSegments(usages, { nowMs: NOW_MS, stale: false, numberMode: "pace" }).forEach((svg, i) =>
     writeFileSync(join(outDir, `lcd-${i + 1}-pace.png`), svgToPng(svg, SEG_W)),
   );

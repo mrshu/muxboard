@@ -152,6 +152,17 @@ function quotaRow(
  * are present it keeps the ordinary S/W pair with the grant in the footer.
  */
 function quotaRowsFor(usage: ProviderUsage): Array<{ label: string; win: UsageWindow | undefined }> {
+  if (usage.provider.toLowerCase() === "antigravity") {
+    const scoped = usage.scoped ?? [];
+    const window = (id: string) => scoped.find((row) => row.id === `antigravity-quota-summary-${id}`)?.window;
+    if (scoped.some((row) => row.id?.startsWith("antigravity-quota-summary-"))) {
+      return [
+        { label: "S", win: window("gemini-5h") },
+        { label: "W", win: window("gemini-weekly") },
+      ];
+    }
+    return [{ label: "G", win: usage.session }];
+  }
   if (usage.credits && usage.weekly === undefined) {
     // "MO" for a monthly dollar bucket (CommandCode); "CR" for a credit count (Perplexity).
     return [{ label: usage.credits.unit === "usd" ? "MO" : "CR", win: usage.session }];
@@ -245,10 +256,11 @@ export function renderProviderSegment(usage: ProviderUsage | undefined, ctx: Lcd
     );
   }
 
+  const rows = quotaRowsFor(usage);
   return segFrame(
     `${icon}<text x="${nameX}" y="25" font-size="18" font-weight="800" fill="${nameColor}" letter-spacing="1">${escapeXml(name)}</text>
      <text x="${SEG_W - 10}" y="23" font-size="10" text-anchor="end" fill="#5a606a">reset →</text>
-     ${quotaRowsFor(usage)
+     ${rows
        .map((r, i) => quotaRow(50 + i * 22, r.label, r.win, ctx.nowMs, ctx.numberMode))
        .join("\n     ")}
      ${spendFooter(usage, ctx.stale)}`,

@@ -3,6 +3,7 @@ import type { CreditBucket, ProviderUsage, UsageWindow } from "../types.js";
 /** Raw CodexBar window object (primary/secondary/tertiary). */
 interface RawWindow {
   usedPercent?: unknown;
+  usageKnown?: unknown;
   resetsAt?: unknown;
   resetDescription?: unknown;
   windowMinutes?: unknown;
@@ -45,7 +46,7 @@ const str = (v: unknown): string | undefined =>
 const clamp = (n: number): number => Math.max(0, Math.min(100, n));
 
 function normalizeWindow(raw: RawWindow | undefined): UsageWindow | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
+  if (!raw || typeof raw !== "object" || raw.usageKnown === false) return undefined;
   const used = num(raw.usedPercent);
   if (used === undefined) return undefined;
   return {
@@ -223,7 +224,8 @@ function normalizeScoped(raw: unknown): ProviderUsage["scoped"] {
   const out = raw.flatMap((row) => {
     const title = str((row as { title?: unknown } | null)?.title);
     const window = normalizeWindow((row as { window?: RawWindow } | null)?.window);
-    return title && window ? [{ title, window }] : [];
+    const id = str((row as { id?: unknown } | null)?.id);
+    return title && window ? [{ id, title, window }] : [];
   });
   return out.length > 0 ? out : undefined;
 }

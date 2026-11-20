@@ -150,7 +150,7 @@ export interface ProviderUsage {
    * Model-scoped limits CodexBar reports beside the main windows (Claude's
    * "Fable only" weekly), in CodexBar's order.
    */
-  scoped?: Array<{ title: string; window: UsageWindow }>;
+  scoped?: Array<{ id?: string; title: string; window: UsageWindow }>;
   /**
    * The 5h quota as a count, for providers that report one (MiniMax: 49 of 100
    * prompts). Numbers are kept as CodexBar formats them.
